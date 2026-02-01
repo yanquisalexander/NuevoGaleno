@@ -1,16 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from 'sonner';
-import { invoke } from "@tauri-apps/api/core";
 import FirstRunWizard from "./components/FirstRunWizard";
 import { AppTitleBar } from "./components/AppTitleBar";
+import CommandPalette from "./components/CommandPalette";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [openCommandPalette, setOpenCommandPalette] = useState(false);
 
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key === 'D') {
+        event.preventDefault();
+        setOpenCommandPalette(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="ng-layout-base h-dvh w-full">
@@ -23,21 +30,8 @@ function App() {
 
         <FirstRunWizard onFinish={() => { }} />
 
-        <form
-          className="row mt-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            greet();
-          }}
-        >
-          <input
-            id="greet-input"
-            onChange={(e) => setName(e.currentTarget.value)}
-            placeholder="Enter a name..."
-          />
-          <button type="submit">Greet</button>
-        </form>
-        <p>{greetMsg}</p>
+        <CommandPalette open={openCommandPalette} onOpenChange={setOpenCommandPalette} />
+
       </main>
     </div>
   );

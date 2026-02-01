@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, ChevronRight, FileCode, Database, HardDrive, ShieldCheck } from "lucide-react";
+import ImportReviewScreen from "./ImportReviewScreen";
 
 // Estilo base para el efecto Glass
 const glassStyle = "bg-white/40 dark:bg-slate-950/40 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)] rounded-2xl";
@@ -23,6 +24,8 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const [progress, setProgress] = useState(0);
     const [dbTables, setDbTables] = useState<Record<string, string[]>>({});
     const [tableData, setTableData] = useState<Record<string, string[][]>>({});
+    const [showImportReview, setShowImportReview] = useState(false);
+    const [extractedDir, setExtractedDir] = useState<string | null>(null);
 
     const next = () => setStep((s) => s + 1);
     const back = () => setStep((s) => Math.max(0, s - 1));
@@ -55,6 +58,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                 if (payload?.job_id !== jobId) return;
                 setExtracting(false);
                 if (payload.extracted_to) {
+                    setExtractedDir(payload.extracted_to); // Guardar directorio para ImportReviewScreen
                     const list: any = await invoke("list_extracted_files", { dir: payload.extracted_to });
                     setExtractedFiles([...(list.db_files || []), ...(list.documents || [])]);
 
@@ -91,7 +95,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                 unlistenFinished();
             });
 
-            const unlistenProgress = await listen("import:progress", (event: any) => {
+            const _unlistenProgress = await listen("import:progress", (event: any) => {
                 if (event.payload?.job_id === jobId) setProgress(event.payload.progress);
             });
         } catch (e) {
@@ -204,12 +208,12 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                             )}
 
                             {/* Resultados con ScrollArea para no romper el Glass Container */}
-                            <ScrollArea className="flex-1 max-h-[400px] rounded-xl">
+                            <div className="flex-1 rounded-xl scroll-auto">
                                 <div className="space-y-4 pr-4">
                                     {extractedFiles.length > 0 && (
                                         <div className="grid grid-cols-1 gap-3">
                                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Entidades Detectadas</h3>
-                                            {Object.entries(dbTables).map(([path, tables]) => (
+                                            {Object.entries(dbTables).map(([path, _tables]) => (
                                                 <div key={path} className="bg-white/20 border border-white/30 rounded-xl p-4 shadow-sm">
                                                     <div className="flex items-center gap-2 mb-3">
                                                         <FileCode className="w-4 h-4 text-blue-500" />
@@ -218,6 +222,21 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                                     {/* Mini Tabla de Muestra */}
                                                     <div className="overflow-x-auto rounded-lg border border-slate-200/50">
                                                         <table className="w-full text-[11px] text-left">
+                                                            <thead className="bg-slate-100">
+                                                                <tr>
+                                                                    {(() => {
+                                                                        const raw: any = tableData[path];
+                                                                        if (raw && raw.fields && Array.isArray(raw.fields)) {
+                                                                            return raw.fields.map((field: any, index: number) => (
+                                                                                <th key={index} className="px-2 py-1.5 text-slate-700 font-medium">
+                                                                                    {field.name}
+                                                                                </th>
+                                                                            ));
+                                                                        }
+                                                                        return null;
+                                                                    })()}
+                                                                </tr>
+                                                            </thead>
                                                             <tbody className="divide-y divide-slate-100">
                                                                 {(() => {
                                                                     const raw: any = tableData[path];
@@ -265,7 +284,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                         </div>
                                     )}
                                 </div>
-                            </ScrollArea>
+                            </div>
 
                             <div className="flex justify-between items-center mt-auto pt-4 border-t border-white/20">
                                 <Button variant="ghost" onClick={back}>Atrás</Button>
@@ -273,8 +292,23 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                     {!extractedFiles.length && (
                                         <Button variant="ghost" className="text-slate-400" onClick={() => { onFinish(); }}>Omitir</Button>
                                     )}
-                                    <Button onClick={onFinish} className="rounded-xl px-10 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20">
-                                        Finalizar Configuración
+                                    {extractedFiles.length > 0 && extractedDir && (
+                                        <Button 
+                                            onClick={() => setShowImportReview(true)} 
+                                            className="rounded-xl px-8 bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                                        >
+                                            Revisar e Importar Datos
+                                        </Button>
+                                    )}
+                                    <Button 
+                                        onClick={onFinish} 
+                                        variant={extractedFiles.length > 0 ? "outline" : "default"}
+                                        className={extractedFiles.length > 0 
+                                            ? "rounded-xl px-6" 
+                                            : "rounded-xl px-10 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20"
+                                        }
+                                    >
+                                        {extractedFiles.length > 0 ? "Omitir Importación" : "Finalizar Configuración"}
                                     </Button>
                                 </div>
                             </div>
@@ -282,6 +316,21 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                     )}
                 </div>
             </div>
+
+            {/* Pantalla de Revisión e Importación */}
+            {showImportReview && extractedDir && (
+                <div className="fixed inset-0 z-50 bg-white dark:bg-slate-950">
+                    <ImportReviewScreen
+                        extractedDir={extractedDir}
+                        onComplete={() => {
+                            setShowImportReview(false);
+                            toast.success("Datos importados correctamente");
+                            setTimeout(() => onFinish(), 1500);
+                        }}
+                        onCancel={() => setShowImportReview(false)}
+                    />
+                </div>
+            )}
         </div>
     );
 }

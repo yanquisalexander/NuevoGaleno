@@ -1,8 +1,9 @@
 // Modular Tauri commands: wizard (db/config) and importer (gln handling)
+mod db;
 mod global;
 mod importer;
-mod pxlib_wrapper;
 mod wizard;
+mod import_pipeline;
 
 // Simple greeting for sanity checks
 #[tauri::command]
@@ -30,7 +31,15 @@ pub fn run() {
             importer::inspect_paradox_db,
             importer::list_tables,
             importer::read_table_data,
-            importer::read_table_data_pxlib,
+            // import pipeline
+            import_pipeline::commands::start_import_session,
+            import_pipeline::commands::validate_import_data,
+            import_pipeline::commands::generate_import_preview,
+            import_pipeline::commands::confirm_and_persist_import,
+            import_pipeline::commands::cancel_import_session,
+            import_pipeline::commands::get_import_session_status,
+            import_pipeline::commands::clear_imported_data,
+            import_pipeline::commands::export_session_debug,
             // wizard
             wizard::init_app_db,
             wizard::set_config,
