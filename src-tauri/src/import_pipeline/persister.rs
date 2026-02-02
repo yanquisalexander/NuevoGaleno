@@ -56,8 +56,7 @@ pub fn persist_all(
     }
 
     // Commit si todo salió bien
-    tx.commit()
-        .map_err(|e| format!("Error en commit: {}", e))?;
+    tx.commit().map_err(|e| format!("Error en commit: {}", e))?;
 
     result.success = true;
     Ok(result)
@@ -170,8 +169,7 @@ fn insert_patient_with_relations(
 }
 
 fn insert_patient(tx: &Transaction, patient: &PatientDto) -> Result<i64, String> {
-    let raw_json = serde_json::to_string(&patient.raw_data)
-        .unwrap_or_else(|_| "{}".to_string());
+    let raw_json = serde_json::to_string(&patient.raw_data).unwrap_or_else(|_| "{}".to_string());
 
     tx.execute(
         r#"
@@ -210,8 +208,7 @@ fn insert_treatment(
     patient_id: i64,
     treatment: &TreatmentDto,
 ) -> Result<i64, String> {
-    let raw_json = serde_json::to_string(&treatment.raw_data)
-        .unwrap_or_else(|_| "{}".to_string());
+    let raw_json = serde_json::to_string(&treatment.raw_data).unwrap_or_else(|_| "{}".to_string());
 
     tx.execute(
         r#"
@@ -249,8 +246,7 @@ fn insert_payment(
     treatment_id: i64,
     payment: &PaymentDto,
 ) -> Result<i64, String> {
-    let raw_json = serde_json::to_string(&payment.raw_data)
-        .unwrap_or_else(|_| "{}".to_string());
+    let raw_json = serde_json::to_string(&payment.raw_data).unwrap_or_else(|_| "{}".to_string());
 
     tx.execute(
         r#"

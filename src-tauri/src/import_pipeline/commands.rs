@@ -2,8 +2,8 @@
 // Expone las operaciones del pipeline al frontend
 
 use crate::import_pipeline::*;
-use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 // Estado global de la sesión de importación
 static IMPORT_STATE: Lazy<Mutex<Option<ImportSessionState>>> = Lazy::new(|| Mutex::new(None));
@@ -20,10 +20,14 @@ struct ImportSessionState {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Paso 1: Inicia una nueva sesión de importación desde un directorio extraído
+/// Con preview_only=true, solo lee los primeros 5 registros para mostrar rápidamente
 #[tauri::command]
-pub fn start_import_session(extracted_dir: String) -> Result<serde_json::Value, String> {
+pub fn start_import_session(
+    extracted_dir: String,
+    preview_only: Option<bool>,
+) -> Result<serde_json::Value, String> {
     use std::time::{SystemTime, UNIX_EPOCH};
-    
+
     let session_id = format!(
         "import_{}",
         SystemTime::now()
@@ -33,7 +37,12 @@ pub fn start_import_session(extracted_dir: String) -> Result<serde_json::Value, 
     );
 
     // 1. Leer datos raw de Paradox
-    let raw_data = reader::read_all_tables(&extracted_dir)?;
+    let is_preview = preview_only.unwrap_or(false);
+    let raw_data = if is_preview {
+        reader::read_all_tables_preview(&extracted_dir, 5)?
+    } else {
+        reader::read_all_tables(&extracted_dir)?
+    };
 
     if raw_data.tables.is_empty() {
         return Err("No se encontraron tablas válidas en el directorio".to_string());
@@ -105,10 +114,10 @@ pub fn generate_import_preview() -> Result<serde_json::Value, String> {
     let preview = previewer::generate_preview(&session.patients, validation);
 
     let can_proceed = preview.can_proceed;
-    
+
     // Convertir a JSON
-    let preview_json = serde_json::to_value(&preview)
-        .map_err(|e| format!("Error serializando preview: {}", e))?;
+    let preview_json =
+        serde_json::to_value(&preview).map_err(|e| format!("Error serializando preview: {}", e))?;
 
     // Guardar preview
     session.preview = Some(preview);
@@ -142,8 +151,8 @@ pub fn confirm_and_persist_import() -> Result<serde_json::Value, String> {
     // NOTA: get_connection devuelve &'static, necesitamos una conexión mutable
     // Por ahora, abrir una nueva conexión
     let db_path = crate::wizard::db_file_path()?;
-    let mut conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("Error abriendo DB: {}", e))?;
+    let mut conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("Error abriendo DB: {}", e))?;
 
     // Verificar si ya hay datos importados
     let has_existing = persister::check_existing_imports(&conn)?;
@@ -157,7 +166,9 @@ pub fn confirm_and_persist_import() -> Result<serde_json::Value, String> {
     let result = persister::persist_all(&mut conn, &session.patients)?;
 
     if !result.success {
-        return Err(result.error.unwrap_or_else(|| "Error desconocido".to_string()));
+        return Err(result
+            .error
+            .unwrap_or_else(|| "Error desconocido".to_string()));
     }
 
     Ok(serde_json::json!({
@@ -181,22 +192,18 @@ pub fn cancel_import_session() -> Result<(), String> {
 #[tauri::command]
 pub fn get_import_session_status() -> Result<serde_json::Value, String> {
     let state = IMPORT_STATE.lock().unwrap();
-    
+
     match state.as_ref() {
-        Some(session) => {
-            Ok(serde_json::json!({
-                "active": true,
-                "session_id": session.session_id,
-                "patients_count": session.patients.len(),
-                "has_validation": session.validation.is_some(),
-                "has_preview": session.preview.is_some(),
-            }))
-        }
-        None => {
-            Ok(serde_json::json!({
-                "active": false
-            }))
-        }
+        Some(session) => Ok(serde_json::json!({
+            "active": true,
+            "session_id": session.session_id,
+            "patients_count": session.patients.len(),
+            "has_validation": session.validation.is_some(),
+            "has_preview": session.preview.is_some(),
+        })),
+        None => Ok(serde_json::json!({
+            "active": false
+        })),
     }
 }
 
@@ -204,8 +211,8 @@ pub fn get_import_session_status() -> Result<serde_json::Value, String> {
 #[tauri::command]
 pub fn clear_imported_data() -> Result<(), String> {
     let db_path = crate::wizard::db_file_path()?;
-    let mut conn = rusqlite::Connection::open(&db_path)
-        .map_err(|e| format!("Error abriendo DB: {}", e))?;
+    let mut conn =
+        rusqlite::Connection::open(&db_path).map_err(|e| format!("Error abriendo DB: {}", e))?;
     persister::clear_imported_data(&mut conn)?;
     Ok(())
 }
@@ -218,9 +225,7 @@ pub fn clear_imported_data() -> Result<(), String> {
 #[tauri::command]
 pub fn export_session_debug() -> Result<String, String> {
     let state = IMPORT_STATE.lock().unwrap();
-    let session = state
-        .as_ref()
-        .ok_or("No hay sesión activa")?;
+    let session = state.as_ref().ok_or("No hay sesión activa")?;
 
     let export = serde_json::json!({
         "session_id": session.session_id,
@@ -229,6 +234,5 @@ pub fn export_session_debug() -> Result<String, String> {
         "preview": session.preview,
     });
 
-    serde_json::to_string_pretty(&export)
-        .map_err(|e| format!("Error exportando: {}", e))
+    serde_json::to_string_pretty(&export).map_err(|e| format!("Error exportando: {}", e))
 }

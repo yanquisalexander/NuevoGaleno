@@ -2,7 +2,7 @@
 // Etapa 3: Detección de anomalías y problemas antes de persistir
 
 use crate::import_pipeline::models::*;
-use crate::import_pipeline::{ValidationIssue, IssueSeverity};
+use crate::import_pipeline::{IssueSeverity, ValidationIssue};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,9 +46,18 @@ pub fn validate_all(patients: &[PatientDto]) -> ValidationResult {
     issues.extend(validate_duplicates(patients));
 
     // Contar por severidad
-    let critical_count = issues.iter().filter(|i| i.severity == IssueSeverity::Critical).count();
-    let error_count = issues.iter().filter(|i| i.severity == IssueSeverity::Error).count();
-    let warning_count = issues.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+    let critical_count = issues
+        .iter()
+        .filter(|i| i.severity == IssueSeverity::Critical)
+        .count();
+    let error_count = issues
+        .iter()
+        .filter(|i| i.severity == IssueSeverity::Error)
+        .count();
+    let warning_count = issues
+        .iter()
+        .filter(|i| i.severity == IssueSeverity::Warning)
+        .count();
 
     ValidationResult {
         is_valid: critical_count == 0 && error_count == 0,
@@ -347,7 +356,11 @@ fn validate_duplicates(patients: &[PatientDto]) -> Vec<ValidationIssue> {
 pub fn generate_validation_summary(result: &ValidationResult) -> String {
     format!(
         "Validación: {} | Críticos: {} | Errores: {} | Advertencias: {}",
-        if result.is_valid { "✓ APROBADA" } else { "✗ RECHAZADA" },
+        if result.is_valid {
+            "✓ APROBADA"
+        } else {
+            "✗ RECHAZADA"
+        },
         result.critical_count,
         result.error_count,
         result.warning_count

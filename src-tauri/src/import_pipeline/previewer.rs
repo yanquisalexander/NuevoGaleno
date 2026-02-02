@@ -19,12 +19,12 @@ pub struct PreviewSummary {
     pub total_patients: usize,
     pub patients_with_data: usize,
     pub patients_empty: usize,
-    
+
     pub total_treatments: usize,
     pub treatments_pending: usize,
     pub treatments_in_progress: usize,
     pub treatments_completed: usize,
-    
+
     pub total_payments: usize,
     pub total_revenue: f64,
     pub total_outstanding: f64,
@@ -53,12 +53,9 @@ pub struct ValidationReport {
 }
 
 /// Genera una vista previa completa de los datos a importar
-pub fn generate_preview(
-    patients: &[PatientDto],
-    validation: &ValidationResult,
-) -> ImportPreview {
+pub fn generate_preview(patients: &[PatientDto], validation: &ValidationResult) -> ImportPreview {
     let summary = calculate_summary(patients);
-    let sample_patients = generate_patient_samples(patients, 50); // Primeros 50
+    let sample_patients = generate_patient_samples(patients, 5); // Primeros 5 para preview rápido
     let validation_report = build_validation_report(validation);
 
     ImportPreview {
@@ -71,10 +68,7 @@ pub fn generate_preview(
 
 fn calculate_summary(patients: &[PatientDto]) -> PreviewSummary {
     let total_patients = patients.len();
-    let patients_with_data = patients
-        .iter()
-        .filter(|p| p.has_minimum_data())
-        .count();
+    let patients_with_data = patients.iter().filter(|p| p.has_minimum_data()).count();
     let patients_empty = total_patients - patients_with_data;
 
     let mut total_treatments = 0;
@@ -121,16 +115,8 @@ fn generate_patient_samples(patients: &[PatientDto], limit: usize) -> Vec<Patien
         .take(limit)
         .map(|patient| {
             let treatments_count = patient.treatments.len();
-            let total_billed: f64 = patient
-                .treatments
-                .iter()
-                .map(|t| t.total_cost)
-                .sum();
-            let total_paid: f64 = patient
-                .treatments
-                .iter()
-                .map(|t| t.paid_amount)
-                .sum();
+            let total_billed: f64 = patient.treatments.iter().map(|t| t.total_cost).sum();
+            let total_paid: f64 = patient.treatments.iter().map(|t| t.paid_amount).sum();
             let balance = total_billed - total_paid;
 
             PatientPreview {
@@ -185,6 +171,5 @@ fn build_validation_report(validation: &ValidationResult) -> ValidationReport {
 /// Exporta la previsualización a JSON para el frontend
 #[allow(dead_code)]
 pub fn export_preview_to_json(preview: &ImportPreview) -> Result<String, String> {
-    serde_json::to_string_pretty(preview)
-        .map_err(|e| format!("Error serializando preview: {}", e))
+    serde_json::to_string_pretty(preview).map_err(|e| format!("Error serializando preview: {}", e))
 }

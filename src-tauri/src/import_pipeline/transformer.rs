@@ -18,7 +18,7 @@ pub fn transform_raw_data(raw_data: &RawParadoxData) -> Result<TransformationRes
     // 1. Identificar tablas por contenido
     let patients_table = reader::identify_patients_table(raw_data)
         .ok_or("No se pudo identificar la tabla de pacientes")?;
-    
+
     let treatments_table = reader::identify_treatments_table(raw_data);
     let payments_table = reader::identify_payments_table(raw_data);
 
@@ -28,12 +28,16 @@ pub fn transform_raw_data(raw_data: &RawParadoxData) -> Result<TransformationRes
         format!(
             "Tablas identificadas - Pacientes: {}, Tratamientos: {}, Pagos: {}",
             patients_table.table_name,
-            treatments_table.map(|t| t.table_name.as_str()).unwrap_or("ninguna"),
-            payments_table.map(|t| t.table_name.as_str()).unwrap_or("ninguna")
+            treatments_table
+                .map(|t| t.table_name.as_str())
+                .unwrap_or("ninguna"),
+            payments_table
+                .map(|t| t.table_name.as_str())
+                .unwrap_or("ninguna")
         ),
     ));
 
-    // 2. Procesar pacientes
+    // 2. Procesar pacientes (no limitar aquí: el límite ya se aplicó en reader si corresponde)
     for row in &patients_table.rows {
         match transform_patient_row(row, patients_table) {
             Ok(mut patient_dto) => {
@@ -103,6 +107,25 @@ fn transform_patient_row(
             k if k.contains("documento") || k.contains("dni") || k.contains("cedula") => {
                 patient.document_number = Some(normalize_document(value_str));
             }
+            k if k.contains("clavpac") || k.contains("clavepac") || k.contains("clavpac") => {
+                // CLAVEPAC como documento si no hay otro
+                let doc = normalize_document(value_str);
+                if !doc.is_empty() {
+                    patient.document_number = Some(doc);
+                }
+            }
+            k if k.contains("clavedoc") || k.contains("doc") => {
+                let doc = normalize_document(value_str);
+                if !doc.is_empty() && patient.document_number.is_none() {
+                    patient.document_number = Some(doc);
+                }
+            }
+            k if k == "registro" || k.contains("registro") => {
+                let doc = normalize_document(value_str);
+                if !doc.is_empty() && patient.document_number.is_none() {
+                    patient.document_number = Some(doc);
+                }
+            }
             k if k.contains("telefono") || k.contains("phone") || k.contains("celular") => {
                 patient.phone = Some(normalize_phone(value_str));
             }
@@ -128,6 +151,18 @@ fn transform_patient_row(
                 patient.legacy_id = Some(value_str.to_string());
             }
             _ => {}
+        }
+    }
+
+    // Derivar apellido si no se encontró campo explícito
+    if patient.last_name.is_empty() && !patient.first_name.is_empty() {
+        let parts: Vec<&str> = patient.first_name.split_whitespace().collect();
+        if parts.len() >= 2 {
+            patient.last_name = parts.last().unwrap().to_string();
+            patient.first_name = parts[..parts.len() - 1].join(" ");
+        } else {
+            // Sin apellido, usar placeholder para pasar validación
+            patient.last_name = "Paciente".to_string();
         }
     }
 
@@ -291,10 +326,7 @@ fn transform_payment_row(
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn normalize_text(text: &str) -> String {
-    text.trim()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    text.trim().split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn normalize_document(doc: &str) -> String {
@@ -305,7 +337,8 @@ fn normalize_document(doc: &str) -> String {
 }
 
 fn normalize_phone(phone: &str) -> String {
-    phone.chars()
+    phone
+        .chars()
         .filter(|c| c.is_numeric() || *c == '+' || *c == '-')
         .collect()
 }

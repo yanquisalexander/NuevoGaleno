@@ -70,8 +70,12 @@ export const AppTitleBar = () => {
 
         try {
             const currentWindow = await getCurrentWindow();
-            const minimizeOnCloseStr = await invoke<string | null>("get_config", { key: "minimizeOnClose" });
-            const minimizeOnClose = minimizeOnCloseStr ? minimizeOnCloseStr === "true" : null;
+            const minimizeOnCloseValue = await invoke<boolean | string | null>("get_config_value", { key: "minimizeOnClose" });
+            const minimizeOnClose = typeof minimizeOnCloseValue === 'boolean'
+                ? minimizeOnCloseValue
+                : minimizeOnCloseValue === 'false'
+                    ? false
+                    : true;
 
             // Si no estamos en la ventana principal, cerramos directamente
             if (currentWindow.label !== "main") {

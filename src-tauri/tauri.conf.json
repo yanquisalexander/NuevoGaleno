@@ -13,10 +13,12 @@
     "windows": [
       {
         "title": "Nuevo Galeno",
-        "width": 960,
-        "height": 600,
+        "width": 1920,
+        "height": 1080,
+        "fullscreen": true,
         "decorations": false,
-        "center": true
+        "center": true,
+        "resizable": true
       }
     ],
     "security": {
