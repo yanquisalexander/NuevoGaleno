@@ -163,9 +163,7 @@ export function ConfigurationApp() {
                 <div>
                     <p className="text-lg font-semibold text-white">Configuración del sistema</p>
                     <p className="text-sm text-white/70">
-                        Agrupa los ajustes {
-                            isAdmin ? 'generales y del sistema' : 'generales'
-                        } en un solo lugar.
+                        Agrupa los ajustes {isAdmin ? 'generales y del sistema' : 'generales'} en un solo lugar.
                     </p>
                     {!isAdmin && (
                         <p className="text-xs text-amber-300">
