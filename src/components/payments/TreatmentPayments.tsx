@@ -55,7 +55,7 @@ export function TreatmentPayments({ patientId }: TreatmentPaymentsProps) {
     }
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-2">
             {treatments.map((treatment) => {
                 const isExpanded = expandedId === treatment.id;
                 const hasBalance = treatment.balance > 0;
@@ -63,27 +63,34 @@ export function TreatmentPayments({ patientId }: TreatmentPaymentsProps) {
                 return (
                     <div
                         key={treatment.id}
-                        className="bg-gradient-to-br from-white/8 to-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm"
+                        className={`border rounded-[8px] overflow-hidden transition-all duration-200 ${isExpanded ? 'bg-[#2d2d2d] border-white/10' : 'bg-[#272727] border-white/5 hover:bg-[#2d2d2d]'
+                            }`}
                     >
                         {/* Header */}
                         <button
                             onClick={() => setExpandedId(isExpanded ? null : treatment.id)}
-                            className="w-full p-4 flex items-center gap-4 hover:bg-white/5 transition-colors"
+                            className="w-full p-4 flex items-center gap-4 text-left outline-none"
                         >
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                                <ChevronRight className="w-5 h-5 text-white/60" />
+                            <div className={`w-6 h-6 rounded flex items-center justify-center transition-transform duration-200 ${isExpanded ? 'rotate-90' : 'text-white/40'}`}>
+                                <ChevronRight className="w-4 h-4" />
                             </div>
 
-                            <div className="flex-1 text-left">
-                                <div className="flex items-center gap-3">
-                                    <h3 className="font-semibold text-white">{treatment.name}</h3>
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold text-sm text-white/90">{treatment.name}</h3>
                                     <TreatmentStatusBadge status={treatment.status} size="sm" />
                                 </div>
-                                <div className="flex items-center gap-4 mt-1 text-xs text-white/60">
-                                    <span>Total: {formatCurrency(treatment.total_cost)}</span>
-                                    <span>Pagado: {formatCurrency(treatment.paid_amount)}</span>
-                                    <span className={hasBalance ? 'text-red-400 font-medium' : 'text-green-400'}>
-                                        Saldo: {formatCurrency(treatment.balance)}
+                                <div className="flex items-center gap-4 mt-1.5 text-xs text-white/60">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+                                        Total: <span className="text-white/90">{formatCurrency(treatment.total_cost)}</span>
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
+                                        Pagado: <span className="text-white/90">{formatCurrency(treatment.paid_amount)}</span>
+                                    </span>
+                                    <span className={`font-medium ml-2 ${hasBalance ? 'text-red-400' : 'text-green-500'}`}>
+                                        {hasBalance ? `Debe: ${formatCurrency(treatment.balance)}` : 'Pagado'}
                                     </span>
                                 </div>
                             </div>
@@ -96,11 +103,11 @@ export function TreatmentPayments({ patientId }: TreatmentPaymentsProps) {
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: 'auto', opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="border-t border-white/10"
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    className="border-t border-white/5 bg-[#202020]"
                                 >
-                                    <div className="p-4">
-                                        <h4 className="text-sm font-medium text-white/70 mb-3">Historial de Pagos</h4>
+                                    <div className="p-4 pl-14">
+                                        <h4 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Historial de Pagos</h4>
                                         <PaymentHistory
                                             patientId={patientId}
                                             treatmentId={treatment.id}

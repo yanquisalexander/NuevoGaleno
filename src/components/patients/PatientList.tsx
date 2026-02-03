@@ -45,64 +45,67 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
     return (
         <div className="h-full flex flex-col">
             {/* Lista */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                 {patients.map((patient, index) => (
                     <motion.button
                         key={patient.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03, duration: 0.2 }}
                         onClick={() => onSelectPatient(patient)}
-                        className="w-full flex items-center gap-4 p-4 hover:bg-white/5 transition-colors border-b border-white/5"
+                        className="w-full flex items-center gap-4 p-3 hover:bg-white/5 active:bg-white/10 transition-colors rounded-[4px] group mb-1"
                     >
-                        <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                            <User className="w-6 h-6 text-blue-400" />
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0 border border-white/5 group-hover:bg-white/10 transition-colors">
+                            <span className="text-sm font-medium text-white/70">
+                                {patient.first_name[0]}{patient.last_name[0]}
+                            </span>
                         </div>
                         <div className="flex-1 text-left">
-                            <div className="font-medium text-white">
+                            <div className="font-semibold text-white/90 text-[15px]">
                                 {patient.first_name} {patient.last_name}
                             </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-white/60">
+                            <div className="flex items-center gap-3 mt-0.5 text-xs text-white/50">
                                 {patient.document_number && (
-                                    <span className="flex items-center gap-1">
-                                        <FileText className="w-3 h-3" />
+                                    <span className="flex items-center gap-1.5">
                                         {patient.document_number}
                                     </span>
                                 )}
                                 {patient.phone && (
-                                    <span className="flex items-center gap-1">
-                                        <Phone className="w-3 h-3" />
-                                        {patient.phone}
-                                    </span>
+                                    <>
+                                        <span className="w-0.5 h-0.5 rounded-full bg-white/30" />
+                                        <span className="flex items-center gap-1.5">
+                                            {patient.phone}
+                                        </span>
+                                    </>
                                 )}
                             </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-white/40" />
+                        <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/50 transition-colors" />
                     </motion.button>
                 ))}
 
                 {isLoading && (
                     <div className="flex items-center justify-center py-8">
-                        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-[#60cdff] border-t-transparent rounded-full animate-spin" />
                     </div>
                 )}
 
                 {!isLoading && patients.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-12 text-white/60">
-                        <User className="w-16 h-16 mb-4 opacity-30" />
-                        <p className="text-sm">No hay pacientes registrados</p>
+                    <div className="flex flex-col items-center justify-center py-20 text-white/40">
+                        <User className="w-12 h-12 mb-4 opacity-20" />
+                        <p className="text-sm font-medium">No hay pacientes registrados</p>
                     </div>
                 )}
             </div>
 
             {/* Load More */}
             {hasMore && !isLoading && patients.length > 0 && (
-                <div className="p-4 border-t border-white/10">
+                <div className="py-4 text-center">
                     <button
                         onClick={() => setPage(p => p + 1)}
-                        className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                        className="px-6 py-1.5 text-sm text-[#60cdff] hover:bg-[#60cdff]/10 rounded-[4px] transition-colors"
                     >
-                        Cargar más pacientes
+                        Cargar más
                     </button>
                 </div>
             )}

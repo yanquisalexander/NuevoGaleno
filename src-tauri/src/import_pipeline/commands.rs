@@ -4,6 +4,7 @@
 use crate::import_pipeline::*;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use tauri::Emitter;
 
 // Estado global de la sesión de importación
 static IMPORT_STATE: Lazy<Mutex<Option<ImportSessionState>>> = Lazy::new(|| Mutex::new(None));
@@ -22,7 +23,8 @@ struct ImportSessionState {
 /// Paso 1: Inicia una nueva sesión de importación desde un directorio extraído
 /// Con preview_only=true, solo lee los primeros 5 registros para mostrar rápidamente
 #[tauri::command]
-pub fn start_import_session(
+pub async fn start_import_session(
+    window: tauri::Window,
     extracted_dir: String,
     preview_only: Option<bool>,
 ) -> Result<serde_json::Value, String> {
@@ -36,24 +38,59 @@ pub fn start_import_session(
             .as_secs()
     );
 
-    // 1. Leer datos raw de Paradox
     let is_preview = preview_only.unwrap_or(false);
+    
+    // Emitir evento de inicio
+    let _ = window.emit("import:progress", serde_json::json!({
+        "stage": "reading",
+        "message": if is_preview { "Iniciando vista previa rápida..." } else { "Iniciando lectura completa de datos..." }
+    }));
+
+    // 1. Leer datos raw de Paradox con callback de progreso
+    let window_clone = window.clone();
+    let progress_callback = Box::new(move |msg: String| {
+        let _ = window_clone.emit("import:progress", serde_json::json!({
+            "stage": "reading",
+            "message": msg
+        }));
+    });
+
     let raw_data = if is_preview {
-        reader::read_all_tables_preview(&extracted_dir, 5)?
+        reader::read_all_tables_preview(&extracted_dir, 5, Some(progress_callback)).await?
     } else {
-        reader::read_all_tables(&extracted_dir)?
+        reader::read_all_tables(&extracted_dir, Some(progress_callback)).await?
     };
 
     if raw_data.tables.is_empty() {
         return Err("No se encontraron tablas válidas en el directorio".to_string());
     }
 
-    // 2. Transformar a DTOs
-    let transform_result = transformer::transform_raw_data(&raw_data)?;
+    // Emitir evento de transformación
+    let _ = window.emit("import:progress", serde_json::json!({
+        "stage": "transforming",
+        "message": "Transformando y normalizando datos..."
+    }));
+
+    // 2. Transformar a DTOs con callback de progreso
+    let window_clone = window.clone();
+    let transform_callback = Box::new(move |msg: String| {
+        let _ = window_clone.emit("import:progress", serde_json::json!({
+            "stage": "transforming",
+            "message": msg
+        }));
+    });
+
+    let transform_result = transformer::transform_raw_data(&raw_data, Some(transform_callback))?;
 
     if transform_result.patients.is_empty() {
         return Err("No se pudo extraer ningún paciente válido".to_string());
     }
+
+    // Emitir evento de finalización de lectura
+    let _ = window.emit("import:progress", serde_json::json!({
+        "stage": "complete",
+        "message": format!("✅ Lectura completada: {} pacientes encontrados", transform_result.patients.len())
+    }));
 
     // 3. Guardar en estado global
     let mut state = IMPORT_STATE.lock().unwrap();

@@ -7,10 +7,11 @@ interface PowerMenuProps {
     onClose: () => void;
     currentUser: { name: string; username: string } | null;
     onLogout: () => void;
+    onLockScreen: () => void;
     onShutdown: () => void;
 }
 
-export function PowerMenu({ isOpen, onClose, currentUser, onLogout, onShutdown }: PowerMenuProps) {
+export function PowerMenu({ isOpen, onClose, currentUser, onLogout, onLockScreen, onShutdown }: PowerMenuProps) {
     return createPortal(
         <AnimatePresence>
             {isOpen && (
@@ -59,6 +60,22 @@ export function PowerMenu({ isOpen, onClose, currentUser, onLogout, onShutdown }
                             <div className="px-10 pb-12 pt-4 flex justify-between items-center relative">
                                 {/* Decoración de fondo sutil */}
                                 <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-24 bg-blue-500/5 blur-[60px] pointer-events-none" />
+
+                                {/* Opción: Bloquear */}
+                                <div className="flex flex-col items-center gap-4 relative">
+                                    <motion.button
+                                        whileHover={{ y: -5, scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => {
+                                            onLockScreen();
+                                            onClose();
+                                        }}
+                                        className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400/20 to-blue-600/10 border border-blue-500/30 flex items-center justify-center group hover:from-blue-500 hover:to-blue-600 transition-all duration-300 shadow-lg shadow-blue-900/20"
+                                    >
+                                        <ShieldCheck className="w-7 h-7 text-blue-500 group-hover:text-white transition-colors" />
+                                    </motion.button>
+                                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-[0.15em]">Bloquear</span>
+                                </div>
 
                                 {/* Opción: Cerrar Sesión */}
                                 <div className="flex flex-col items-center gap-4 relative">

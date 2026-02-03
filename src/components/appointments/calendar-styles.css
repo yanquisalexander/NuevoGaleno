@@ -1,0 +1,402 @@
+/* Estilos personalizados para react-big-calendar con tema Windows 11 Fluent Dark */
+
+.rbc-calendar {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Toolbar */
+.rbc-toolbar {
+  padding: 16px;
+  background: #272727;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08); /* white/10 aprox */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-radius: 8px 8px 0 0;
+}
+
+.rbc-toolbar button {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0, 0, 0.2, 1);
+  outline: none;
+}
+
+.rbc-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.rbc-toolbar button:active {
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(0.98);
+}
+
+.rbc-toolbar button.rbc-active {
+  background: rgba(0, 95, 184, 0.2);
+  color: #60cdff;
+  border-color: rgba(96, 205, 255, 0.3);
+}
+
+.rbc-toolbar-label {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: capitalize;
+  letter-spacing: -0.01em;
+}
+
+/* Header */
+.rbc-header {
+  background: #202020;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-left: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.rbc-header:first-child {
+  border-left: none !important;
+}
+
+/* Grid y Celdas */
+.rbc-month-view {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 8px 8px;
+  background: #202020;
+}
+
+.rbc-time-view {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 8px 8px;
+  background: #202020;
+}
+
+.rbc-day-bg + .rbc-day-bg,
+.rbc-month-row + .rbc-month-row {
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.rbc-time-header.rbc-overflowing {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rbc-time-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rbc-time-header-content {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  min-height: 60px; /* Celdas un poco más altas */
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.rbc-day-bg {
+    background: transparent;
+}
+
+.rbc-now {
+    /* Indicador de "Hoy" en la columna */
+}
+
+.rbc-day-slot {
+    background: #202020;
+}
+
+.rbc-today {
+  background-color: rgba(96, 205, 255, 0.03); /* Sutil azul para el día actual */
+}
+
+.rbc-off-range-bg {
+    background: #1a1a1a;
+}
+
+/* Time gutter (columna de horas) */
+.rbc-time-gutter {
+  background: #202020;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rbc-time-gutter .rbc-timeslot-group {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.rbc-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 500;
+  padding-right: 8px;
+}
+
+/* Eventos */
+.rbc-event {
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1.3;
+  padding: 2px 6px !important;
+  transition: transform 0.1s;
+}
+
+.rbc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 5;
+}
+
+.rbc-event-label {
+  font-size: 10px;
+  opacity: 0.8;
+  margin-bottom: 1px;
+  display: block;
+}
+
+/* Indicador de hora actual */
+.rbc-current-time-indicator {
+  background-color: #60cdff;
+  height: 2px;
+}
+.rbc-current-time-indicator::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #60cdff;
+}
+
+/* Agenda View */
+.rbc-agenda-view {
+    border: none;
+}
+.rbc-agenda-table {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: #272727;
+}
+
+.rbc-agenda-table thead > tr > th {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.rbc-agenda-table tbody > tr > td {
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+}
+
+.rbc-agenda-table tbody > tr:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.rbc-agenda-date-cell {
+    font-weight: 600;
+}
+
+.rbc-agenda-time-cell {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+}
+
+.rbc-event:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.rbc-event.rbc-selected {
+  box-shadow: 0 0 0 2px #60cdff;
+}
+
+.rbc-event-label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.rbc-event-content {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* Month view */
+.rbc-month-view {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbc-month-row {
+  border-color: rgba(255, 255, 255, 0.06);
+  min-height: 100px;
+}
+
+.rbc-date-cell {
+  padding: 6px 8px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.rbc-date-cell.rbc-now {
+  font-weight: 700;
+  color: #60cdff;
+}
+
+.rbc-off-range-bg {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.rbc-off-range .rbc-date-cell {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Agenda view */
+.rbc-agenda-view {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbc-agenda-table {
+  border-spacing: 0;
+}
+
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell,
+.rbc-agenda-event-cell {
+  padding: 12px;
+  border-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+}
+
+.rbc-agenda-date-cell {
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.03);
+  text-transform: capitalize;
+}
+
+/* Week and day views */
+.rbc-time-view {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbc-time-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rbc-time-header-content {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rbc-allday-cell {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.rbc-time-content {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rbc-current-time-indicator {
+  background-color: #60cdff;
+  height: 2px;
+}
+
+.rbc-current-time-indicator::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #60cdff;
+}
+
+/* Selección */
+.rbc-slot-selection {
+  background-color: rgba(96, 205, 255, 0.2);
+  border: 1px solid #60cdff;
+}
+
+/* Show more */
+.rbc-show-more {
+  color: #60cdff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgba(96, 205, 255, 0.1);
+  margin-top: 2px;
+}
+
+.rbc-show-more:hover {
+  background: rgba(96, 205, 255, 0.2);
+}
+
+/* Overlay */
+.rbc-overlay {
+  background: #202020;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+}
+
+.rbc-overlay-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  text-transform: capitalize;
+}
+
+/* Scrollbar personalizado */
+.rbc-time-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.rbc-time-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rbc-time-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.rbc-time-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

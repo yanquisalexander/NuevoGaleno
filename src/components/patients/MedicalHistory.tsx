@@ -3,7 +3,6 @@ import { Patient, updatePatient } from '../../hooks/usePatients';
 import { FileText, Save, Edit, Calendar, AlertCircle, Activity, Pill, Stethoscope } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { Button } from '../ui/button';
 
 interface MedicalHistoryProps {
     patient: Patient;
@@ -49,129 +48,128 @@ export function MedicalHistory({ patient, onUpdate }: MedicalHistoryProps) {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-5xl">
             {/* Header con botón de editar */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-4 border-b border-white/5">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500/20 to-pink-500/20 flex items-center justify-center border border-red-500/30">
-                        <FileText className="w-6 h-6 text-red-400" />
+                    <div className="w-10 h-10 rounded-[8px] bg-[#E3008C] flex items-center justify-center shadow-lg">
+                        <FileText className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-white">Historia Clínica</h3>
-                        <p className="text-sm text-white/60">Información médica del paciente</p>
+                        <h3 className="text-lg font-semibold text-white/90 tracking-tight">Historia Clínica</h3>
+                        <p className="text-xs text-white/50">Resumen clínico y antecedentes</p>
                     </div>
                 </div>
                 {!isEditing ? (
-                    <Button
+                    <button
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg h-10 px-4 shadow-lg shadow-blue-500/20"
+                        className="flex items-center gap-2 px-4 py-1.5 bg-[#2d2d2d] hover:bg-[#353535] border border-white/5 hover:border-white/10 text-white text-sm rounded-[4px] transition-all shadow-sm"
                     >
-                        <Edit className="w-4 h-4" />
-                        Editar
-                    </Button>
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                    </button>
                 ) : (
                     <div className="flex items-center gap-2">
-                        <Button
+                        <button
                             onClick={handleCancel}
-                            variant="outline"
-                            className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 rounded-lg h-10 px-4"
+                            className="px-4 py-1.5 bg-[#2d2d2d] hover:bg-[#353535] border border-white/5 text-white/90 hover:text-white text-sm rounded-[4px] transition-colors"
                         >
                             Cancelar
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                             onClick={handleSave}
                             disabled={isSaving}
-                            className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg h-10 px-4 shadow-lg shadow-green-500/20 disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-1.5 bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] text-white text-sm rounded-[4px] transition-colors border border-white/10 shadow-sm disabled:opacity-50"
                         >
-                            <Save className="w-4 h-4" />
+                            <Save className="w-3.5 h-3.5" />
                             {isSaving ? 'Guardando...' : 'Guardar'}
-                        </Button>
+                        </button>
                     </div>
                 )}
             </div>
 
             {/* Información Básica */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-br from-white/8 to-white/5 border border-white/10 rounded-xl p-5 backdrop-blur-sm"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-[#272727] border border-white/5 rounded-[8px] p-4 group hover:border-white/10 transition-colors"
                 >
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                            <Calendar className="w-5 h-5 text-blue-400" />
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-[4px] bg-blue-500/10 flex items-center justify-center mt-1">
+                            <Calendar className="w-4 h-4 text-blue-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-white/60 uppercase tracking-wide">Fecha de Nacimiento</p>
-                            <p className="text-white font-medium">
+                            <p className="text-[11px] uppercase tracking-wide text-white/40 font-semibold mb-0.5">Fecha Nac.</p>
+                            <p className="text-sm font-medium text-white/90">
                                 {patient.birth_date
                                     ? new Date(patient.birth_date).toLocaleDateString('es-AR', {
                                         day: '2-digit',
-                                        month: 'long',
+                                        month: 'short',
                                         year: 'numeric'
                                     })
-                                    : 'No registrada'}
+                                    : 'No reg.'}
                             </p>
+                            {patient.birth_date && (
+                                <p className="text-xs text-white/50 mt-1">
+                                    {Math.floor((new Date().getTime() - new Date(patient.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años
+                                </p>
+                            )}
                         </div>
                     </div>
-                    {patient.birth_date && (
-                        <p className="text-xs text-white/50">
-                            Edad: {Math.floor((new Date().getTime() - new Date(patient.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años
-                        </p>
-                    )}
                 </motion.div>
 
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.05 }}
-                    className="bg-gradient-to-br from-white/8 to-white/5 border border-white/10 rounded-xl p-5 backdrop-blur-sm"
+                    className="bg-[#272727] border border-white/5 rounded-[8px] p-4 group hover:border-white/10 transition-colors"
                 >
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-                            <Activity className="w-5 h-5 text-red-400" />
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-[4px] bg-red-500/10 flex items-center justify-center mt-1">
+                            <Activity className="w-4 h-4 text-red-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-white/60 uppercase tracking-wide">Grupo Sanguíneo</p>
-                            <p className="text-white font-medium text-lg">
-                                {patient.blood_type || 'No registrado'}
+                            <p className="text-[11px] uppercase tracking-wide text-white/40 font-semibold mb-0.5">Grupo Sang.</p>
+                            <p className="text-lg font-semibold text-white/90">
+                                {patient.blood_type || '-'}
                             </p>
                         </div>
                     </div>
                 </motion.div>
 
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-gradient-to-br from-white/8 to-white/5 border border-white/10 rounded-xl p-5 backdrop-blur-sm"
+                    className="bg-[#272727] border border-white/5 rounded-[8px] p-4 group hover:border-white/10 transition-colors"
                 >
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                            <Stethoscope className="w-5 h-5 text-purple-400" />
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-[4px] bg-purple-500/10 flex items-center justify-center mt-1">
+                            <Stethoscope className="w-4 h-4 text-purple-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-white/60 uppercase tracking-wide">Género</p>
-                            <p className="text-white font-medium">
-                                {patient.gender || 'No registrado'}
+                            <p className="text-[11px] uppercase tracking-wide text-white/40 font-semibold mb-0.5">Género</p>
+                            <p className="text-sm font-medium text-white/90">
+                                {patient.gender === 'M' ? 'Masculino' : patient.gender === 'F' ? 'Femenino' : patient.gender || '-'}
                             </p>
                         </div>
                     </div>
                 </motion.div>
 
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.15 }}
-                    className="bg-gradient-to-br from-white/8 to-white/5 border border-white/10 rounded-xl p-5 backdrop-blur-sm"
+                    className="bg-[#272727] border border-white/5 rounded-[8px] p-4 group hover:border-white/10 transition-colors"
                 >
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-green-400" />
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-[4px] bg-green-500/10 flex items-center justify-center mt-1">
+                            <FileText className="w-4 h-4 text-green-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-white/60 uppercase tracking-wide">Última Actualización</p>
-                            <p className="text-white font-medium text-sm">
+                            <p className="text-[11px] uppercase tracking-wide text-white/40 font-semibold mb-0.5">Actualizado</p>
+                            <p className="text-sm font-medium text-white/90">
                                 {new Date(patient.updated_at).toLocaleDateString('es-AR')}
                             </p>
                         </div>
@@ -181,53 +179,55 @@ export function MedicalHistory({ patient, onUpdate }: MedicalHistoryProps) {
 
             {/* Alergias */}
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-gradient-to-br from-orange-500/10 to-red-500/5 border border-orange-500/30 rounded-xl p-6 backdrop-blur-sm"
+                className="bg-[#272727] border-l-4 border-l-orange-500 border-y border-r border-white/5 rounded-r-[8px] p-5 shadow-sm"
             >
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
-                        <AlertCircle className="w-6 h-6 text-orange-400" />
+                <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertCircle className="w-4 h-4 text-orange-400" />
                     </div>
-                    <div>
-                        <h4 className="text-lg font-semibold text-white">Alergias</h4>
-                        <p className="text-xs text-white/60">Alergias conocidas y reacciones adversas</p>
-                    </div>
-                </div>
-                {isEditing ? (
-                    <textarea
-                        value={formData.allergies}
-                        onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-                        placeholder="Registre aquí las alergias del paciente: medicamentos, alimentos, materiales dentales, etc."
-                        rows={4}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/40 focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 focus:outline-none resize-none"
-                    />
-                ) : (
-                    <div className="bg-white/5 rounded-lg p-4 min-h-[100px]">
-                        {formData.allergies ? (
-                            <p className="text-white whitespace-pre-wrap">{formData.allergies}</p>
+                    <div className="flex-1 space-y-2">
+                        <div>
+                            <h4 className="text-sm font-semibold text-white/90">Alergias y Reacciones</h4>
+                            <p className="text-xs text-white/50">Información crítica para procedimientos</p>
+                        </div>
+                        {isEditing ? (
+                            <textarea
+                                value={formData.allergies}
+                                onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                                placeholder="Registre aquí las alergias del paciente: medicamentos, alimentos, materiales dentales, etc."
+                                rows={4}
+                                className="w-full bg-[#252525] border border-white/10 rounded-[4px] px-3 py-2 text-white placeholder:text-white/40 focus:border-b-2 focus:border-b-[#60cdff] focus:outline-none resize-none transition-all"
+                            />
                         ) : (
-                            <p className="text-white/40 italic">No se han registrado alergias</p>
+                            <div className="bg-[#222222] rounded-[4px] p-4 min-h-[60px] border border-white/5">
+                                {formData.allergies ? (
+                                    <p className="text-white/90 text-sm whitespace-pre-wrap">{formData.allergies}</p>
+                                ) : (
+                                    <p className="text-white/40 italic text-sm">No se han registrado alergias</p>
+                                )}
+                            </div>
                         )}
                     </div>
-                )}
+                </div>
             </motion.div>
 
             {/* Notas Médicas / Historia Clínica */}
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="bg-gradient-to-br from-blue-500/10 to-purple-500/5 border border-blue-500/30 rounded-xl p-6 backdrop-blur-sm"
+                className="bg-[#272727] border border-white/5 rounded-[8px] p-6 shadow-sm"
             >
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                        <Pill className="w-6 h-6 text-blue-400" />
+                <div className="flex items-start gap-4 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <Pill className="w-4 h-4 text-blue-400" />
                     </div>
                     <div>
-                        <h4 className="text-lg font-semibold text-white">Notas Médicas</h4>
-                        <p className="text-xs text-white/60">Historial clínico, condiciones preexistentes, medicación actual</p>
+                        <h4 className="text-sm font-semibold text-white/90">Notas Médicas</h4>
+                        <p className="text-xs text-white/50">Historial clínico, condiciones preexistentes, medicación actual</p>
                     </div>
                 </div>
                 {isEditing ? (
@@ -236,14 +236,14 @@ export function MedicalHistory({ patient, onUpdate }: MedicalHistoryProps) {
                         onChange={(e) => setFormData({ ...formData, medical_notes: e.target.value })}
                         placeholder="Registre aquí el historial médico del paciente: enfermedades crónicas, cirugías previas, medicación actual, condiciones especiales, etc."
                         rows={8}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none resize-none"
+                        className="w-full bg-[#252525] border border-white/10 rounded-[4px] px-3 py-2 text-white placeholder:text-white/40 focus:border-b-2 focus:border-b-[#60cdff] focus:outline-none resize-none transition-all"
                     />
                 ) : (
-                    <div className="bg-white/5 rounded-lg p-4 min-h-[200px]">
+                    <div className="bg-[#222222] rounded-[4px] p-4 min-h-[150px] border border-white/5">
                         {formData.medical_notes ? (
-                            <p className="text-white whitespace-pre-wrap">{formData.medical_notes}</p>
+                            <p className="text-white/90 text-sm whitespace-pre-wrap leading-relaxed">{formData.medical_notes}</p>
                         ) : (
-                            <p className="text-white/40 italic">No se han registrado notas médicas</p>
+                            <p className="text-white/40 italic text-sm">No se han registrado notas médicas</p>
                         )}
                     </div>
                 )}

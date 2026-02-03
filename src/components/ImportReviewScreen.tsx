@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { AlertCircle, CheckCircle, XCircle, AlertTriangle, Database, Users, CreditCard, DollarSign } from 'lucide-react';
@@ -59,9 +60,30 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel 
     const [error, setError] = useState<string | null>(null);
     const [importResult, setImportResult] = useState<any>(null);
     const [isPreviewOnly, setIsPreviewOnly] = useState(true);
+    const [progressMessage, setProgressMessage] = useState<string>('Iniciando...');
+    const [progressStage, setProgressStage] = useState<string>('reading');
 
     useEffect(() => {
-        runImportPipeline(true); // Iniciar con preview rápido
+        // Listener para eventos de progreso
+        const setupListener = async () => {
+            const unlisten = await listen<any>('import:progress', (event) => {
+                console.log('📊 Progreso:', event.payload);
+                setProgressMessage(event.payload.message || 'Procesando...');
+                setProgressStage(event.payload.stage || 'reading');
+            });
+
+            return unlisten;
+        };
+
+        const unlistenPromise = setupListener();
+
+        // Iniciar con preview rápido
+        runImportPipeline(true);
+
+        // Cleanup
+        return () => {
+            unlistenPromise.then(unlisten => unlisten());
+        };
     }, [extractedDir]);
 
     async function runImportPipeline(previewOnly: boolean = false) {
@@ -144,10 +166,23 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel 
                             </h2>
                         </div>
                     </div>
+
+                    {/* Mensaje de progreso en tiempo real */}
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                        <p className="text-sm text-slate-700 font-medium mb-2">
+                            {progressStage === 'reading' && '📖 Leyendo datos...'}
+                            {progressStage === 'transforming' && '🔄 Transformando...'}
+                            {progressStage === 'complete' && '✅ Completado'}
+                        </p>
+                        <p className="text-sm text-slate-600 font-mono">
+                            {progressMessage}
+                        </p>
+                    </div>
+
                     <p className="text-slate-600 mb-4">
                         {stage === 'loading'
                             ? 'Leyendo los primeros registros para mostrar un adelanto rápido.'
-                            : 'Leyendo, transformando y validando el dataset completo. Esto puede tardar unos minutos.'
+                            : 'Esto puede tardar unos minutos dependiendo del tamaño de la base de datos.'
                         }
                     </p>
                     <div className="space-y-3">

@@ -87,14 +87,14 @@ export function Odontogram({ patientId }: OdontogramProps) {
         return (
             <motion.button
                 key={toothNumber}
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleToothClick(toothNumber)}
-                className={`relative w-8 h-12 rounded-sm transition-all ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[#2c2c2c]' : ''
+                className={`relative w-9 h-14 rounded-[2px] transition-all flex items-center justify-center ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-[#2c2c2c] z-10' : ''
                     }`}
                 style={{ backgroundColor: color }}
             >
-                <span className="text-[10px] font-bold text-white/90">
+                <span className="text-[10px] font-semibold text-black/50 bg-white/30 px-1 rounded-sm">
                     {toothNumber}
                 </span>
             </motion.button>
@@ -104,106 +104,121 @@ export function Odontogram({ patientId }: OdontogramProps) {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-[#005FB8] border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Odontograma Superior */}
-            <div>
-                <div className="text-xs text-white/60 mb-2 text-center">Arcada Superior</div>
-                <div className="flex justify-center gap-1 p-4 bg-white/5 rounded-lg">
-                    {TEETH_FDI.upper.map(renderTooth)}
-                </div>
-            </div>
-
-            {/* Odontograma Inferior */}
-            <div>
-                <div className="text-xs text-white/60 mb-2 text-center">Arcada Inferior</div>
-                <div className="flex justify-center gap-1 p-4 bg-white/5 rounded-lg">
-                    {TEETH_FDI.lower.map(renderTooth)}
-                </div>
-            </div>
-
-            {/* Leyenda */}
-            <div className="bg-white/5 rounded-lg p-4">
-                <div className="text-xs font-medium text-white mb-3">Leyenda</div>
-                <div className="grid grid-cols-4 gap-2">
-                    {Object.entries(CONDITION_COLORS).map(([key, color]) => (
-                        <div key={key} className="flex items-center gap-2">
-                            <div
-                                className="w-4 h-4 rounded"
-                                style={{ backgroundColor: color }}
-                            />
-                            <span className="text-xs text-white/70 capitalize">
-                                {key}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Panel de Edición */}
-            {selectedTooth && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/5 border border-white/10 rounded-lg p-4"
-                >
-                    <h3 className="text-sm font-medium text-white mb-4">
-                        Editar Pieza {selectedTooth}
-                    </h3>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-xs text-white/60 mb-2">
-                                Condición
-                            </label>
-                            <select
-                                value={selectedCondition}
-                                onChange={(e) => setSelectedCondition(e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                            >
-                                {Object.keys(CONDITION_COLORS).map(condition => (
-                                    <option key={condition} value={condition} className="bg-[#2c2c2c]">
-                                        {condition.charAt(0).toUpperCase() + condition.slice(1)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs text-white/60 mb-2">
-                                Notas
-                            </label>
-                            <textarea
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                rows={3}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
-                                placeholder="Observaciones adicionales..."
-                            />
-                        </div>
-
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleSaveCondition}
-                                className="flex-1 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-                            >
-                                Guardar
-                            </button>
-                            <button
-                                onClick={() => setSelectedTooth(null)}
-                                className="px-4 py-2 text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
+        <div className="space-y-8">
+            <div className="flex flex-col items-center gap-8 py-6 bg-[#202020] rounded-[8px] border border-white/5">
+                {/* Odontograma Superior */}
+                <div className="w-full px-6">
+                    <div className="text-xs text-white/40 mb-3 text-center uppercase tracking-widest font-semibold">Arcada Superior</div>
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                        {TEETH_FDI.upper.map(renderTooth)}
                     </div>
-                </motion.div>
-            )}
+                </div>
+
+                {/* Separator */}
+                <div className="w-32 h-px bg-white/10" />
+
+                {/* Odontograma Inferior */}
+                <div className="w-full px-6">
+                    <div className="text-xs text-white/40 mb-3 text-center uppercase tracking-widest font-semibold">Arcada Inferior</div>
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                        {TEETH_FDI.lower.map(renderTooth)}
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Leyenda */}
+                <div className="lg:col-span-2 bg-[#272727] rounded-[8px] p-5 border border-white/5">
+                    <div className="text-xs font-semibold text-white/90 mb-4 tracking-wide">REFERENCIAS</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {Object.entries(CONDITION_COLORS).map(([key, color]) => (
+                            <div key={key} className="flex items-center gap-2.5">
+                                <div
+                                    className="w-3 h-3 rounded-[2px] shadow-sm"
+                                    style={{ backgroundColor: color }}
+                                />
+                                <span className="text-xs text-white/70 capitalize">
+                                    {key}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Panel de Edición */}
+                {selectedTooth ? (
+                    <motion.div
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-[#323232] border border-white/5 rounded-[8px] p-5 shadow-lg"
+                    >
+                        <h3 className="text-sm font-semibold text-white/90 mb-4 pb-3 border-b border-white/5">
+                            Pieza {selectedTooth}
+                        </h3>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-white/70 mb-2">
+                                    Condición Clínica
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        value={selectedCondition}
+                                        onChange={(e) => setSelectedCondition(e.target.value)}
+                                        className="w-full h-9 bg-[#252525] hover:bg-[#2a2a2a] border border-white/10 rounded-[4px] px-3 text-sm text-white focus:outline-none focus:border-b-2 focus:border-b-[#60cdff] transition-all appearance-none"
+                                    >
+                                        {Object.keys(CONDITION_COLORS).map(condition => (
+                                            <option key={condition} value={condition}>
+                                                {condition.charAt(0).toUpperCase() + condition.slice(1)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-white/70 mb-2">
+                                    Observaciones
+                                </label>
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    rows={3}
+                                    className="w-full bg-[#252525] hover:bg-[#2a2a2a] border border-white/10 rounded-[4px] px-3 py-2 text-sm text-white focus:outline-none focus:border-b-2 focus:border-b-[#60cdff] transition-all resize-none"
+                                    placeholder="Detalles adicionales..."
+                                />
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    onClick={handleSaveCondition}
+                                    className="flex-1 py-1.5 text-sm font-medium text-white bg-[#005FB8] hover:bg-[#1874D0] rounded-[4px] transition-colors shadow-sm"
+                                >
+                                    Guardar
+                                </button>
+                                <button
+                                    onClick={() => setSelectedTooth(null)}
+                                    className="px-4 py-1.5 text-sm font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-[4px] transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                ) : (
+                    <div className="bg-[#272727] border border-white/5 rounded-[8px] p-5 flex items-center justify-center text-center">
+                        <p className="text-sm text-white/40">
+                            Seleccione una pieza dental para editar su estado
+                        </p>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

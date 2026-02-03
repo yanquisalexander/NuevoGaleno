@@ -6,6 +6,7 @@ import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { PowerMenu } from './PowerMenu';
 import { SearchOverlay } from './SearchOverlay';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
+import { CalendarWidget } from './CalendarWidget';
 import { useSession } from '../../hooks/useSession';
 import { useNotifications } from '../../contexts/NotificationContext';
 
@@ -17,13 +18,14 @@ interface SystemInfo {
 
 export function Taskbar() {
     const { windows, apps, openWindow, focusWindow, restoreWindow } = useWindowManager();
-    const { currentUser, logout, exitApp } = useSession();
+    const { currentUser, logout, lockScreen, exitApp } = useSession();
     const { notifications } = useNotifications();
     const [currentTime, setCurrentTime] = useState(new Date());
     const [showStartMenu, setShowStartMenu] = useState(false);
     const [showSearchOverlay, setShowSearchOverlay] = useState(false);
     const [showPowerMenu, setShowPowerMenu] = useState(false);
     const [showNotificationCenter, setShowNotificationCenter] = useState(false);
+    const [showCalendar, setShowCalendar] = useState(false);
     const [systemInfo, setSystemInfo] = useState<SystemInfo>({
         batteryLevel: 100,
         isCharging: false,
@@ -64,12 +66,18 @@ export function Taskbar() {
 
     const handleLogout = async () => {
         setShowPowerMenu(false);
+        setShowStartMenu(false);
         try {
             await logout();
-            window.location.reload();
         } catch (error) {
             console.error('Error cerrando sesión:', error);
         }
+    };
+
+    const handleLockScreen = () => {
+        setShowPowerMenu(false);
+        setShowStartMenu(false);
+        lockScreen();
     };
 
     const handleShutdown = async () => {
@@ -210,7 +218,10 @@ export function Taskbar() {
 
                     <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                        className="flex flex-col items-end px-2 h-10 justify-center rounded-[4px] text-right"
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowCalendar(!showCalendar)}
+                        className={`flex flex-col items-end px-2 h-10 justify-center rounded-[4px] text-right transition-colors ${showCalendar ? 'bg-white/10' : ''
+                            }`}
                     >
                         <span className="text-[11px] text-white font-medium leading-none mb-1">
                             {currentTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
@@ -320,6 +331,7 @@ export function Taskbar() {
                 onClose={() => setShowPowerMenu(false)}
                 currentUser={currentUser}
                 onLogout={handleLogout}
+                onLockScreen={handleLockScreen}
                 onShutdown={handleShutdown}
             />
 
@@ -333,6 +345,12 @@ export function Taskbar() {
             <NotificationCenterPanel
                 isOpen={showNotificationCenter}
                 onClose={() => setShowNotificationCenter(false)}
+            />
+
+            {/* --- CALENDARIO --- */}
+            <CalendarWidget
+                isOpen={showCalendar}
+                onClose={() => setShowCalendar(false)}
             />
         </>
     );

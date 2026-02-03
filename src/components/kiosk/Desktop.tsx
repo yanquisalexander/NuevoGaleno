@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { DesktopContextMenu } from './DesktopContextMenu';
 import { playSound, UI_SOUNDS } from "@/consts/Sounds";
+import { useToast } from "@/hooks/useToast";
 
 interface ChromecastImage {
     url: string;
@@ -24,8 +25,18 @@ export function Desktop() {
     const [wallpaperInfo, setWallpaperInfo] = useState<ChromecastImage | null>(null);
     const [isChanging, setIsChanging] = useState(false);
 
+    const { success } = useToast();
+
     useEffect(() => {
         playSound(UI_SOUNDS.GALENO_BOOT, 0.3);
+
+        setTimeout(() => {
+            success('Bienvenido a Nuevo Galeno', 'Haz doble clic en un ícono para abrir una aplicación.', {
+                sound: true,
+                soundFile: UI_SOUNDS.ALERT_05
+            })
+        }, 2000)
+
     }, []);
 
     // Referencia para evitar ciclos en el random

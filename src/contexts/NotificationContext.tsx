@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { playSound, UISound } from '../consts/Sounds';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
@@ -18,6 +19,7 @@ export interface Notification {
     actions?: NotificationAction[];
     duration?: number; // milliseconds, 0 = persistent
     sound?: boolean;
+    soundFile?: UISound; // Archivo de sonido a reproducir
     timestamp: Date;
 }
 
@@ -47,12 +49,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setNotifications(prev => [newNotification, ...prev]);
 
         // Reproducir sonido si está habilitado
-        if (newNotification.sound) {
-            playNotificationSound(notification.type);
+        if (newNotification.sound && newNotification.soundFile) {
+            playSound(newNotification.soundFile, 0.5);
         }
 
         // Auto-dismiss si tiene duración
-        if (newNotification.duration > 0) {
+        if (newNotification.duration && newNotification.duration > 0) {
             setTimeout(() => {
                 removeNotification(id);
             }, newNotification.duration);
@@ -84,49 +86,4 @@ export function useNotifications() {
     return context;
 }
 
-// Sonidos del sistema
-function playNotificationSound(type: NotificationType) {
-    try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        // Frecuencias basadas en el tipo
-        const frequencies: Record<NotificationType, number[]> = {
-            info: [800, 1000],
-            success: [600, 800, 1000],
-            warning: [800, 600],
-            error: [400, 300]
-        };
-
-        const freqs = frequencies[type];
-        oscillator.frequency.value = freqs[0];
-
-        // Envelope
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.3);
-
-        // Segundo tono para success
-        if (freqs.length > 2) {
-            const osc2 = audioContext.createOscillator();
-            const gain2 = audioContext.createGain();
-            osc2.connect(gain2);
-            gain2.connect(audioContext.destination);
-            osc2.frequency.value = freqs[2];
-            gain2.gain.setValueAtTime(0, audioContext.currentTime + 0.1);
-            gain2.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 0.11);
-            gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-            osc2.start(audioContext.currentTime + 0.1);
-            osc2.stop(audioContext.currentTime + 0.4);
-        }
-    } catch (error) {
-        console.error('Error playing notification sound:', error);
-    }
-}

@@ -4,4 +4,5 @@ export { Window } from './Window';
 export { WindowContainer } from './WindowContainer';
 export { PowerMenu } from './PowerMenu';
 export { SearchOverlay } from './SearchOverlay';
+export { CalendarWidget } from './CalendarWidget';
 export { NotificationCenterPanel } from '../NotificationCenterPanel';

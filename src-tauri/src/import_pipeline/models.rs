@@ -43,6 +43,7 @@ pub struct PatientDto {
 
     // Relaciones
     pub treatments: Vec<TreatmentDto>,
+    pub odontograms: Vec<OdontogramDto>,
 }
 
 impl PatientDto {
@@ -74,6 +75,7 @@ impl PatientDto {
             last_updated_legacy: None,
             raw_data: serde_json::json!({}),
             treatments: Vec::new(),
+            odontograms: Vec::new(),
         }
     }
 
@@ -237,6 +239,49 @@ impl PaymentDto {
             payment_date: None,
             payment_method: None,
             notes: None,
+            created_at_legacy: None,
+            raw_data: serde_json::json!({}),
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ODONTOGRAMA DTO
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OdontogramDto {
+    pub temp_id: String,
+    pub legacy_id: Option<String>,
+    pub patient_temp_id: String,
+
+    pub tooth_number: String,
+    pub condition: String,
+    pub notes: Option<String>,
+    pub color: Option<String>,
+    pub date: Option<String>,
+
+    pub created_at_legacy: Option<String>,
+    pub raw_data: serde_json::Value,
+}
+
+impl OdontogramDto {
+    pub fn new_with_temp_id(patient_temp_id: String) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
+
+        Self {
+            temp_id: format!("ODO_{}", ts),
+            legacy_id: None,
+            patient_temp_id,
+            tooth_number: String::new(),
+            condition: String::new(),
+            notes: None,
+            color: None,
+            date: None,
             created_at_legacy: None,
             raw_data: serde_json::json!({}),
         }

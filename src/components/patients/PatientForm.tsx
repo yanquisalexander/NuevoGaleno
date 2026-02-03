@@ -42,36 +42,40 @@ export function PatientForm({ patient, onSave, onCancel }: PatientFormProps) {
         setFormData(prev => ({ ...prev, [field]: value || undefined }));
     };
 
+    const inputClasses = "w-full h-9 bg-[#2d2d2d] hover:bg-[#323232] border border-white/5 rounded-[4px] px-3 text-sm text-white focus:outline-none focus:bg-[#1f1f1f] focus:border-b-2 focus:border-b-[#60cdff] transition-all";
+    const labelClasses = "block text-sm text-white/70 mb-1.5 font-normal";
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-50 flex items-center justify-center p-4"
         >
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-[#2c2c2c] border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+                initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: "spring", duration: 0.4, bounce: 0 }}
+                className="bg-[#2c2c2c] ring-1 ring-white/10 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-[8px]"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-white/10">
-                    <h2 className="text-xl font-semibold text-white">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-[#2c2c2c]">
+                    <h2 className="text-xl font-semibold text-white/90">
                         {patient ? 'Editar Paciente' : 'Nuevo Paciente'}
                     </h2>
                     <button
                         onClick={onCancel}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                        className="p-2 hover:bg-white/5 rounded-[4px] transition-colors text-white/70 hover:text-white"
                     >
-                        <X className="w-5 h-5 text-white/70" />
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
-                    <div className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5">
                         {/* Nombre */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Nombre *
                             </label>
                             <input
@@ -79,13 +83,13 @@ export function PatientForm({ patient, onSave, onCancel }: PatientFormProps) {
                                 required
                                 value={formData.first_name}
                                 onChange={(e) => handleChange('first_name', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             />
                         </div>
 
                         {/* Apellido */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Apellido *
                             </label>
                             <input
@@ -93,88 +97,90 @@ export function PatientForm({ patient, onSave, onCancel }: PatientFormProps) {
                                 required
                                 value={formData.last_name}
                                 onChange={(e) => handleChange('last_name', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             />
                         </div>
 
                         {/* DNI */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 DNI
                             </label>
                             <input
                                 type="text"
                                 value={formData.document_number}
                                 onChange={(e) => handleChange('document_number', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             />
                         </div>
 
                         {/* Teléfono */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Teléfono
                             </label>
                             <input
                                 type="tel"
                                 value={formData.phone}
                                 onChange={(e) => handleChange('phone', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             />
                         </div>
 
                         {/* Email */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Email
                             </label>
                             <input
                                 type="email"
                                 value={formData.email}
                                 onChange={(e) => handleChange('email', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             />
                         </div>
 
                         {/* Fecha de Nacimiento */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Fecha de Nacimiento
                             </label>
                             <input
                                 type="date"
                                 value={formData.birth_date}
                                 onChange={(e) => handleChange('birth_date', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             />
                         </div>
 
                         {/* Género */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Género
                             </label>
-                            <select
-                                value={formData.gender}
-                                onChange={(e) => handleChange('gender', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                            >
-                                <option value="">Seleccionar</option>
-                                <option value="M">Masculino</option>
-                                <option value="F">Femenino</option>
-                                <option value="O">Otro</option>
-                            </select>
+                            <div className="relative">
+                                <select
+                                    value={formData.gender}
+                                    onChange={(e) => handleChange('gender', e.target.value)}
+                                    className={inputClasses}
+                                >
+                                    <option value="">Seleccionar</option>
+                                    <option value="M">Masculino</option>
+                                    <option value="F">Femenino</option>
+                                    <option value="O">Otro</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Grupo Sanguíneo */}
                         <div>
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Grupo Sanguíneo
                             </label>
                             <select
                                 value={formData.blood_type}
                                 onChange={(e) => handleChange('blood_type', e.target.value)}
-                                className="w-full h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                className={inputClasses}
                             >
                                 <option value="">Seleccionar</option>
                                 <option value="A+">A+</option>
@@ -190,45 +196,45 @@ export function PatientForm({ patient, onSave, onCancel }: PatientFormProps) {
 
                         {/* Alergias */}
                         <div className="col-span-2">
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Alergias
                             </label>
                             <textarea
                                 value={formData.allergies}
                                 onChange={(e) => handleChange('allergies', e.target.value)}
                                 rows={2}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
+                                className={`${inputClasses} h-auto py-2 resize-none`}
                             />
                         </div>
 
                         {/* Notas Médicas */}
                         <div className="col-span-2">
-                            <label className="block text-sm font-medium text-white/90 mb-2">
+                            <label className={labelClasses}>
                                 Notas Médicas
                             </label>
                             <textarea
                                 value={formData.medical_notes}
                                 onChange={(e) => handleChange('medical_notes', e.target.value)}
                                 rows={3}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
+                                className={`${inputClasses} h-auto py-2 resize-none`}
                             />
                         </div>
                     </div>
                 </form>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10">
+                <div className="flex items-center justify-end gap-2 p-6 border-t border-white/5 bg-[#272727]/50">
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="px-4 py-2 text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                        className="px-6 py-1.5 min-w-[80px] text-sm text-white/90 hover:bg-white/10 rounded-[4px] transition-colors border border-white/5 bg-[#2d2d2d]"
                     >
                         Cancelar
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="px-6 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-1.5 min-w-[80px] text-sm font-normal text-white bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] rounded-[4px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 shadow-sm"
                     >
                         {isSubmitting ? 'Guardando...' : 'Guardar'}
                     </button>

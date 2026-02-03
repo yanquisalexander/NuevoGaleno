@@ -75,6 +75,48 @@ pub fn login_user(username: String, password_hash: String) -> Result<User, Strin
 }
 
 #[tauri::command]
+pub fn login_with_pin(username: String, pin: String) -> Result<User, String> {
+    match users::verify_user_pin(&username, &pin)? {
+        Some(user) => {
+            start_session(user.clone())?;
+            Ok(user)
+        }
+        None => Err("PIN incorrecto".to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn unlock_with_password(username: String, password_hash: String) -> Result<User, String> {
+    // Reutilizamos la lógica de login
+    login_user(username, password_hash)
+}
+
+#[tauri::command]
+pub fn unlock_with_pin(username: String, pin: String) -> Result<User, String> {
+    // Reutilizamos la lógica de login con PIN
+    login_with_pin(username, pin)
+}
+
+#[tauri::command]
+pub fn set_user_pin(username: String, pin: String) -> Result<(), String> {
+    // Validar que el PIN tenga entre 4 y 6 dígitos
+    if pin.len() < 4 || pin.len() > 6 {
+        return Err("El PIN debe tener entre 4 y 6 dígitos".to_string());
+    }
+
+    if !pin.chars().all(|c| c.is_ascii_digit()) {
+        return Err("El PIN debe contener solo dígitos".to_string());
+    }
+
+    users::update_user_pin(&username, Some(&pin))
+}
+
+#[tauri::command]
+pub fn remove_user_pin(username: String) -> Result<(), String> {
+    users::update_user_pin(&username, None)
+}
+
+#[tauri::command]
 pub fn logout_user() -> Result<(), String> {
     end_session()
 }

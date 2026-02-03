@@ -67,12 +67,12 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
     if (treatments.length === 0) {
         return (
             <>
-                <div className="flex flex-col items-center justify-center py-12 text-white/60">
-                    <Stethoscope className="w-16 h-16 mb-4 opacity-30" />
-                    <p className="text-sm mb-4">No hay tratamientos registrados</p>
+                <div className="flex flex-col items-center justify-center py-20 text-white/40">
+                    <Stethoscope className="w-12 h-12 mb-4 opacity-20" />
+                    <p className="text-sm font-medium mb-4">No hay tratamientos registrados</p>
                     <button
                         onClick={() => setShowForm(true)}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-lg font-medium shadow-lg shadow-blue-500/20 transition-all"
+                        className="flex items-center gap-2 px-6 py-2 bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] text-white rounded-[4px] font-medium shadow-sm transition-all border border-white/10"
                     >
                         <Plus className="w-4 h-4" />
                         Crear Primer Tratamiento
@@ -90,13 +90,16 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-5xl">
             {/* Header con botón */}
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-white/60">{treatments.length} tratamiento(s)</p>
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-lg font-semibold text-white/90">Tratamientos</h3>
+                    <span className="text-xs text-white/40">{treatments.length} total</span>
+                </div>
                 <button
                     onClick={() => setShowForm(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/20 transition-all"
+                    className="flex items-center gap-2 px-4 py-1.5 bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] text-white rounded-[4px] text-sm font-medium shadow-sm transition-all border border-white/10"
                 >
                     <Plus className="w-4 h-4" />
                     Nuevo Tratamiento
@@ -104,22 +107,24 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
             </div>
 
             {/* Lista */}
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3">
                 {treatments.map((treatment, index) => (
                     <motion.div
                         key={treatment.id}
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="bg-gradient-to-br from-white/8 to-white/5 border border-white/10 rounded-xl p-5 hover:border-white/20 hover:shadow-lg hover:shadow-black/20 transition-all backdrop-blur-sm"
+                        className="bg-[#272727] border border-white/5 rounded-[8px] p-5 hover:border-white/10 transition-all group"
                     >
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex-1">
-                                <h3 className="font-semibold text-white text-lg">{treatment.name}</h3>
-                                {treatment.tooth_number && (
-                                    <p className="text-sm text-white/60 mt-1">
-                                        🦷 Pieza: {treatment.tooth_number}
-                                    </p>
+                                <h3 className="font-semibold text-white/90 text-[15px]">{treatment.name}</h3>
+                                {(treatment.tooth_number) && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-white/5 text-white/60">
+                                            Pieza {treatment.tooth_number}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
@@ -129,55 +134,55 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
                                         setSelectedTreatment(treatment);
                                         setShowForm(true);
                                     }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center rounded-[4px] bg-[#323232] hover:bg-[#3d3d3d] text-white/60 hover:text-white transition-colors border border-white/5"
                                 >
                                     <Edit className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-white/5 rounded-lg p-3">
-                                <div className="flex items-center gap-2 text-white/60 text-xs mb-1">
-                                    <DollarSign className="w-3.5 h-3.5" />
-                                    <span>Costo Total</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#202020] rounded-[6px] p-3 border border-white/5">
+                            <div>
+                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                    <DollarSign className="w-3 h-3" />
+                                    <span>Costo</span>
                                 </div>
-                                <div className="text-white font-semibold">{formatCurrency(treatment.total_cost)}</div>
+                                <div className="text-white/90 font-medium text-sm">{formatCurrency(treatment.total_cost)}</div>
                             </div>
 
-                            <div className="bg-white/5 rounded-lg p-3">
-                                <div className="flex items-center gap-2 text-white/60 text-xs mb-1">
-                                    <DollarSign className="w-3.5 h-3.5" />
+                            <div>
+                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                    <DollarSign className="w-3 h-3" />
                                     <span>Saldo</span>
                                 </div>
-                                <div className={`font-semibold ${treatment.balance > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                <div className={`font-medium text-sm ${treatment.balance > 0 ? 'text-red-400' : 'text-green-500'}`}>
                                     {formatCurrency(treatment.balance)}
                                 </div>
                             </div>
 
-                            {treatment.start_date && (
-                                <div className="bg-white/5 rounded-lg p-3">
-                                    <div className="flex items-center gap-2 text-white/60 text-xs mb-1">
-                                        <Calendar className="w-3.5 h-3.5" />
-                                        <span>Inicio</span>
-                                    </div>
-                                    <div className="text-white text-sm">{new Date(treatment.start_date).toLocaleDateString('es-AR')}</div>
+                            <div>
+                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>Inicio</span>
                                 </div>
-                            )}
+                                <div className="text-white/70 text-sm">
+                                    {treatment.start_date ? new Date(treatment.start_date).toLocaleDateString('es-AR') : '-'}
+                                </div>
+                            </div>
 
-                            {treatment.completion_date && (
-                                <div className="bg-white/5 rounded-lg p-3">
-                                    <div className="flex items-center gap-2 text-white/60 text-xs mb-1">
-                                        <Calendar className="w-3.5 h-3.5" />
-                                        <span>Fin</span>
-                                    </div>
-                                    <div className="text-white text-sm">{new Date(treatment.completion_date).toLocaleDateString('es-AR')}</div>
+                            <div>
+                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>Estado</span>
                                 </div>
-                            )}
+                                <div className="text-white/70 text-sm">
+                                    {treatment.completion_date ? new Date(treatment.completion_date).toLocaleDateString('es-AR') : 'En curso'}
+                                </div>
+                            </div>
                         </div>
 
                         {treatment.notes && (
-                            <div className="mt-3 pt-3 border-t border-white/10">
+                            <div className="mt-3 pt-3 border-t border-white/5">
                                 <p className="text-xs text-white/50 line-clamp-2">
                                     {treatment.notes}
                                 </p>

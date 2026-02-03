@@ -3,6 +3,7 @@
 
 use crate::import_pipeline::models::*;
 use rusqlite::{Connection, Transaction};
+use chrono;
 
 /// Resultado de la persistencia
 pub struct PersistResult {
@@ -10,6 +11,7 @@ pub struct PersistResult {
     pub patients_inserted: usize,
     pub treatments_inserted: usize,
     pub payments_inserted: usize,
+    pub odontograms_inserted: usize,
     pub error: Option<String>,
 }
 
@@ -32,16 +34,18 @@ pub fn persist_all(
         patients_inserted: 0,
         treatments_inserted: 0,
         payments_inserted: 0,
+        odontograms_inserted: 0,
         error: None,
     };
 
     // Insertar cada paciente con sus relaciones
     for patient in patients {
         match insert_patient_with_relations(&tx, patient) {
-            Ok((treatments_count, payments_count)) => {
+            Ok((treatments_count, payments_count, odontograms_count)) => {
                 result.patients_inserted += 1;
                 result.treatments_inserted += treatments_count;
                 result.payments_inserted += payments_count;
+                result.odontograms_inserted += odontograms_count;
             }
             Err(e) => {
                 // En caso de error, hacer rollback implícito
@@ -135,6 +139,24 @@ fn ensure_schema(tx: &Transaction) -> Result<(), String> {
 
         CREATE INDEX IF NOT EXISTS idx_payments_treatment ON payments(treatment_id);
         CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date);
+        
+        CREATE TABLE IF NOT EXISTS odontograms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            legacy_id TEXT,
+            tooth_number TEXT NOT NULL,
+            condition TEXT NOT NULL,
+            notes TEXT,
+            color TEXT,
+            date TEXT,
+            raw_data TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_odontograms_patient ON odontograms(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_odontograms_tooth ON odontograms(tooth_number);
         "#,
     )
     .map_err(|e| format!("Error creando schema: {}", e))?;
@@ -146,12 +168,13 @@ fn ensure_schema(tx: &Transaction) -> Result<(), String> {
 fn insert_patient_with_relations(
     tx: &Transaction,
     patient: &PatientDto,
-) -> Result<(usize, usize), String> {
+) -> Result<(usize, usize, usize), String> {
     // 1. Insertar paciente
     let patient_id = insert_patient(tx, patient)?;
 
     let mut treatments_count = 0;
     let mut payments_count = 0;
+    let mut odontograms_count = 0;
 
     // 2. Insertar tratamientos
     for treatment in &patient.treatments {
@@ -165,19 +188,27 @@ fn insert_patient_with_relations(
         }
     }
 
-    Ok((treatments_count, payments_count))
+    // 4. Insertar odontogramas
+    for odontogram in &patient.odontograms {
+        insert_odontogram(tx, patient_id, odontogram)?;
+        odontograms_count += 1;
+    }
+
+    Ok((treatments_count, payments_count, odontograms_count))
 }
 
 fn insert_patient(tx: &Transaction, patient: &PatientDto) -> Result<i64, String> {
     let raw_json = serde_json::to_string(&patient.raw_data).unwrap_or_else(|_| "{}".to_string());
+    let now = chrono::Utc::now().to_rfc3339();
 
     tx.execute(
         r#"
         INSERT INTO patients (
             legacy_id, first_name, last_name, document_type, document_number,
             phone, email, address, city, postal_code,
-            birth_date, gender, blood_type, allergies, medical_notes, raw_data
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+            birth_date, gender, blood_type, allergies, medical_notes, 
+            created_at, updated_at, raw_data
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
         "#,
         rusqlite::params![
             patient.legacy_id,
@@ -195,6 +226,8 @@ fn insert_patient(tx: &Transaction, patient: &PatientDto) -> Result<i64, String>
             patient.blood_type,
             patient.allergies,
             patient.medical_notes,
+            now,
+            now,
             raw_json,
         ],
     )
@@ -209,14 +242,16 @@ fn insert_treatment(
     treatment: &TreatmentDto,
 ) -> Result<i64, String> {
     let raw_json = serde_json::to_string(&treatment.raw_data).unwrap_or_else(|_| "{}".to_string());
+    let now = chrono::Utc::now().to_rfc3339();
 
     tx.execute(
         r#"
         INSERT INTO treatments (
             patient_id, legacy_id, name, description, tooth_number, sector,
             status, total_cost, paid_amount, balance,
-            planned_date, started_date, completed_date, notes, raw_data
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            planned_date, started_date, completed_date, notes, 
+            created_at, updated_at, raw_data
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
         "#,
         rusqlite::params![
             patient_id,
@@ -233,6 +268,8 @@ fn insert_treatment(
             treatment.started_date,
             treatment.completed_date,
             treatment.notes,
+            now,
+            now,
             raw_json,
         ],
     )
@@ -247,12 +284,14 @@ fn insert_payment(
     payment: &PaymentDto,
 ) -> Result<i64, String> {
     let raw_json = serde_json::to_string(&payment.raw_data).unwrap_or_else(|_| "{}".to_string());
+    let now = chrono::Utc::now().to_rfc3339();
 
     tx.execute(
         r#"
         INSERT INTO payments (
-            treatment_id, legacy_id, amount, payment_date, payment_method, notes, raw_data
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            treatment_id, legacy_id, amount, payment_date, payment_method, notes, 
+            created_at, raw_data
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         "#,
         rusqlite::params![
             treatment_id,
@@ -261,10 +300,44 @@ fn insert_payment(
             payment.payment_date,
             payment.payment_method,
             payment.notes,
+            now,
             raw_json,
         ],
     )
     .map_err(|e| format!("Error insertando pago: {}", e))?;
+
+    Ok(tx.last_insert_rowid())
+}
+
+fn insert_odontogram(
+    tx: &Transaction,
+    patient_id: i64,
+    odontogram: &OdontogramDto,
+) -> Result<i64, String> {
+    let raw_json = serde_json::to_string(&odontogram.raw_data).unwrap_or_else(|_| "{}".to_string());
+    let now = chrono::Utc::now().to_rfc3339();
+
+    tx.execute(
+        r#"
+        INSERT INTO odontograms (
+            patient_id, legacy_id, tooth_number, condition, notes, color, date, 
+            created_at, updated_at, raw_data
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        "#,
+        rusqlite::params![
+            patient_id,
+            odontogram.legacy_id,
+            odontogram.tooth_number,
+            odontogram.condition,
+            odontogram.notes,
+            odontogram.color,
+            odontogram.date,
+            now,
+            now,
+            raw_json,
+        ],
+    )
+    .map_err(|e| format!("Error insertando odontograma: {}", e))?;
 
     Ok(tx.last_insert_rowid())
 }

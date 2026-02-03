@@ -1,5 +1,6 @@
 export const UI_SOUNDS = {
     GALENO_BOOT: 'galeno_boot.mp3',
+    ALERT_05: 'Alert-05.mp3',
 } as const;
 
 export type UISound = (typeof UI_SOUNDS)[keyof typeof UI_SOUNDS];

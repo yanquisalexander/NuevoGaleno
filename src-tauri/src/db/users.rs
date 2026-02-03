@@ -10,6 +10,7 @@ pub struct User {
     pub username: String,
     pub name: String,
     pub role: String,
+    pub pin: Option<String>,
     pub active: bool,
     pub created_at: String,
 }
@@ -47,7 +48,7 @@ pub fn get_user_by_username(username: &str) -> Result<Option<(User, String)>, St
     let conn = get_connection()?;
 
     let mut stmt = conn
-        .prepare("SELECT id, username, password_hash, name, role, active, created_at FROM users WHERE username = ?1")
+        .prepare("SELECT id, username, password_hash, pin, name, role, active, created_at FROM users WHERE username = ?1")
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let result = stmt.query_row(params![username], |row| {
@@ -55,10 +56,11 @@ pub fn get_user_by_username(username: &str) -> Result<Option<(User, String)>, St
             User {
                 id: row.get(0)?,
                 username: row.get(1)?,
-                name: row.get(3)?,
-                role: row.get(4)?,
-                active: row.get::<_, i32>(5)? == 1,
-                created_at: row.get(6)?,
+                name: row.get(4)?,
+                role: row.get(5)?,
+                pin: row.get(3).ok(),
+                active: row.get::<_, i32>(6)? == 1,
+                created_at: row.get(7)?,
             },
             row.get::<_, String>(2)?, // password_hash
         ))
@@ -75,7 +77,7 @@ pub fn list_users() -> Result<Vec<User>, String> {
     let conn = get_connection()?;
 
     let mut stmt = conn
-        .prepare("SELECT id, username, name, role, active, created_at FROM users ORDER BY created_at DESC")
+        .prepare("SELECT id, username, name, role, pin, active, created_at FROM users ORDER BY created_at DESC")
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let users = stmt
@@ -85,8 +87,9 @@ pub fn list_users() -> Result<Vec<User>, String> {
                 username: row.get(1)?,
                 name: row.get(2)?,
                 role: row.get(3)?,
-                active: row.get::<_, i32>(4)? == 1,
-                created_at: row.get(5)?,
+                pin: row.get(4).ok(),
+                active: row.get::<_, i32>(5)? == 1,
+                created_at: row.get(6)?,
             })
         })
         .map_err(|e| format!("Error listando usuarios: {}", e))?
@@ -127,3 +130,58 @@ pub fn delete_user(username: &str) -> Result<(), String> {
 
     Ok(())
 }
+
+pub fn update_user_pin(username: &str, new_pin: Option<&str>) -> Result<(), String> {
+    let conn = get_connection()?;
+    let now = Utc::now().to_rfc3339();
+
+    let updated = conn
+        .execute(
+            "UPDATE users SET pin = ?1, updated_at = ?2 WHERE username = ?3",
+            params![new_pin, &now, username],
+        )
+        .map_err(|e| format!("Error actualizando PIN: {}", e))?;
+
+    if updated == 0 {
+        return Err("Usuario no encontrado".to_string());
+    }
+
+    Ok(())
+}
+
+pub fn verify_user_pin(username: &str, pin: &str) -> Result<Option<User>, String> {
+    let conn = get_connection()?;
+
+    let mut stmt = conn
+        .prepare("SELECT id, username, name, role, pin, active, created_at FROM users WHERE username = ?1")
+        .map_err(|e| format!("Error preparando query: {}", e))?;
+
+    let result = stmt.query_row(params![username], |row| {
+        Ok(User {
+            id: row.get(0)?,
+            username: row.get(1)?,
+            name: row.get(2)?,
+            role: row.get(3)?,
+            pin: row.get(4).ok(),
+            active: row.get::<_, i32>(5)? == 1,
+            created_at: row.get(6)?,
+        })
+    });
+
+    match result {
+        Ok(user) => {
+            if !user.active {
+                return Err("Usuario inactivo".to_string());
+            }
+            
+            match &user.pin {
+                Some(stored_pin) if stored_pin == pin => Ok(Some(user)),
+                Some(_) => Err("PIN incorrecto".to_string()),
+                None => Err("Usuario no tiene PIN configurado".to_string()),
+            }
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Err("Usuario no encontrado".to_string()),
+        Err(e) => Err(format!("Error verificando PIN: {}", e)),
+    }
+}
+

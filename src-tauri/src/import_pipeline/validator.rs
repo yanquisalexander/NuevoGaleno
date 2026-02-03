@@ -75,22 +75,33 @@ pub fn validate_all(patients: &[PatientDto]) -> ValidationResult {
 fn validate_patient(patient: &PatientDto) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
-    // Campos obligatorios
+    // Identificador del registro para el usuario
+    let patient_info = if !patient.first_name.is_empty() || !patient.last_name.is_empty() {
+        format!("{} {}", patient.first_name.trim(), patient.last_name.trim())
+    } else if let Some(ref doc) = patient.document_number {
+        format!("Doc: {}", doc)
+    } else if let Some(ref legacy_id) = patient.legacy_id {
+        format!("ID legacy: {}", legacy_id)
+    } else {
+        "Paciente desconocido".to_string()
+    };
+
+    // Campos obligatorios - En datos legacy, convertir a warnings si falta información
     if patient.first_name.trim().is_empty() {
-        issues.push(ValidationIssue::error(
+        issues.push(ValidationIssue::warning(
             "patient",
             &patient.temp_id,
             "first_name",
-            "El nombre es obligatorio".to_string(),
+            format!("[{}] El nombre es obligatorio (paciente se importará con datos incompletos)", patient_info),
         ));
     }
 
     if patient.last_name.trim().is_empty() {
-        issues.push(ValidationIssue::error(
+        issues.push(ValidationIssue::warning(
             "patient",
             &patient.temp_id,
             "last_name",
-            "El apellido es obligatorio".to_string(),
+            format!("[{}] El apellido es obligatorio (paciente se importará con datos incompletos)", patient_info),
         ));
     }
 

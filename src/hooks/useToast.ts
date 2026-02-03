@@ -1,4 +1,5 @@
 import { useNotifications } from '../contexts/NotificationContext';
+import { UISound } from '../consts/Sounds';
 
 /**
  * Hook de utilidad para crear notificaciones comunes con estilos predefinidos
@@ -7,7 +8,7 @@ export function useToast() {
     const { addNotification } = useNotifications();
 
     return {
-        success: (title: string, message?: string, options?: { actions?: any[], duration?: number }) => {
+        success: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
             return addNotification({
                 type: 'success',
                 title,
@@ -16,7 +17,7 @@ export function useToast() {
             });
         },
 
-        error: (title: string, message?: string, options?: { actions?: any[], duration?: number }) => {
+        error: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
             return addNotification({
                 type: 'error',
                 title,
@@ -26,7 +27,7 @@ export function useToast() {
             });
         },
 
-        warning: (title: string, message?: string, options?: { actions?: any[], duration?: number }) => {
+        warning: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
             return addNotification({
                 type: 'warning',
                 title,
@@ -35,7 +36,7 @@ export function useToast() {
             });
         },
 
-        info: (title: string, message?: string, options?: { actions?: any[], duration?: number }) => {
+        info: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
             return addNotification({
                 type: 'info',
                 title,
@@ -57,7 +58,7 @@ export function useToast() {
         },
 
         // Notificación urgente con sonido y alta prioridad
-        urgent: (title: string, message?: string, actions?: any[]) => {
+        urgent: (title: string, message?: string, actions?: any[], soundFile?: UISound) => {
             return addNotification({
                 type: 'error',
                 title,
@@ -65,7 +66,8 @@ export function useToast() {
                 duration: 0,
                 actions,
                 priority: 'urgent',
-                sound: true
+                sound: true,
+                soundFile
             });
         }
     };

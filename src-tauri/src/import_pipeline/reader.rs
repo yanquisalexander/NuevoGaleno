@@ -5,10 +5,14 @@ use crate::import_pipeline::models::{RawField, RawParadoxData, RawTable};
 use crate::importer;
 use std::path::Path;
 
+/// Callback para reportar progreso durante la lectura
+pub type ProgressCallback = Box<dyn Fn(String) + Send>;
+
 /// Lee todos los archivos .DB de un directorio extraído con límite de registros
-pub fn read_all_tables_with_limit(
+pub async fn read_all_tables_with_limit(
     extracted_dir: &str,
     limit: usize,
+    progress_cb: Option<ProgressCallback>,
 ) -> Result<RawParadoxData, String> {
     let mut data = RawParadoxData {
         tables: Vec::new(),
@@ -16,21 +20,40 @@ pub fn read_all_tables_with_limit(
     };
 
     // Listar archivos .DB
-    let files_result = importer::list_extracted_files(extracted_dir.to_string())?;
+    if let Some(ref cb) = progress_cb {
+        cb("Listando archivos de la base de datos...".to_string());
+    }
+    let files_result = importer::list_extracted_files(extracted_dir.to_string()).await?;
 
     let db_files = files_result
         .get("db_files")
-        .and_then(|v| v.as_array())
+        .and_then(|v: &serde_json::Value| v.as_array())
         .ok_or("No se encontraron archivos .DB")?;
 
-    for db_file in db_files {
-        let path_str = db_file.as_str().ok_or("Ruta de archivo inválida")?;
+    let total_files = db_files.len();
+    if let Some(ref cb) = progress_cb {
+        cb(format!("Encontrados {} archivos de base de datos", total_files));
+    }
 
-        match read_single_table(path_str, limit) {
+    for (idx, db_file) in db_files.iter().enumerate() {
+        let path_str = db_file.as_str().ok_or("Ruta de archivo inválida")?;
+        let table_name = Path::new(path_str)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown");
+
+        if let Some(ref cb) = progress_cb {
+            cb(format!("📖 Leyendo tabla {} de {}: {}", idx + 1, total_files, table_name));
+        }
+
+        match read_single_table(path_str, limit).await {
             Ok(table) => data.tables.push(table),
             Err(e) => {
                 data.errors
                     .push(format!("Error leyendo {}: {}", path_str, e));
+                if let Some(ref cb) = progress_cb {
+                    cb(format!("⚠️ Error en {}: {}", table_name, e));
+                }
             }
         }
     }
@@ -46,20 +69,24 @@ pub fn read_all_tables_with_limit(
 }
 
 /// Lee todos los archivos .DB sin límite (para importación completa)
-pub fn read_all_tables(extracted_dir: &str) -> Result<RawParadoxData, String> {
-    read_all_tables_with_limit(extracted_dir, usize::MAX)
+pub async fn read_all_tables(
+    extracted_dir: &str,
+    progress_cb: Option<ProgressCallback>,
+) -> Result<RawParadoxData, String> {
+    read_all_tables_with_limit(extracted_dir, usize::MAX, progress_cb).await
 }
 
 /// Lee solo los primeros N registros de cada tabla (para preview rápido)
-pub fn read_all_tables_preview(
+pub async fn read_all_tables_preview(
     extracted_dir: &str,
     limit: usize,
+    progress_cb: Option<ProgressCallback>,
 ) -> Result<RawParadoxData, String> {
-    read_all_tables_with_limit(extracted_dir, limit)
+    read_all_tables_with_limit(extracted_dir, limit, progress_cb).await
 }
 
 /// Lee una tabla individual de Paradox con límite de registros
-fn read_single_table(file_path: &str, limit: usize) -> Result<RawTable, String> {
+async fn read_single_table(file_path: &str, limit: usize) -> Result<RawTable, String> {
     let path = Path::new(file_path);
     let table_name = path
         .file_stem()
@@ -68,15 +95,15 @@ fn read_single_table(file_path: &str, limit: usize) -> Result<RawTable, String> 
         .to_string();
 
     // Usar la función existente del importer con el límite especificado
-    let result = importer::read_table_data(file_path.to_string(), limit)?;
+    let result = importer::read_table_data(file_path.to_string(), limit).await?;
 
     // Parsear el resultado JSON
     let fields = result
         .get("fields")
-        .and_then(|v| v.as_array())
+        .and_then(|v: &serde_json::Value| v.as_array())
         .ok_or("No se encontraron campos en la tabla")?
         .iter()
-        .filter_map(|f| {
+        .filter_map(|f: &serde_json::Value| {
             Some(RawField {
                 name: f.get("name")?.as_str()?.to_string(),
                 field_type: f.get("type")?.as_u64()? as u8,
@@ -88,10 +115,10 @@ fn read_single_table(file_path: &str, limit: usize) -> Result<RawTable, String> 
 
     let rows = result
         .get("rows")
-        .and_then(|v| v.as_array())
+        .and_then(|v: &serde_json::Value| v.as_array())
         .ok_or("No se encontraron registros en la tabla")?
         .iter()
-        .filter_map(|r| r.as_object().cloned())
+        .filter_map(|r: &serde_json::Value| r.as_object().cloned())
         .collect::<Vec<_>>();
 
     Ok(RawTable {
@@ -196,6 +223,91 @@ pub fn identify_treatments_table(data: &RawParadoxData) -> Option<&RawTable> {
 
 /// Identifica qué tabla contiene pagos
 pub fn identify_payments_table(data: &RawParadoxData) -> Option<&RawTable> {
+    let mut best: Option<&RawTable> = None;
+    let mut best_score = 0i32;
+
+    for table in &data.tables {
+        let mut score = 0i32;
+        
+        let has_payment_fields = table.fields.iter().any(|f| {
+            let name_lower = f.name.to_lowercase();
+            if name_lower.contains("pago") || name_lower.contains("payment") {
+                score += 5;
+                true
+            } else {
+                false
+            }
+        });
+        
+        let has_key_fields = table.fields.iter().any(|f| {
+            let name_lower = f.name.to_lowercase();
+            if name_lower.contains("clave") && (name_lower.contains("pac") || name_lower.contains("tratam")) {
+                score += 3;
+                true
+            } else {
+                false
+            }
+        });
+        
+        let _has_date_field = table.fields.iter().any(|f| {
+            let name_lower = f.name.to_lowercase();
+            if name_lower.contains("fecha") || name_lower.contains("date") {
+                score += 2;
+                true
+            } else {
+                false
+            }
+        });
+        
+        if (has_payment_fields || has_key_fields) && score > best_score {
+            best_score = score;
+            best = Some(table);
+        }
+    }
+    
+    best
+}
+
+/// Identifica qué tabla contiene odontogramas
+pub fn identify_odontograms_table(data: &RawParadoxData) -> Option<&RawTable> {
+    let mut best: Option<&RawTable> = None;
+    let mut best_score = 0i32;
+
+    for table in &data.tables {
+        let mut score = 0i32;
+        
+        for f in &table.fields {
+            let name_lower = f.name.to_lowercase();
+            
+            if name_lower.contains("diente") || name_lower.contains("nodiente") || name_lower.contains("tooth") {
+                score += 5;
+            }
+            if name_lower.contains("clavepac") || name_lower.contains("clavpac") {
+                score += 3;
+            }
+            if name_lower.contains("tipo") || name_lower.contains("color") {
+                score += 2;
+            }
+            if name_lower.contains("avance") || name_lower.contains("estado") {
+                score += 2;
+            }
+        }
+        
+        if score > best_score {
+            best_score = score;
+            best = Some(table);
+        }
+    }
+    
+    if best_score >= 5 {
+        best
+    } else {
+        None
+    }
+}
+
+// Remover implementación anterior incompleta
+pub fn _identify_payments_table_old(data: &RawParadoxData) -> Option<&RawTable> {
     for table in &data.tables {
         let has_payment_fields = table.fields.iter().any(|f| {
             let name_lower = f.name.to_lowercase();

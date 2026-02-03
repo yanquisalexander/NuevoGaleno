@@ -1,5 +1,5 @@
 import { useWindowManager } from '../../contexts/WindowManagerContext';
-import { RefreshCw, Settings, Image } from 'lucide-react';
+import { Settings, Image } from 'lucide-react';
 
 interface ContextMenuProps {
     x: number;
@@ -19,11 +19,6 @@ export function DesktopContextMenu({ x, y, onClose, onNextWallpaper }: ContextMe
                 onNextWallpaper?.();
                 onClose();
             }
-        },
-        {
-            label: 'Actualizar',
-            icon: RefreshCw,
-            action: () => window.location.reload()
         },
         {
             label: 'Configuración',

@@ -155,41 +155,49 @@ pub fn extract_gln(glnPath: String) -> Result<String, String> {
                 }
             }
         }
-        fn pxval_string_bytes<'a>(value: Option<&'a FieldValue<'a>>) -> Option<&'a [u8]> {
-            value.and_then(|v| v.bytes())
-        }
     });
 
     Ok(job_id)
 }
 
 #[tauri::command]
-pub fn list_extracted_files(dir: String) -> Result<serde_json::Value, String> {
-    let p = std::path::PathBuf::from(dir);
-    if !p.exists() {
-        return Err("directorio no encontrado".into());
-    }
+pub async fn list_extracted_files(dir: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = std::path::PathBuf::from(dir);
+        if !p.exists() {
+            return Err("directorio no encontrado".into());
+        }
 
-    let mut db_files: Vec<String> = Vec::new();
-    let mut docs: Vec<String> = Vec::new();
+        let mut db_files = Vec::new();
+        let mut docs = Vec::new();
+        let chunk_size = 50;
+        let mut count = 0;
 
-    for entry in WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
-            let path = entry.path();
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                let ext_l = ext.to_lowercase();
-                if ext_l == "db" {
-                    db_files.push(path.to_string_lossy().to_string());
+        for entry in WalkDir::new(&p).into_iter().filter_map(|e| e.ok()) {
+            if entry.file_type().is_file() {
+                let path = entry.path();
+                if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                    let ext_l = ext.to_lowercase();
+                    if ext_l == "db" {
+                        db_files.push(path.to_string_lossy().to_string());
+                    } else {
+                        docs.push(path.to_string_lossy().to_string());
+                    }
                 } else {
                     docs.push(path.to_string_lossy().to_string());
                 }
-            } else {
-                docs.push(path.to_string_lossy().to_string());
+                
+                count += 1;
+                if count % chunk_size == 0 {
+                    std::thread::yield_now();
+                }
             }
         }
-    }
 
-    Ok(serde_json::json!({"db_files": db_files, "documents": docs}))
+        Ok(serde_json::json!({"db_files": db_files, "documents": docs}))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -291,14 +299,6 @@ fn parse_field_value<'a>(
     value: Option<&'a FieldValue<'a>>,
     encoding: &'static encoding_rs::Encoding,
 ) -> String {
-   /*  debug!(
-        "Parseando campo '{}' tipo {} ({}), tamaño {} bytes",
-        field.name,
-        field.field_type,
-        field_type_name(field.field_type),
-        field.size
-    ); */
-
     let pxval = match value {
         Some(v) if !v.is_null() => v,
         _ => return String::new(),
@@ -388,56 +388,89 @@ fn parse_field_value<'a>(
 }
 
 #[tauri::command]
-pub fn read_table_data(path: String, limit: usize) -> Result<serde_json::Value, String> {
-    let path_buf = Path::new(&path);
-    if !path_buf.exists() {
-        return Err("Archivo Paradox no encontrado".into());
-    }
-
-    let doc = Document::open(path_buf).map_err(|e| format!("pxlib error: {}", e))?;
-    let encoding = detect_encoding(doc.code_page());
-    let max_records = limit.min(doc.num_records());
-
-    let mut rows = Vec::new();
-    for idx in 0..max_records {
-        if let Some(record) = doc.read_record(idx) {
-            let mut row = serde_json::Map::new();
-            for (field_idx, field) in doc.fields().iter().enumerate() {
-                let value = record.field_value(field_idx);
-                let text = parse_field_value(field, value.as_ref(), encoding);
-                row.insert(field.name.clone(), serde_json::Value::String(text));
+pub async fn read_table_data(path: String, limit: usize) -> Result<serde_json::Value, String> {
+    let path_buf = Path::new(&path).to_path_buf();
+    
+    let (tx, rx) = mpsc::channel::<(usize, usize)>();
+    
+    // Thread para emitir progreso
+    thread::spawn(move || {
+        while let Ok((processed, total)) = rx.recv() {
+            let progress = ((processed + 1) as f32 / total as f32 * 100.0) as i32;
+            
+            if let Some(app) = GLOBAL_APP_HANDLE.lock().unwrap().as_ref() {
+                let _ = app.emit(
+                    "table:progress",
+                    serde_json::json!({
+                        "processed": processed + 1,
+                        "total": total,
+                        "progress": progress
+                    }),
+                );
             }
-            rows.push(serde_json::Value::Object(row));
         }
-    }
+    });
+    
+    tauri::async_runtime::spawn_blocking(move || {
+        let doc = Document::open(&path_buf).map_err(|e| format!("pxlib error: {}", e))?;
+        let encoding = detect_encoding(doc.code_page());
+        let max_records = limit.min(doc.num_records());
+        let chunk_size = 100; // Procesar de 100 en 100
 
-    let fields_metadata = doc
-        .fields()
-        .iter()
-        .map(|f| {
-            serde_json::json!({
-                "name": f.name,
-                "type": f.field_type,
-                "size": f.size,
-                "type_name": field_type_name(f.field_type)
+        let mut rows = Vec::with_capacity(max_records);
+        
+        for chunk_start in (0..max_records).step_by(chunk_size) {
+            let chunk_end = (chunk_start + chunk_size).min(max_records);
+            
+            for idx in chunk_start..chunk_end {
+                if let Some(record) = doc.read_record(idx) {
+                    let mut row = serde_json::Map::new();
+                    for (field_idx, field) in doc.fields().iter().enumerate() {
+                        let value = record.field_value(field_idx);
+                        let text = parse_field_value(field, value.as_ref(), encoding);
+                        row.insert(field.name.clone(), serde_json::Value::String(text));
+                    }
+                    rows.push(serde_json::Value::Object(row));
+                }
+                
+                // Emitir progreso
+                let _ = tx.send((idx, max_records));
+            }
+            
+            // Yield al runtime cada chunk
+            std::thread::yield_now();
+        }
+
+        let fields_metadata = doc
+            .fields()
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "name": f.name,
+                    "type": f.field_type,
+                    "size": f.size,
+                    "type_name": field_type_name(f.field_type)
+                })
             })
-        })
-        .collect::<Vec<_>>();
+            .collect::<Vec<_>>();
 
-    Ok(serde_json::json!({
-        "fields": fields_metadata,
-        "rows": rows,
-        "debug": {
-            "file_version": doc.file_version(),
-            "header_size": doc.header_size(),
-            "record_size": doc.record_size(),
-            "num_fields": doc.fields().len(),
-            "num_records": doc.num_records(),
-            "records_reported": rows.len(),
-            "encoding": encoding.name(),
-            "code_page": doc.code_page()
-        }
-    }))
+        Ok(serde_json::json!({
+            "fields": fields_metadata,
+            "rows": rows,
+            "debug": {
+                "file_version": doc.file_version(),
+                "header_size": doc.header_size(),
+                "record_size": doc.record_size(),
+                "num_fields": doc.fields().len(),
+                "num_records": doc.num_records(),
+                "records_reported": rows.len(),
+                "encoding": encoding.name(),
+                "code_page": doc.code_page()
+            }
+        }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn clean_text(decoded: &str) -> String {

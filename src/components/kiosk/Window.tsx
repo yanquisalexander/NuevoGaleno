@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, ReactNode } from 'react';
 import { X, Square, Copy, Minus } from 'lucide-react'; // Iconos más estilo Windows
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import type { WindowId } from '../../types/window-manager';
 
@@ -102,82 +102,85 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
         };
 
     return (
-        <AnimatePresence>
-            {!windowState.isMinimized && (
-                <motion.div
-                    ref={windowRef}
-                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                    animate={{
-                        opacity: 1,
-                        scale: 1,
-                        y: 0,
-                        ...containerStyle
-                    }}
-                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                    onMouseDown={handleMouseDown}
-                    className={`
-                        fixed flex flex-col overflow-hidden
-                        bg-[#202020]/80 backdrop-blur-[30px] 
-                        border border-white/10 ${windowState.isMaximized ? '' : 'rounded-xl'}
-                        shadow-[0_20px_50px_rgba(0,0,0,0.3)]
-                        ${windowState.isFocused ? 'ring-1 ring-white/20' : 'brightness-90'}
-                    `}
-                    style={{ zIndex: windowState.zIndex }}
-                >
-                    {/* Title Bar - Estilo Mica */}
-                    <div
-                        onMouseDown={handleDragStart}
-                        onDoubleClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
-                        className="flex items-center justify-between h-9 px-3 select-none cursor-default"
+        <motion.div
+            ref={windowRef}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={windowState.isMinimized ? {
+                opacity: 0,
+                scale: 0.5,
+                y: window.innerHeight,
+            } : {
+                opacity: 1,
+                scale: 1,
+                y: 0,
+                ...containerStyle
+            }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            onMouseDown={handleMouseDown}
+            className={`
+                fixed flex flex-col overflow-hidden
+                bg-[#202020]/80 backdrop-blur-[30px] 
+                border border-white/10 ${windowState.isMaximized ? '' : 'rounded-xl'}
+                shadow-[0_20px_50px_rgba(0,0,0,0.3)]
+                ${windowState.isFocused ? 'ring-1 ring-white/20' : 'brightness-90'}
+            `}
+            style={{
+                zIndex: windowState.zIndex,
+                pointerEvents: windowState.isMinimized ? 'none' : 'auto',
+                visibility: windowState.isMinimized ? 'hidden' : 'visible'
+            }}
+        >
+            {/* Title Bar - Estilo Mica */}
+            <div
+                onMouseDown={handleDragStart}
+                onDoubleClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
+                className="flex items-center justify-between h-9 px-3 select-none cursor-default"
+            >
+                <div className="flex items-center gap-2 flex-1">
+                    <span className="text-lg">{icon}</span>
+                    <span className="text-[12px] text-white/90 font-normal">
+                        {title}
+                    </span>
+                </div>
+
+                <div className="window-controls flex h-full">
+                    <button
+                        onClick={() => minimizeWindow(windowId)}
+                        className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
                     >
-                        <div className="flex items-center gap-2 flex-1">
-                            <span className="text-lg">{icon}</span>
-                            <span className="text-[12px] text-white/90 font-normal">
-                                {title}
-                            </span>
-                        </div>
+                        <Minus size={14} className="text-white" />
+                    </button>
+                    <button
+                        onClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
+                        className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
+                    >
+                        {windowState.isMaximized ? (
+                            <Copy size={12} className="text-white -rotate-90" />
+                        ) : (
+                            <Square size={12} className="text-white" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => { onClose?.(); closeWindow(windowId); }}
+                        className="w-11 h-9 flex items-center justify-center hover:bg-[#e81123] transition-colors"
+                    >
+                        <X size={16} className="text-white" />
+                    </button>
+                </div>
+            </div>
 
-                        <div className="window-controls flex h-full">
-                            <button
-                                onClick={() => minimizeWindow(windowId)}
-                                className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
-                            >
-                                <Minus size={14} className="text-white" />
-                            </button>
-                            <button
-                                onClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
-                                className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
-                            >
-                                {windowState.isMaximized ? (
-                                    <Copy size={12} className="text-white -rotate-90" />
-                                ) : (
-                                    <Square size={12} className="text-white" />
-                                )}
-                            </button>
-                            <button
-                                onClick={() => { onClose?.(); closeWindow(windowId); }}
-                                className="w-11 h-9 flex items-center justify-center hover:bg-[#e81123] transition-colors"
-                            >
-                                <X size={16} className="text-white" />
-                            </button>
-                        </div>
-                    </div>
+            {/* Window Content */}
+            <div className="flex-1 overflow-auto bg-[#191919]/90">
+                {children}
+            </div>
 
-                    {/* Window Content */}
-                    <div className="flex-1 overflow-auto bg-[#191919]/90">
-                        {children}
-                    </div>
-
-                    {/* Resize Handle - Invisible pero grande para facilidad de uso */}
-                    {!windowState.isMaximized && (
-                        <div
-                            onMouseDown={handleResizeStart}
-                            className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-50"
-                        />
-                    )}
-                </motion.div>
+            {/* Resize Handle - Invisible pero grande para facilidad de uso */}
+            {!windowState.isMaximized && (
+                <div
+                    onMouseDown={handleResizeStart}
+                    className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-50"
+                />
             )}
-        </AnimatePresence>
+        </motion.div>
     );
 }

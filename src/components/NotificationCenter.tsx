@@ -83,7 +83,7 @@ export function NotificationCenter() {
     const currentNotification = notifications[0];
 
     return (
-        <div className="fixed bottom-4 right-4 z-[70] pointer-events-none flex flex-col items-end">
+        <div className="fixed bottom-12 right-4 z-[70] pointer-events-none flex flex-col items-end">
             <AnimatePresence mode="wait">
                 {currentNotification && (
                     <motion.div key={currentNotification.id} className="pointer-events-auto">

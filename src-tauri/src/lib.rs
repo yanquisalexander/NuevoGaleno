@@ -202,6 +202,57 @@ fn get_tooth_history(
     db::odontograms::get_tooth_history(patient_id, &tooth_number)
 }
 
+// ===== APPOINTMENTS COMMANDS =====
+#[tauri::command]
+fn create_appointment(appointment: db::appointments::Appointment) -> Result<i64, String> {
+    let conn = db::get_connection()?;
+    db::appointments::create_appointment(&conn, &appointment)
+}
+
+#[tauri::command]
+fn update_appointment(appointment: db::appointments::Appointment) -> Result<(), String> {
+    let conn = db::get_connection()?;
+    db::appointments::update_appointment(&conn, &appointment)
+}
+
+#[tauri::command]
+fn delete_appointment(id: i64) -> Result<(), String> {
+    let conn = db::get_connection()?;
+    db::appointments::delete_appointment(&conn, id)
+}
+
+#[tauri::command]
+fn get_appointment(id: i64) -> Result<db::appointments::Appointment, String> {
+    let conn = db::get_connection()?;
+    db::appointments::get_appointment(&conn, id)
+}
+
+#[tauri::command]
+fn list_appointments(
+    filter: db::appointments::AppointmentFilter,
+) -> Result<Vec<db::appointments::AppointmentWithPatient>, String> {
+    let conn = db::get_connection()?;
+    db::appointments::list_appointments(&conn, &filter)
+}
+
+#[tauri::command]
+fn get_pending_reminders() -> Result<Vec<db::appointments::AppointmentReminder>, String> {
+    let conn = db::get_connection()?;
+    db::appointments::get_pending_reminders(&conn)
+}
+
+#[tauri::command]
+fn mark_reminder_sent(reminder_id: i64, notification_id: String) -> Result<(), String> {
+    let conn = db::get_connection()?;
+    db::appointments::mark_reminder_sent(&conn, reminder_id, &notification_id)
+}
+
+#[tauri::command]
+fn get_upcoming_appointments(hours: i32) -> Result<Vec<db::appointments::AppointmentWithPatient>, String> {
+    let conn = db::get_connection()?;
+    db::appointments::get_upcoming_appointments(&conn, hours)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -254,6 +305,11 @@ pub fn run() {
             config::set_config_value,
             // session management
             session::login_user,
+            session::login_with_pin,
+            session::unlock_with_password,
+            session::unlock_with_pin,
+            session::set_user_pin,
+            session::remove_user_pin,
             session::logout_user,
             session::get_current_user,
             session::get_current_session_info,
@@ -297,6 +353,15 @@ pub fn run() {
             delete_tooth_condition,
             clear_patient_odontogram,
             get_tooth_history,
+            // appointments
+            create_appointment,
+            update_appointment,
+            delete_appointment,
+            get_appointment,
+            list_appointments,
+            get_pending_reminders,
+            mark_reminder_sent,
+            get_upcoming_appointments,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
