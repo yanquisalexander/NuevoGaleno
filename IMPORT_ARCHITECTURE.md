@@ -374,17 +374,33 @@ tx.commit()?;  // Solo se aplica si todo salió bien
 ### 2. **Prevención de Duplicados**
 ```rust
 pub fn check_existing_imports(conn: &Connection) -> Result<bool, String> {
-    // Verifica si ya hay registros con legacy_id
+    // Verifica si ya hay registros importados (legacy_patient_map)
 }
 ```
 
-### 3. **Limpieza Controlada**
+### 3. **Sistema de Migraciones Versionadas**
+```rust
+// Las migraciones se aplican automáticamente al iniciar la app
+// Se trackea la versión en schema_version
+// Si hay nueva versión, se aplican solo las migraciones pendientes
+
+const CURRENT_SCHEMA_VERSION: i32 = 2;
+
+// v1: Schema inicial
+// v2: Columnas del sistema de importación (legacy_*, source_*, etc.)
+```
 ```rust
 // Solo elimina registros que vinieron de importación (tienen legacy_id)
 DELETE FROM patients WHERE legacy_id IS NOT NULL;
 ```
 
-### 4. **Validación Multi-Nivel**
+### 4. **Limpieza Controlada**
+```rust
+// Solo elimina registros que vinieron de importación (tienen legacy_id)
+DELETE FROM patients WHERE legacy_id IS NOT NULL;
+```
+
+### 5. **Validación Multi-Nivel**
 - Por campo individual
 - Por entidad (paciente, tratamiento, pago)
 - Por consistencia relacional (pagos vs totales)

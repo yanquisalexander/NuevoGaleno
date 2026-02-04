@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell } from 'lucide-react';
-import { useWindowManager } from '../../contexts/WindowManagerContext';
-import { PowerMenu } from './PowerMenu';
-import { SearchOverlay } from './SearchOverlay';
-import { NotificationCenterPanel } from '../NotificationCenterPanel';
-import { CalendarWidget } from './CalendarWidget';
-import { useSession } from '../../hooks/useSession';
-import { useNotifications } from '../../contexts/NotificationContext';
+import { useWindowManager } from '@/contexts/WindowManagerContext';
+import { useSession } from '@/hooks/useSession';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { useShell } from '@/contexts/ShellContext';
 
 interface SystemInfo {
     batteryLevel: number;
@@ -17,15 +14,21 @@ interface SystemInfo {
 }
 
 export function Taskbar() {
-    const { windows, apps, openWindow, focusWindow, restoreWindow } = useWindowManager();
-    const { currentUser, logout, lockScreen, exitApp } = useSession();
+    const { windows, apps, openWindow, focusWindow } = useWindowManager();
+    const { currentUser } = useSession();
     const { notifications } = useNotifications();
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [showStartMenu, setShowStartMenu] = useState(false);
-    const [showSearchOverlay, setShowSearchOverlay] = useState(false);
-    const [showPowerMenu, setShowPowerMenu] = useState(false);
-    const [showNotificationCenter, setShowNotificationCenter] = useState(false);
-    const [showCalendar, setShowCalendar] = useState(false);
+    const {
+        showStartMenu, setShowStartMenu,
+        showNotifications,
+        toggleStartMenu,
+        setShowSearch,
+        setShowNotifications,
+        setShowCalendar,
+        showCalendar,
+        setShowPowerMenu
+    } = useShell();
+
     const [systemInfo, setSystemInfo] = useState<SystemInfo>({
         batteryLevel: 100,
         isCharging: false,
@@ -59,34 +62,7 @@ export function Taskbar() {
     }, []);
 
     const handleWindowClick = (windowId: string) => {
-        const window = windows.find(w => w.id === windowId);
-        if (window?.isMinimized) restoreWindow(windowId);
         focusWindow(windowId);
-    };
-
-    const handleLogout = async () => {
-        setShowPowerMenu(false);
-        setShowStartMenu(false);
-        try {
-            await logout();
-        } catch (error) {
-            console.error('Error cerrando sesión:', error);
-        }
-    };
-
-    const handleLockScreen = () => {
-        setShowPowerMenu(false);
-        setShowStartMenu(false);
-        lockScreen();
-    };
-
-    const handleShutdown = async () => {
-        setShowPowerMenu(false);
-        try {
-            await exitApp();
-        } catch (error) {
-            console.error('Error saliendo:', error);
-        }
     };
 
     // Variantes de animación para los iconos de apps
@@ -118,7 +94,7 @@ export function Taskbar() {
                     <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => setShowStartMenu(!showStartMenu)}
+                        onClick={() => toggleStartMenu()}
                         className={`relative h-10 w-10 flex items-center justify-center rounded-[4px] transition-all ${showStartMenu ? 'bg-white/10' : ''
                             }`}
                     >
@@ -132,7 +108,7 @@ export function Taskbar() {
                     <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => setShowSearchOverlay(true)}
+                        onClick={() => setShowSearch(true)}
                         className="h-10 w-10 flex items-center justify-center rounded-[4px]"
                     >
                         <Search className="w-5 h-5 text-white/90" />
@@ -186,8 +162,8 @@ export function Taskbar() {
                     <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => setShowNotificationCenter(!showNotificationCenter)}
-                        className={`relative h-10 w-10 flex items-center justify-center rounded-[4px] transition-colors ${showNotificationCenter ? 'bg-white/10' : 'hover:bg-white/10'
+                        onClick={() => setShowNotifications(!showNotifications)}
+                        className={`relative h-10 w-10 flex items-center justify-center rounded-[4px] transition-colors ${showNotifications ? 'bg-white/10' : 'hover:bg-white/10'
                             }`}
                     >
                         <Bell className="w-5 h-5 text-white/90" />
@@ -324,34 +300,6 @@ export function Taskbar() {
                 </AnimatePresence>,
                 document.body
             )}
-
-            {/* --- MENÚ DE APAGADO --- */}
-            <PowerMenu
-                isOpen={showPowerMenu}
-                onClose={() => setShowPowerMenu(false)}
-                currentUser={currentUser}
-                onLogout={handleLogout}
-                onLockScreen={handleLockScreen}
-                onShutdown={handleShutdown}
-            />
-
-            {/* --- BÚSQUEDA COMBINADA --- */}
-            <SearchOverlay
-                isOpen={showSearchOverlay}
-                onClose={() => setShowSearchOverlay(false)}
-            />
-
-            {/* --- CENTRO DE NOTIFICACIONES --- */}
-            <NotificationCenterPanel
-                isOpen={showNotificationCenter}
-                onClose={() => setShowNotificationCenter(false)}
-            />
-
-            {/* --- CALENDARIO --- */}
-            <CalendarWidget
-                isOpen={showCalendar}
-                onClose={() => setShowCalendar(false)}
-            />
         </>
     );
 }

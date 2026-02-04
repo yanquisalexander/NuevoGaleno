@@ -15,6 +15,7 @@
     "core:window:allow-unmaximize",
     "core:window:allow-minimize",
     "opener:allow-open-path",
-    "opener:allow-reveal-item-in-dir"
+    "opener:allow-reveal-item-in-dir",
+    "updater:default"
   ]
 }

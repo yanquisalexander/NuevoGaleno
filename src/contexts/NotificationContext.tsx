@@ -35,6 +35,10 @@ const NotificationContext = createContext<NotificationContextType | null>(null);
 export function NotificationProvider({ children }: { children: ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
+    const removeNotification = useCallback((id: string) => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+    }, []);
+
     const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp'>) => {
         const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const newNotification: Notification = {
@@ -48,23 +52,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         setNotifications(prev => [newNotification, ...prev]);
 
-        // Reproducir sonido si está habilitado
-        if (newNotification.sound && newNotification.soundFile) {
-            playSound(newNotification.soundFile, 0.5);
-        }
-
         // Auto-dismiss si tiene duración
         if (newNotification.duration && newNotification.duration > 0) {
             setTimeout(() => {
-                removeNotification(id);
+                setNotifications(prev => prev.filter(n => n.id !== id));
             }, newNotification.duration);
         }
 
         return id;
-    }, []);
-
-    const removeNotification = useCallback((id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id));
     }, []);
 
     const clearAll = useCallback(() => {

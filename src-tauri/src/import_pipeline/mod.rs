@@ -2,6 +2,7 @@
 // Arquitectura: Lectura → Transformación → Validación → Previsualización → Persistencia
 
 pub mod commands;
+pub mod doc_converter;
 pub mod models;
 pub mod persister;
 pub mod previewer;

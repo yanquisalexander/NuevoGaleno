@@ -8,7 +8,8 @@ use super::get_connection;
 pub struct Payment {
     pub id: i64,
     pub treatment_id: i64,
-    pub legacy_id: Option<String>,
+    #[serde(rename = "legacy_id")]
+    pub legacy_payment_id: Option<String>,
     pub amount: f64,
     pub payment_date: String,
     pub payment_method: Option<String>,
@@ -123,7 +124,7 @@ pub fn get_payment_by_id(id: i64) -> Result<Option<Payment>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_id, legacy_id, amount, payment_date, payment_method, notes, created_at
+            "SELECT id, treatment_id, legacy_payment_id, amount, payment_date, payment_method, notes, created_at
              FROM payments WHERE id = ?1"
         )
         .map_err(|e| format!("Error preparando query: {}", e))?;
@@ -132,7 +133,7 @@ pub fn get_payment_by_id(id: i64) -> Result<Option<Payment>, String> {
         Ok(Payment {
             id: row.get(0)?,
             treatment_id: row.get(1)?,
-            legacy_id: row.get(2)?,
+            legacy_payment_id: row.get(2)?,
             amount: row.get(3)?,
             payment_date: row.get(4)?,
             payment_method: row.get(5)?,
@@ -153,7 +154,7 @@ pub fn get_payments_by_treatment(treatment_id: i64) -> Result<Vec<Payment>, Stri
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_id, legacy_id, amount, payment_date, payment_method, notes, created_at
+            "SELECT id, treatment_id, legacy_payment_id, amount, payment_date, payment_method, notes, created_at
              FROM payments 
              WHERE treatment_id = ?1
              ORDER BY payment_date DESC"
@@ -165,7 +166,7 @@ pub fn get_payments_by_treatment(treatment_id: i64) -> Result<Vec<Payment>, Stri
             Ok(Payment {
                 id: row.get(0)?,
                 treatment_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_payment_id: row.get(2)?,
                 amount: row.get(3)?,
                 payment_date: row.get(4)?,
                 payment_method: row.get(5)?,
@@ -185,7 +186,7 @@ pub fn get_payments_by_patient(patient_id: i64) -> Result<Vec<Payment>, String> 
 
     let mut stmt = conn
         .prepare(
-            "SELECT p.id, p.treatment_id, p.legacy_id, p.amount, p.payment_date, 
+            "SELECT p.id, p.treatment_id, p.legacy_payment_id, p.amount, p.payment_date, 
                     p.payment_method, p.notes, p.created_at
              FROM payments p
              JOIN treatments t ON p.treatment_id = t.id
@@ -199,7 +200,7 @@ pub fn get_payments_by_patient(patient_id: i64) -> Result<Vec<Payment>, String> 
             Ok(Payment {
                 id: row.get(0)?,
                 treatment_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_payment_id: row.get(2)?,
                 amount: row.get(3)?,
                 payment_date: row.get(4)?,
                 payment_method: row.get(5)?,
@@ -221,7 +222,7 @@ pub fn get_all_payments(limit: Option<i64>, offset: Option<i64>) -> Result<Vec<P
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_id, legacy_id, amount, payment_date, payment_method, notes, created_at
+            "SELECT id, treatment_id, legacy_payment_id, amount, payment_date, payment_method, notes, created_at
              FROM payments 
              ORDER BY payment_date DESC
              LIMIT ?1 OFFSET ?2"
@@ -233,7 +234,7 @@ pub fn get_all_payments(limit: Option<i64>, offset: Option<i64>) -> Result<Vec<P
             Ok(Payment {
                 id: row.get(0)?,
                 treatment_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_payment_id: row.get(2)?,
                 amount: row.get(3)?,
                 payment_date: row.get(4)?,
                 payment_method: row.get(5)?,
@@ -470,7 +471,7 @@ pub fn get_recent_payments(limit: Option<i64>) -> Result<Vec<Payment>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_id, legacy_id, amount, payment_date, payment_method, notes, created_at
+            "SELECT id, treatment_id, legacy_payment_id, amount, payment_date, payment_method, notes, created_at
              FROM payments 
              ORDER BY payment_date DESC, created_at DESC
              LIMIT ?1"
@@ -482,7 +483,7 @@ pub fn get_recent_payments(limit: Option<i64>) -> Result<Vec<Payment>, String> {
             Ok(Payment {
                 id: row.get(0)?,
                 treatment_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_payment_id: row.get(2)?,
                 amount: row.get(3)?,
                 payment_date: row.get(4)?,
                 payment_method: row.get(5)?,

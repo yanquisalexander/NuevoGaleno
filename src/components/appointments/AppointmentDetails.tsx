@@ -28,7 +28,7 @@ export function AppointmentDetails({
     return (
         <AnimatePresence>
             {open && (
-                <div className="fixed left-0 right-0 bottom-0 top-8 z-50 flex items-center justify-center py-4 px-6 bg-black/40 backdrop-blur-sm" onClick={onClose}>
+                <div className="absolute inset-0 z-50 flex items-center justify-center py-4 px-6 bg-black/40 backdrop-blur-sm" onClick={onClose}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}

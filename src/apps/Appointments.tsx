@@ -151,7 +151,7 @@ export default function Appointments() {
     };
 
     return (
-        <div className="h-full flex flex-col space-y-4 p-2 overflow-hidden">
+        <div className="h-full flex flex-col space-y-4 p-2 overflow-hidden relative">
             {/* Header / Toolbar Principal */}
             <div className="flex items-center justify-between shrink-0 bg-[#202020] p-3 rounded-[8px] border border-white/5 shadow-sm">
                 <div className="flex items-center gap-4">

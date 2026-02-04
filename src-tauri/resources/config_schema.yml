@@ -17,6 +17,13 @@ showAccountSelector:
   ui_section: Sistema
   admin_only: true
 
+layoutStyle:
+  type: enum
+  default: windows
+  choices: [windows, macos]
+  description: Estilo visual de la interfaz.
+  ui_section: General
+
 enforceSystemPasswordForImports:
   type: boolean
   default: false

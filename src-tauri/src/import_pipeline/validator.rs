@@ -80,7 +80,7 @@ fn validate_patient(patient: &PatientDto) -> Vec<ValidationIssue> {
         format!("{} {}", patient.first_name.trim(), patient.last_name.trim())
     } else if let Some(ref doc) = patient.document_number {
         format!("Doc: {}", doc)
-    } else if let Some(ref legacy_id) = patient.legacy_id {
+    } else if let Some(ref legacy_id) = patient.legacy_patient_id {
         format!("ID legacy: {}", legacy_id)
     } else {
         "Paciente desconocido".to_string()
@@ -178,6 +178,18 @@ fn validate_patient(patient: &PatientDto) -> Vec<ValidationIssue> {
         });
     }
 
+    if !patient.orphan_payments.is_empty() {
+        issues.push(ValidationIssue::warning(
+            "patient",
+            &patient.temp_id,
+            "orphan_payments",
+            format!(
+                "Paciente con {} pagos sin tratamiento asociado",
+                patient.orphan_payments.len()
+            ),
+        ));
+    }
+
     issues
 }
 
@@ -191,6 +203,15 @@ fn validate_treatment(treatment: &TreatmentDto) -> Vec<ValidationIssue> {
             &treatment.temp_id,
             "name",
             "El nombre del tratamiento es obligatorio".to_string(),
+        ));
+    }
+
+    if treatment.legacy_treatment_id.is_none() {
+        issues.push(ValidationIssue::warning(
+            "treatment",
+            &treatment.temp_id,
+            "legacy_treatment_id",
+            "Tratamiento sin clave legacy; revisar trazabilidad".to_string(),
         ));
     }
 
@@ -277,6 +298,15 @@ fn validate_payment(payment: &PaymentDto) -> Vec<ValidationIssue> {
             &payment.temp_id,
             "amount",
             format!("Monto de pago inválido: {}", payment.amount),
+        ));
+    }
+
+    if payment.legacy_treatment_id.is_none() {
+        issues.push(ValidationIssue::warning(
+            "payment",
+            &payment.temp_id,
+            "legacy_treatment_id",
+            "Pago sin referencia legacy de tratamiento".to_string(),
         ));
     }
 

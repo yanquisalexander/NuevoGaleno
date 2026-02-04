@@ -1,74 +1,62 @@
-import { useNotifications } from '../contexts/NotificationContext';
+import { useCallback } from 'react';
+import { useNotifications, NotificationAction } from '../contexts/NotificationContext';
 import { UISound } from '../consts/Sounds';
 
+interface ToastOptions {
+    actions?: NotificationAction[];
+    duration?: number;
+    sound?: boolean;
+    soundFile?: UISound;
+}
+
+type NotificationType = 'success' | 'error' | 'warning' | 'info';
+
 /**
- * Hook de utilidad para crear notificaciones comunes con estilos predefinidos
+ * Hook optimizado para crear notificaciones toast.
+ * Usa useCallback en lugar de useMemo para mejor performance.
  */
 export function useToast() {
     const { addNotification } = useNotifications();
 
-    return {
-        success: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
-            return addNotification({
-                type: 'success',
-                title,
-                message,
-                ...options
-            });
-        },
+    const success = useCallback((title: string, message?: string, options?: ToastOptions) => {
+        return addNotification({ type: 'success', title, message, ...options });
+    }, [addNotification]);
 
-        error: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
-            return addNotification({
-                type: 'error',
-                title,
-                message,
-                duration: options?.duration ?? 8000, // Errores duran más
-                ...options
-            });
-        },
+    const info = useCallback((title: string, message?: string, options?: ToastOptions) => {
+        return addNotification({ type: 'info', title, message, ...options });
+    }, [addNotification]);
 
-        warning: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
-            return addNotification({
-                type: 'warning',
-                title,
-                message,
-                ...options
-            });
-        },
+    const warning = useCallback((title: string, message?: string, options?: ToastOptions) => {
+        return addNotification({ type: 'warning', title, message, ...options });
+    }, [addNotification]);
 
-        info: (title: string, message?: string, options?: { actions?: any[], duration?: number, sound?: boolean, soundFile?: UISound }) => {
-            return addNotification({
-                type: 'info',
-                title,
-                message,
-                ...options
-            });
-        },
+    const error = useCallback((title: string, message?: string, options?: ToastOptions) => {
+        return addNotification({ type: 'error', title, message, duration: 8000, ...options });
+    }, [addNotification]);
 
-        // Notificación persistente que requiere acción del usuario
-        persistent: (title: string, message?: string, actions?: any[]) => {
-            return addNotification({
-                type: 'info',
-                title,
-                message,
-                duration: 0,
-                actions,
-                priority: 'high'
-            });
-        },
+    const persistent = useCallback((title: string, message?: string, actions?: NotificationAction[]) => {
+        return addNotification({
+            type: 'info',
+            title,
+            message,
+            duration: 0,
+            actions,
+            priority: 'high'
+        });
+    }, [addNotification]);
 
-        // Notificación urgente con sonido y alta prioridad
-        urgent: (title: string, message?: string, actions?: any[], soundFile?: UISound) => {
-            return addNotification({
-                type: 'error',
-                title,
-                message,
-                duration: 0,
-                actions,
-                priority: 'urgent',
-                sound: true,
-                soundFile
-            });
-        }
-    };
+    const urgent = useCallback((title: string, message?: string, actions?: NotificationAction[], soundFile?: UISound) => {
+        return addNotification({
+            type: 'error',
+            title,
+            message,
+            duration: 0,
+            actions,
+            priority: 'urgent',
+            sound: true,
+            soundFile
+        });
+    }, [addNotification]);
+
+    return { success, info, warning, error, persistent, urgent };
 }

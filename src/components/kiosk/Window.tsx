@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, ReactNode } from 'react';
 import { X, Square, Copy, Minus } from 'lucide-react'; // Iconos más estilo Windows
 import { motion } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
+import { useConfig } from '../../hooks/useConfig';
 import type { WindowId } from '../../types/window-manager';
 
 interface WindowProps {
@@ -23,6 +24,10 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
         updatePosition,
         updateSize
     } = useWindowManager();
+
+    const { values } = useConfig();
+    const layoutStyle = (values.layoutStyle as string) || 'windows';
+    const isMac = layoutStyle === 'macos';
 
     const windowState = windows.find(w => w.id === windowId);
     const windowRef = useRef<HTMLDivElement>(null);
@@ -91,8 +96,8 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
         ? {
             top: 0,
             left: 0,
-            width: '100vw',
-            height: 'calc(100vh - 48px)', // Altura de tu taskbar
+            width: '100%',
+            height: '100%',
         }
         : {
             top: windowState.position.y,
@@ -118,9 +123,9 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
             onMouseDown={handleMouseDown}
             className={`
-                fixed flex flex-col overflow-hidden
+                absolute flex flex-col overflow-hidden
                 bg-[#202020]/80 backdrop-blur-[30px] 
-                border border-white/10 ${windowState.isMaximized ? '' : 'rounded-xl'}
+                border border-white/10 ${windowState.isMaximized ? '' : (isMac ? 'rounded-xl' : 'rounded-lg')}
                 shadow-[0_20px_50px_rgba(0,0,0,0.3)]
                 ${windowState.isFocused ? 'ring-1 ring-white/20' : 'brightness-90'}
             `}
@@ -130,43 +135,72 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
                 visibility: windowState.isMinimized ? 'hidden' : 'visible'
             }}
         >
-            {/* Title Bar - Estilo Mica */}
+            {/* Title Bar - Estilo Dinámico */}
             <div
                 onMouseDown={handleDragStart}
                 onDoubleClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
-                className="flex items-center justify-between h-9 px-3 select-none cursor-default"
+                className="flex items-center gap-2 h-9 px-3 select-none cursor-default"
             >
-                <div className="flex items-center gap-2 flex-1">
+                {/* Botones de control (MacOS a la izquierda, Windows a la derecha) */}
+                <div className={`window-controls flex items-center h-full ${isMac ? 'order-first gap-1.5' : 'order-last'}`}>
+                    {isMac ? (
+                        <>
+                            <button
+                                onClick={() => { onClose?.(); closeWindow(windowId); }}
+                                className="w-3.5 h-3.5 rounded-full bg-[#ff5f57] border border-black/10 flex items-center justify-center group"
+                            >
+                                <X size={8} className="text-black opacity-0 group-hover:opacity-100" />
+                            </button>
+                            <button
+                                onClick={() => minimizeWindow(windowId)}
+                                className="w-3.5 h-3.5 rounded-full bg-[#febc2e] border border-black/10 flex items-center justify-center group"
+                            >
+                                <Minus size={8} className="text-black opacity-0 group-hover:opacity-100" />
+                            </button>
+                            <button
+                                onClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
+                                className="w-3.5 h-3.5 rounded-full bg-[#28c840] border border-black/10 flex items-center justify-center group"
+                            >
+                                <Square size={6} className="text-black opacity-0 group-hover:opacity-100" />
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => minimizeWindow(windowId)}
+                                className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
+                            >
+                                <Minus size={14} className="text-white" />
+                            </button>
+                            <button
+                                onClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
+                                className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
+                            >
+                                {windowState.isMaximized ? (
+                                    <Copy size={12} className="text-white -rotate-90" />
+                                ) : (
+                                    <Square size={12} className="text-white" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => { onClose?.(); closeWindow(windowId); }}
+                                className="w-11 h-9 flex items-center justify-center hover:bg-[#e81123] transition-colors"
+                            >
+                                <X size={16} className="text-white" />
+                            </button>
+                        </>
+                    )}
+                </div>
+
+                <div className={`flex items-center gap-2 flex-1 ${isMac ? 'justify-center' : 'justify-start'}`}>
                     <span className="text-lg">{icon}</span>
                     <span className="text-[12px] text-white/90 font-normal">
                         {title}
                     </span>
                 </div>
 
-                <div className="window-controls flex h-full">
-                    <button
-                        onClick={() => minimizeWindow(windowId)}
-                        className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
-                    >
-                        <Minus size={14} className="text-white" />
-                    </button>
-                    <button
-                        onClick={() => windowState.isMaximized ? restoreWindow(windowId) : maximizeWindow(windowId)}
-                        className="w-11 h-9 flex items-center justify-center hover:bg-white/10 transition-colors"
-                    >
-                        {windowState.isMaximized ? (
-                            <Copy size={12} className="text-white -rotate-90" />
-                        ) : (
-                            <Square size={12} className="text-white" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => { onClose?.(); closeWindow(windowId); }}
-                        className="w-11 h-9 flex items-center justify-center hover:bg-[#e81123] transition-colors"
-                    >
-                        <X size={16} className="text-white" />
-                    </button>
-                </div>
+                {/* Spacer para centrado perfecto en macOS */}
+                {isMac && <div className="w-12" />}
             </div>
 
             {/* Window Content */}

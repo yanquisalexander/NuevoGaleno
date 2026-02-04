@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { useNotifications, Notification, NotificationType } from '../contexts/NotificationContext';
+import { useEffect, useRef } from 'react';
+import { playSound } from '../consts/Sounds';
 
 function NotificationItem({ notification }: { notification: Notification }) {
     const { removeNotification } = useNotifications();
@@ -81,6 +83,44 @@ function NotificationItem({ notification }: { notification: Notification }) {
 export function NotificationCenter() {
     const { notifications } = useNotifications();
     const currentNotification = notifications[0];
+    const lastNotificationIdRef = useRef<string | null>(null);
+    const soundPlayedRef = useRef<Set<string>>(new Set());
+
+    // Debug: Log cuando cambian las notificaciones
+    useEffect(() => {
+        console.log('NotificationCenter - Total notifications:', notifications.length);
+        if (currentNotification) {
+            console.log('NotificationCenter - Current notification:', currentNotification);
+        }
+    }, [notifications, currentNotification]);
+
+    // Reproducir sonido solo cuando aparece una nueva notificación visible
+    useEffect(() => {
+        if (!currentNotification) return;
+
+        const notificationId = currentNotification.id;
+
+        // Solo reproducir si es una notificación nueva y no se ha reproducido antes
+        if (notificationId !== lastNotificationIdRef.current &&
+            !soundPlayedRef.current.has(notificationId)) {
+
+            lastNotificationIdRef.current = notificationId;
+            soundPlayedRef.current.add(notificationId);
+
+            console.log('Playing notification sound:', currentNotification.soundFile);
+
+            // Reproducir sonido si está habilitado
+            if (currentNotification.sound && currentNotification.soundFile) {
+                playSound(currentNotification.soundFile, 0.5);
+            }
+
+            // Limpiar refs antiguas para evitar memory leaks (mantener solo las últimas 50)
+            if (soundPlayedRef.current.size > 50) {
+                const entries = Array.from(soundPlayedRef.current);
+                soundPlayedRef.current = new Set(entries.slice(-25));
+            }
+        }
+    }, [currentNotification]);
 
     return (
         <div className="fixed bottom-12 right-4 z-[70] pointer-events-none flex flex-col items-end">

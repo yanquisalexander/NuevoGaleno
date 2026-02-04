@@ -36,7 +36,7 @@ export function PatientsApp({ windowId: _windowId }: { windowId: WindowId; data?
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#202020] font-sans selection:bg-blue-500/30">
+        <div className="h-full flex flex-col bg-[#202020] font-sans selection:bg-blue-500/30 relative">
             {/* Header */}
             <div className="pt-6 px-6 pb-2 flex items-center justify-between">
                 <div>

@@ -2,9 +2,26 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./App.css";
+import { ConfigProvider } from "./contexts/ConfigContext";
+import { ShellProvider } from "./contexts/ShellContext";
+import { SessionProvider } from "./contexts/SessionContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
+import { WindowManagerProvider } from "./contexts/WindowManagerContext";
+import { NotificationCenter } from "./components/NotificationCenter";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <div className="ng-layout-base h-dvh w-full overflow-hidden bg-[#1c1c1c]">
+    <ConfigProvider>
+      <ShellProvider>
+        <SessionProvider>
+          <NotificationProvider>
+            <WindowManagerProvider>
+              <App />
+              <NotificationCenter />
+            </WindowManagerProvider>
+          </NotificationProvider>
+        </SessionProvider>
+      </ShellProvider>
+    </ConfigProvider>
+  </div>
 );

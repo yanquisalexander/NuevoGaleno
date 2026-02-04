@@ -1,0 +1,19 @@
+# Agregar estas líneas al archivo src-tauri/resources/config_schema.yml
+# para permitir que los usuarios habiliten/deshabiliten la verificación automática de actualizaciones
+
+# Sistema - Actualización Automática
+auto_update_check:
+  type: boolean
+  default: true
+  description: "Buscar actualizaciones automáticamente al iniciar la aplicación"
+  ui_section: "Sistema"
+  admin_only: false
+
+auto_update_check_interval:
+  type: integer
+  default: 86400
+  description: "Intervalo en segundos para verificar actualizaciones (por defecto: 24 horas)"
+  ui_section: "Sistema"
+  admin_only: true
+  min: 3600
+  max: 604800

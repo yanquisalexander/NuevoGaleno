@@ -24,13 +24,13 @@ function windowReducer(state: WindowState[], action: WindowAction): WindowState[
             const windowWidth = 800;
             const windowHeight = 600;
 
-            // Obtenemos las dimensiones actuales de la pantalla (viewport)
+            // Obtenemos las dimensiones actuales del viewport
             const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
             const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
 
-            // Calculamos el centro
-            // Añadimos un pequeño "offset" basado en state.length para que si abres 
-            // varias no queden exactamente una encima de la otra (opcional)
+            // Calculamos el centro relativo al área de trabajo (aproximado)
+            // No restamos MenuBar/Taskbar aquí porque la Window ahora es 'absolute'
+            // dentro de un contenedor que ya tiene esos márgenes (WindowContainer).
             const centerX = (screenWidth - windowWidth) / 2 + (state.length * 20);
             const centerY = (screenHeight - windowHeight) / 2 + (state.length * 20);
 
@@ -69,7 +69,7 @@ function windowReducer(state: WindowState[], action: WindowAction): WindowState[
 
         case 'RESTORE_WINDOW':
             return state.map(w =>
-                w.id === action.windowId ? { ...w, isMinimized: false, isMaximized: false } : w
+                w.id === action.windowId ? { ...w, isMaximized: false } : w
             );
 
         case 'FOCUS_WINDOW': {

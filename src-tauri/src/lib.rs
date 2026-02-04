@@ -287,6 +287,8 @@ pub fn run() {
             import_pipeline::commands::get_import_session_status,
             import_pipeline::commands::clear_imported_data,
             import_pipeline::commands::export_session_debug,
+            import_pipeline::commands::detect_doc_files_in_import,
+            import_pipeline::commands::convert_doc_files_to_txt,
             // wizard & users
             wizard::init_app_db,
             wizard::set_config,
@@ -363,6 +365,7 @@ pub fn run() {
             mark_reminder_sent,
             get_upcoming_appointments,
         ])
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

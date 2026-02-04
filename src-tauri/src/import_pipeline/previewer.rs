@@ -93,6 +93,13 @@ fn calculate_summary(patients: &[PatientDto]) -> PreviewSummary {
             total_revenue += treatment.paid_amount;
             total_outstanding += treatment.balance;
         }
+
+        total_payments += patient.orphan_payments.len();
+        total_revenue += patient
+            .orphan_payments
+            .iter()
+            .map(|p| p.amount)
+            .sum::<f64>();
     }
 
     PreviewSummary {
@@ -116,8 +123,18 @@ fn generate_patient_samples(patients: &[PatientDto], limit: usize) -> Vec<Patien
         .map(|patient| {
             let treatments_count = patient.treatments.len();
             let total_billed: f64 = patient.treatments.iter().map(|t| t.total_cost).sum();
-            let total_paid: f64 = patient.treatments.iter().map(|t| t.paid_amount).sum();
-            let balance = total_billed - total_paid;
+            let orphan_paid: f64 = patient
+                .orphan_payments
+                .iter()
+                .map(|p| p.amount)
+                .sum();
+            let total_paid: f64 = patient
+                .treatments
+                .iter()
+                .map(|t| t.paid_amount)
+                .sum::<f64>()
+                + orphan_paid;
+            let balance = (total_billed - total_paid).max(0.0);
 
             PatientPreview {
                 temp_id: patient.temp_id.clone(),
@@ -128,7 +145,7 @@ fn generate_patient_samples(patients: &[PatientDto], limit: usize) -> Vec<Patien
                 total_billed,
                 total_paid,
                 balance,
-                has_issues: false, // Se actualizará con validación
+                has_issues: !patient.orphan_payments.is_empty(),
             }
         })
         .collect()

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useSession } from './hooks/useSession';
-import { SessionProvider } from './contexts/SessionContext';
-import CommandPalette from "./components/CommandPalette";
-import { WindowManagerProvider, useWindowManager } from "./contexts/WindowManagerContext";
-import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
-import { NotificationCenter } from './components/NotificationCenter';
+import { useSession } from '@/hooks/useSession';
+import CommandPalette from "@/components/CommandPalette";
+import { useWindowManager } from "@/contexts/WindowManagerContext";
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Desktop } from "./components/kiosk/Desktop";
 import { Taskbar } from "./components/kiosk/Taskbar";
+import { Dock } from "./components/kiosk/Dock";
+import { MenuBar } from "./components/kiosk/MenuBar";
 import { WindowContainer } from "./components/kiosk/WindowContainer";
 import { SplashScreen } from "./components/SplashScreen";
 import { LoginScreen } from "./components/LoginScreen";
@@ -16,6 +16,12 @@ import FirstRunWizard from "./components/FirstRunWizard";
 import { APP_DEFINITIONS } from "./apps";
 import { motion, AnimatePresence } from "motion/react"; // Importación actualizada
 import { reminderService, formatAppointmentNotification } from './services/appointmentReminders';
+import { useConfig } from '@/hooks/useConfig';
+import { useShell } from '@/contexts/ShellContext';
+import { SearchOverlay } from "./components/kiosk/SearchOverlay";
+import { NotificationCenterPanel } from "./components/NotificationCenterPanel";
+import { CalendarWidget } from "./components/kiosk/CalendarWidget";
+import { PowerMenu } from "./components/kiosk/PowerMenu";
 
 interface User {
   id: number;
@@ -28,9 +34,28 @@ function KioskContent() {
   const [openCommandPalette, setOpenCommandPalette] = useState(false);
   const [currentStep, setCurrentStep] = useState<'splash' | 'setup' | 'login' | 'desktop'>('splash');
   const [isInitialLock, setIsInitialLock] = useState(false);
-  const { currentUser, isLocked, unlock, isLoading: sessionLoading } = useSession();
+  const { currentUser, exitApp, isLocked, unlock, isLoading: sessionLoading } = useSession();
   const { registerApp, openWindow } = useWindowManager();
   const { addNotification } = useNotifications();
+  const { values } = useConfig();
+  const {
+    showSearch, setShowSearch,
+    showNotifications, setShowNotifications,
+    showCalendar, setShowCalendar,
+    showPowerMenu, setShowPowerMenu
+  } = useShell();
+
+  const layoutStyle = (values.layoutStyle as string) || 'windows';
+  const isMac = layoutStyle === 'macos';
+
+  const handleShutdown = async () => {
+    setShowPowerMenu(false);
+    try {
+      await exitApp();
+    } catch (error) {
+      console.error('Error saliendo:', error);
+    }
+  };
 
   // Registro de apps
   useEffect(() => {
@@ -149,9 +174,21 @@ function KioskContent() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-[#000000]"
+            className="fixed inset-0 z-50 bg-slate-950 overflow-hidden"
           >
-            <FirstRunWizard onFinish={() => setCurrentStep('login')} />
+            {/* Background Layer similar to LoginScreen */}
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-30 scale-105"
+              style={{
+                backgroundImage: `url('https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=2064')`
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/80 to-slate-950/50" />
+
+            {/* El Wizard se montará encima con su propio backdrop blur */}
+            <div className="relative z-10 w-full h-full">
+              <FirstRunWizard onFinish={() => setCurrentStep('login')} />
+            </div>
           </motion.div>
         )}
 
@@ -179,9 +216,31 @@ function KioskContent() {
             className="relative h-full w-full"
           >
             <CommandPalette open={openCommandPalette} onOpenChange={setOpenCommandPalette} />
-            <Desktop />
+            {isMac && <MenuBar />}
+            <Desktop layout={layoutStyle} />
             <WindowContainer />
-            <Taskbar />
+            {isMac ? <Dock /> : <Taskbar />}
+
+            {/* --- COMPONENTES GLOBALES DEL SHELL --- */}
+            <SearchOverlay
+              isOpen={showSearch}
+              onClose={() => setShowSearch(false)}
+            />
+            <NotificationCenterPanel
+              isOpen={showNotifications}
+              onClose={() => setShowNotifications(false)}
+            />
+            <CalendarWidget
+              isOpen={showCalendar}
+              onClose={() => setShowCalendar(false)}
+            />
+            <PowerMenu
+              isOpen={showPowerMenu}
+              onClose={() => setShowPowerMenu(false)}
+              onSuspend={() => { }}
+              onShutdown={handleShutdown}
+              onRestart={() => { }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -214,16 +273,7 @@ function KioskContent() {
 
 function App() {
   return (
-    <div className="ng-layout-base h-dvh w-full overflow-hidden bg-[#1c1c1c]">
-      <SessionProvider>
-        <NotificationProvider>
-          <WindowManagerProvider>
-            <KioskContent />
-            <NotificationCenter />
-          </WindowManagerProvider>
-        </NotificationProvider>
-      </SessionProvider>
-    </div>
+    <KioskContent />
   );
 }
 

@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 pub struct PatientDto {
     // Identificadores
     pub temp_id: String, // ID temporal para tracking durante importación
-    pub legacy_id: Option<String>, // ID original de Galeno 2000
+    pub legacy_patient_id: Option<String>, // ID original de Galeno 2000 (CLAVE)
+    pub legacy_external_id: Option<String>, // Identificador externo legacy si existiera
+    pub external_reference: Option<String>, // Otro identificador legacy relevante
 
     // Datos personales
     pub first_name: String,
@@ -37,6 +39,7 @@ pub struct PatientDto {
     // Metadatos de importación
     pub created_at_legacy: Option<String>,
     pub last_updated_legacy: Option<String>,
+    pub metadata: ImportRecordMetadata,
 
     // Datos crudos para debugging
     pub raw_data: serde_json::Value,
@@ -44,6 +47,8 @@ pub struct PatientDto {
     // Relaciones
     pub treatments: Vec<TreatmentDto>,
     pub odontograms: Vec<OdontogramDto>,
+    pub history_documents: Vec<ClinicalHistoryDocumentDto>,
+    pub orphan_payments: Vec<PaymentDto>,
 }
 
 impl PatientDto {
@@ -56,7 +61,9 @@ impl PatientDto {
 
         Self {
             temp_id: format!("PAT_{}", ts),
-            legacy_id: None,
+            legacy_patient_id: None,
+            legacy_external_id: None,
+            external_reference: None,
             first_name: String::new(),
             last_name: String::new(),
             document_type: None,
@@ -73,9 +80,12 @@ impl PatientDto {
             medical_notes: None,
             created_at_legacy: None,
             last_updated_legacy: None,
+            metadata: ImportRecordMetadata::default(),
             raw_data: serde_json::json!({}),
             treatments: Vec::new(),
             odontograms: Vec::new(),
+            history_documents: Vec::new(),
+            orphan_payments: Vec::new(),
         }
     }
 
@@ -99,8 +109,10 @@ impl PatientDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TreatmentDto {
     pub temp_id: String,
-    pub legacy_id: Option<String>,
-    pub patient_temp_id: String, // Referencia al paciente padre
+    pub legacy_treatment_id: Option<String>,
+    pub legacy_patient_id: Option<String>,
+    pub patient_temp_id: Option<String>, // Referencia al paciente padre si está disponible
+    pub reference_code: Option<String>,
 
     // Datos del tratamiento
     pub name: String,
@@ -123,13 +135,14 @@ pub struct TreatmentDto {
     pub created_at_legacy: Option<String>,
     pub notes: Option<String>,
     pub raw_data: serde_json::Value,
+    pub metadata: ImportRecordMetadata,
 
     // Relaciones
     pub payments: Vec<PaymentDto>,
 }
 
 impl TreatmentDto {
-    pub fn new_with_temp_id(patient_temp_id: String) -> Self {
+    pub fn new_with_temp_id(patient_temp_id: Option<String>) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -138,8 +151,10 @@ impl TreatmentDto {
 
         Self {
             temp_id: format!("TRX_{}", ts),
-            legacy_id: None,
+            legacy_treatment_id: None,
+            legacy_patient_id: None,
             patient_temp_id,
+            reference_code: None,
             name: String::new(),
             description: None,
             tooth_number: None,
@@ -154,6 +169,7 @@ impl TreatmentDto {
             created_at_legacy: None,
             notes: None,
             raw_data: serde_json::json!({}),
+            metadata: ImportRecordMetadata::default(),
             payments: Vec::new(),
         }
     }
@@ -211,8 +227,14 @@ impl TreatmentStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentDto {
     pub temp_id: String,
-    pub legacy_id: Option<String>,
-    pub treatment_temp_id: String, // Referencia al tratamiento padre
+    pub legacy_payment_id: Option<String>,
+    pub legacy_patient_id: Option<String>,
+    pub legacy_treatment_id: Option<String>,
+    pub legacy_receipt_number: Option<String>,
+    pub legacy_consecutive: Option<String>,
+    pub legacy_concept: Option<String>,
+    pub legacy_observations: Option<String>,
+    pub treatment_temp_id: Option<String>, // Referencia al tratamiento padre si está disponible
 
     pub amount: f64,
     pub payment_date: Option<String>,   // ISO 8601
@@ -221,10 +243,12 @@ pub struct PaymentDto {
 
     pub created_at_legacy: Option<String>,
     pub raw_data: serde_json::Value,
+    pub metadata: ImportRecordMetadata,
+    pub orphan_reason: Option<String>,
 }
 
 impl PaymentDto {
-    pub fn new_with_temp_id(treatment_temp_id: String) -> Self {
+    pub fn new_with_temp_id(treatment_temp_id: Option<String>) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -233,7 +257,13 @@ impl PaymentDto {
 
         Self {
             temp_id: format!("PAY_{}", ts),
-            legacy_id: None,
+            legacy_payment_id: None,
+            legacy_patient_id: None,
+            legacy_treatment_id: None,
+            legacy_receipt_number: None,
+            legacy_consecutive: None,
+            legacy_concept: None,
+            legacy_observations: None,
             treatment_temp_id,
             amount: 0.0,
             payment_date: None,
@@ -241,6 +271,8 @@ impl PaymentDto {
             notes: None,
             created_at_legacy: None,
             raw_data: serde_json::json!({}),
+            metadata: ImportRecordMetadata::default(),
+            orphan_reason: None,
         }
     }
 }
@@ -252,8 +284,11 @@ impl PaymentDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OdontogramDto {
     pub temp_id: String,
-    pub legacy_id: Option<String>,
-    pub patient_temp_id: String,
+    pub legacy_record_id: Option<String>,
+    pub legacy_patient_id: Option<String>,
+    pub legacy_treatment_id: Option<String>,
+    pub legacy_budget_number: Option<String>,
+    pub patient_temp_id: Option<String>,
 
     pub tooth_number: String,
     pub condition: String,
@@ -263,10 +298,11 @@ pub struct OdontogramDto {
 
     pub created_at_legacy: Option<String>,
     pub raw_data: serde_json::Value,
+    pub metadata: ImportRecordMetadata,
 }
 
 impl OdontogramDto {
-    pub fn new_with_temp_id(patient_temp_id: String) -> Self {
+    pub fn new_with_temp_id(patient_temp_id: Option<String>) -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
         let ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -275,7 +311,10 @@ impl OdontogramDto {
 
         Self {
             temp_id: format!("ODO_{}", ts),
-            legacy_id: None,
+            legacy_record_id: None,
+            legacy_patient_id: None,
+            legacy_treatment_id: None,
+            legacy_budget_number: None,
             patient_temp_id,
             tooth_number: String::new(),
             condition: String::new(),
@@ -284,8 +323,74 @@ impl OdontogramDto {
             date: None,
             created_at_legacy: None,
             raw_data: serde_json::json!({}),
+            metadata: ImportRecordMetadata::default(),
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HISTORIA CLÍNICA DTO
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClinicalHistoryDocumentDto {
+    pub temp_id: String,
+    pub legacy_patient_id: String,
+    pub legacy_filename: String,
+    pub mime_type: Option<String>,
+    pub checksum: Option<String>,
+    pub content_base64: Option<String>,
+    pub file_size: Option<u64>,
+    pub encountered_error: Option<String>,
+    pub metadata: ImportRecordMetadata,
+}
+
+impl ClinicalHistoryDocumentDto {
+    pub fn new(legacy_patient_id: String, legacy_filename: String) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
+
+        Self {
+            temp_id: format!("HIS_{}", ts),
+            legacy_patient_id,
+            legacy_filename,
+            mime_type: None,
+            checksum: None,
+            content_base64: None,
+            file_size: None,
+            encountered_error: None,
+            metadata: ImportRecordMetadata::default(),
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// METADATOS DE IMPORTACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ImportRecordMetadata {
+    pub run_id: Option<String>,
+    pub source_table: Option<String>,
+    pub source_file: Option<String>,
+    pub source_path: Option<String>,
+    pub source_row_index: Option<usize>,
+    pub legacy_primary_key: Option<String>,
+    pub source_record_hash: Option<String>,
+    pub extracted_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportAnomalyDto {
+    pub severity: String,
+    pub entity_type: String,
+    pub legacy_reference: Option<String>,
+    pub run_id: Option<String>,
+    pub message: String,
+    pub details: serde_json::Value,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

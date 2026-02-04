@@ -1,11 +1,14 @@
 import { useWindowManager } from '../../contexts/WindowManagerContext';
+import { useConfig } from '../../hooks/useConfig';
 import { Window } from './Window';
 
 export function WindowContainer() {
     const { windows, apps } = useWindowManager();
+    const { values } = useConfig();
+    const isMac = values.layoutStyle === 'macos';
 
     return (
-        <div className="fixed inset-0 top-0 bottom-14 pointer-events-none">
+        <div className={`fixed inset-0 ${isMac ? 'top-7 bottom-20' : 'top-0 bottom-12'} pointer-events-none`}>
             {windows.map(window => {
                 const app = apps.get(window.appId);
                 if (!app) return null;

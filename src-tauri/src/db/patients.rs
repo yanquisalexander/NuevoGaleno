@@ -7,7 +7,7 @@ use super::get_connection;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Patient {
     pub id: i64,
-    pub legacy_id: Option<String>,
+    pub legacy_patient_id: Option<String>,
     pub first_name: String,
     pub last_name: String,
     pub document_number: Option<String>,
@@ -85,7 +85,7 @@ pub fn get_patient_by_id(id: i64) -> Result<Option<Patient>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, legacy_id, first_name, last_name, document_number, phone, email,
+            "SELECT id, legacy_patient_id, first_name, last_name, document_number, phone, email,
                     birth_date, gender, blood_type, allergies, medical_notes, created_at, updated_at
              FROM patients WHERE id = ?1",
         )
@@ -94,7 +94,7 @@ pub fn get_patient_by_id(id: i64) -> Result<Option<Patient>, String> {
     let result = stmt.query_row(params![id], |row| {
         Ok(Patient {
             id: row.get(0)?,
-            legacy_id: row.get(1)?,
+            legacy_patient_id: row.get(1)?,
             first_name: row.get(2)?,
             last_name: row.get(3)?,
             document_number: row.get(4)?,
@@ -124,7 +124,7 @@ pub fn get_patients(limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Patie
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, legacy_id, first_name, last_name, document_number, phone, email,
+            "SELECT id, legacy_patient_id, first_name, last_name, document_number, phone, email,
                     birth_date, gender, blood_type, allergies, medical_notes, created_at, updated_at
              FROM patients 
              ORDER BY last_name, first_name
@@ -136,7 +136,7 @@ pub fn get_patients(limit: Option<i64>, offset: Option<i64>) -> Result<Vec<Patie
         .query_map(params![limit, offset], |row| {
             Ok(Patient {
                 id: row.get(0)?,
-                legacy_id: row.get(1)?,
+                legacy_patient_id: row.get(1)?,
                 first_name: row.get(2)?,
                 last_name: row.get(3)?,
                 document_number: row.get(4)?,
@@ -164,7 +164,7 @@ pub fn search_patients(query: &str) -> Result<Vec<Patient>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, legacy_id, first_name, last_name, document_number, phone, email,
+            "SELECT id, legacy_patient_id, first_name, last_name, document_number, phone, email,
                     birth_date, gender, blood_type, allergies, medical_notes, created_at, updated_at
              FROM patients 
              WHERE first_name LIKE ?1 
@@ -180,7 +180,7 @@ pub fn search_patients(query: &str) -> Result<Vec<Patient>, String> {
         .query_map(params![search_pattern], |row| {
             Ok(Patient {
                 id: row.get(0)?,
-                legacy_id: row.get(1)?,
+                legacy_patient_id: row.get(1)?,
                 first_name: row.get(2)?,
                 last_name: row.get(3)?,
                 document_number: row.get(4)?,

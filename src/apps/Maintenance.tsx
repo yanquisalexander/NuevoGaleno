@@ -43,6 +43,7 @@ export function MaintenanceApp({ windowId: _windowId }: { windowId: WindowId; da
     // Estado simulado para feedback visual
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [isCleaning, setIsCleaning] = useState(false);
+    const [isClearingImports, setIsClearingImports] = useState(false);
 
     const handleWipeSystem = async (passwordHash: string) => {
         try {
@@ -69,6 +70,18 @@ export function MaintenanceApp({ windowId: _windowId }: { windowId: WindowId; da
             setIsCleaning(false);
             success("Limpieza completada", "Se han eliminado 12MB de archivos temporales.");
         }, 1500);
+    };
+
+    const handleClearImportedData = async () => {
+        setIsClearingImports(true);
+        try {
+            await invoke('clear_imported_data');
+            success("Datos importados eliminados", "Se han eliminado todos los datos de importaciones previas y recreado el esquema.");
+        } catch (err: any) {
+            errorToast("Error al limpiar datos", err.toString());
+        } finally {
+            setIsClearingImports(false);
+        }
     };
 
     return (
@@ -161,6 +174,19 @@ export function MaintenanceApp({ windowId: _windowId }: { windowId: WindowId; da
                                 onClick={handleCleanCache}
                                 disabled={!isAdmin || isCleaning}
                                 loading={isCleaning}
+                            />
+
+                            <div className="h-[1px] bg-white/5 mx-4" />
+
+                            {/* Item: Limpiar Datos Importados */}
+                            <MaintenanceItem
+                                icon={RefreshCw}
+                                title="Limpiar Datos Importados"
+                                description="Elimina todos los datos de importaciones previas y recrea el esquema de base de datos. Útil antes de re-importar datos legacy."
+                                actionLabel={isClearingImports ? "Limpiando..." : "Limpiar Importaciones"}
+                                onClick={handleClearImportedData}
+                                disabled={!isAdmin || isClearingImports}
+                                loading={isClearingImports}
                             />
                         </div>
                     </motion.section>

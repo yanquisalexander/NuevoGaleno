@@ -49,13 +49,13 @@ export function PatientForm({ patient, onSave, onCancel }: PatientFormProps) {
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-50 flex items-center justify-center p-4"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         >
             <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 10 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 transition={{ type: "spring", duration: 0.4, bounce: 0 }}
-                className="bg-[#2c2c2c] ring-1 ring-white/10 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-[8px]"
+                className="bg-[#2c2c2c] ring-1 ring-white/10 shadow-2xl w-full max-w-2xl max-h-full overflow-hidden flex flex-col rounded-[8px]"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-[#2c2c2c]">

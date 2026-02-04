@@ -10,8 +10,10 @@
     ImportReviewApp
 } from './';
 
+import { UserAccountsApp } from './UserAccounts';
 import { ConfigurationApp } from '@/components/ConfigurationApp';
 import AppointmentsApp from './Appointments';
+import { GalenoUpdateApp } from './GalenoUpdate';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -22,6 +24,8 @@ export { MaintenanceApp } from './Maintenance';
 export { BackToWindowsApp, InitialSetupApp, ImportReviewApp } from './System';
 export { ConfigurationApp };
 export { AppointmentsApp };
+export { GalenoUpdateApp } from './GalenoUpdate';
+export { UserAccountsApp } from './UserAccounts';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -31,6 +35,7 @@ export const APP_DEFINITIONS = [
         icon: '🔧',
         allowMultipleInstances: false,
         defaultSize: { width: 900, height: 650 },
+        showOnDesktop: false,
         component: InitialSetupApp,
     },
     {
@@ -92,6 +97,14 @@ export const APP_DEFINITIONS = [
         component: ConfigurationApp,
     },
     {
+        id: 'user-profile',
+        name: 'Tu Cuenta',
+        icon: '👤',
+        allowMultipleInstances: false,
+        defaultSize: { width: 850, height: 650 },
+        component: UserAccountsApp,
+    },
+    {
         id: 'system-tools',
         name: 'Mantenimiento',
         icon: '🧰',
@@ -114,6 +127,16 @@ export const APP_DEFINITIONS = [
         icon: '📊',
         allowMultipleInstances: false,
         defaultSize: { width: 1200, height: 800 },
+        showOnDesktop: false,
         component: ImportReviewApp,
+    },
+    {
+        id: 'galeno-update',
+        name: 'Galeno Update',
+        icon: '⚡',
+        allowMultipleInstances: false,
+        defaultSize: { width: 800, height: 600 },
+        showOnDesktop: false,
+        component: GalenoUpdateApp,
     },
 ];

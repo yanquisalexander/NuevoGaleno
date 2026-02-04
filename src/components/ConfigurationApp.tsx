@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-    Sliders, Shield, Lock, Trash2, RefreshCw,
-    Monitor, HardDrive, User, Search, ChevronRight
+    Sliders, Shield, RefreshCw,
+    Monitor, HardDrive, User, Search, ChevronRight, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useConfig } from '@/hooks/useConfig';
 import { useSession } from '@/hooks/useSession';
@@ -43,11 +42,9 @@ const getSectionIcon = (sectionName: string) => {
 
 export function ConfigurationApp() {
     const { schema, values, isLoading, setConfigValue, reload } = useConfig();
-    const { currentUser, setPin, removePin } = useSession();
+    const { currentUser } = useSession();
     const { openWindow } = useWindowManager();
     const [savingKey, setSavingKey] = useState<string | null>(null);
-    const [newPin, setNewPin] = useState('');
-    const [isSettingPin, setIsSettingPin] = useState(false);
 
     const isAdmin = currentUser?.role === 'admin';
 
@@ -213,6 +210,33 @@ export function ConfigurationApp() {
             <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
                 <div className="mx-auto max-w-4xl space-y-8">
 
+                    {/* --- Sección Cuenta (Hero Card) --- */}
+                    <div className="mb-8 rounded-xl border border-white/5 bg-gradient-to-br from-white/5 to-[#272727] p-6 relative overflow-hidden group">
+                        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
+                        <div className="relative z-10 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-lg font-bold">
+                                    {currentUser?.name?.substring(0, 1)}
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-semibold text-white">
+                                        {currentUser?.name}
+                                    </h3>
+                                    <p className="text-sm text-white/60">
+                                        @{currentUser?.username} • {currentUser?.role}
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={() => openWindow('user-profile')}
+                                className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                            >
+                                Gestionar cuenta
+                                <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
+                            </Button>
+                        </div>
+                    </div>
+
                     {/* Generar Secciones Dinámicas */}
                     {sections.map((section) => {
                         const styleInfo = getSectionIcon(section.section);
@@ -271,75 +295,6 @@ export function ConfigurationApp() {
                         );
                     })}
 
-                    {/* --- Sección Seguridad (Hardcoded pero estilizada igual) --- */}
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3 px-1 mb-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-rose-400/10">
-                                <Lock className="h-5 w-5 text-rose-400" />
-                            </div>
-                            <h2 className="text-lg font-semibold">Seguridad</h2>
-                        </div>
-
-                        <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#272727] shadow-sm">
-                            <div className="flex items-center justify-between gap-4 px-5 py-5">
-                                <div className="space-y-0.5">
-                                    <span className="text-sm font-medium text-white/90">PIN de Windows Hello</span>
-                                    <p className="text-xs text-white/50">
-                                        {currentUser?.pin
-                                            ? 'Usa este PIN para iniciar sesión rápidamente.'
-                                            : 'Configura un PIN para un acceso más rápido y seguro.'}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {currentUser?.pin ? (
-                                        <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            className="bg-white/5 text-white hover:bg-red-500/20 hover:text-red-200 border border-white/10"
-                                            onClick={async () => {
-                                                if (confirm('¿Eliminar PIN?')) {
-                                                    await removePin();
-                                                    toast.success("PIN eliminado");
-                                                }
-                                            }}
-                                        >
-                                            <Trash2 className="w-4 h-4 mr-2" />
-                                            Quitar
-                                        </Button>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="password"
-                                                maxLength={6}
-                                                placeholder="PIN (4-6)"
-                                                value={newPin}
-                                                onChange={(e) => {
-                                                    const v = e.target.value.replace(/\D/g, '');
-                                                    if (v.length <= 6) setNewPin(v);
-                                                }}
-                                                className="w-24 rounded-md border border-white/10 bg-[#333] px-3 py-1.5 text-sm text-center outline-none focus:border-blue-500 focus:bg-[#1f1f1f] border-b-2 border-b-white/20 focus:border-b-blue-500"
-                                            />
-                                            <Button
-                                                size="sm"
-                                                className="bg-blue-600 hover:bg-blue-500 text-white"
-                                                disabled={isSettingPin || newPin.length < 4}
-                                                onClick={async () => {
-                                                    setIsSettingPin(true);
-                                                    await setPin(newPin);
-                                                    setNewPin('');
-                                                    setIsSettingPin(false);
-                                                    toast.success("PIN establecido");
-                                                }}
-                                            >
-                                                Configurar
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* --- Sección Admin (Hero Card) --- */}
                     {isAdmin && (
                         <div className="mt-8 rounded-xl border border-red-500/20 bg-gradient-to-br from-red-900/10 to-[#272727] p-6 relative overflow-hidden group">
@@ -364,6 +319,29 @@ export function ConfigurationApp() {
                             </div>
                         </div>
                     )}
+
+                    {/* --- Sección Actualización (Hero Card) --- */}
+                    <div className="mt-8 rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-900/10 to-[#272727] p-6 relative overflow-hidden group">
+                        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
+                        <div className="relative z-10 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                                    <Download className="w-4 h-4 text-blue-400" />
+                                    Galeno Update
+                                </h3>
+                                <p className="text-sm text-white/60 mt-1 max-w-lg">
+                                    Mantén tu sistema actualizado con las últimas características y mejoras de seguridad.
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => openWindow('galeno-update')}
+                                className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/20 shadow-lg shadow-blue-500/20"
+                            >
+                                Buscar Actualizaciones
+                                <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
+                            </Button>
+                        </div>
+                    </div>
 
                 </div>
             </div>

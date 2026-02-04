@@ -1,12 +1,12 @@
 // Componente React para la pantalla de revisión de importación
-// Ejemplo de implementación para integrar en FirstRunWizard o como pantalla independiente
+// Estilo Fluent Windows 11 Dark Mode
 
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { AlertCircle, CheckCircle, XCircle, AlertTriangle, Database, Users, CreditCard, DollarSign } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, Database, Users, CreditCard, DollarSign, RefreshCw } from 'lucide-react';
+import { DocConversionDialog } from './DocConversionDialog';
 
 interface ImportPreview {
     summary: PreviewSummary;
@@ -52,16 +52,17 @@ interface ImportReviewScreenProps {
     extractedDir: string;
     onComplete: () => void;
     onCancel: () => void;
+    embedded?: boolean;
 }
 
-export default function ImportReviewScreen({ extractedDir, onComplete, onCancel }: ImportReviewScreenProps) {
-    const [stage, setStage] = useState<'loading' | 'preview' | 'loading-full' | 'importing' | 'complete' | 'error'>('loading');
+export default function ImportReviewScreen({ extractedDir, onComplete, onCancel, embedded = false }: ImportReviewScreenProps) {
+    const [stage, setStage] = useState<'checking-docs' | 'loading' | 'preview' | 'loading-full' | 'importing' | 'complete' | 'error'>('checking-docs');
     const [preview, setPreview] = useState<ImportPreview | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [importResult, setImportResult] = useState<any>(null);
     const [isPreviewOnly, setIsPreviewOnly] = useState(true);
-    const [progressMessage, setProgressMessage] = useState<string>('Iniciando...');
-    const [progressStage, setProgressStage] = useState<string>('reading');
+    const [progressMessage, setProgressMessage] = useState<string>('Verificando archivos...');
+    const [progressStage, setProgressStage] = useState<string>('checking');
 
     useEffect(() => {
         // Listener para eventos de progreso
@@ -77,14 +78,26 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel 
 
         const unlistenPromise = setupListener();
 
-        // Iniciar con preview rápido
-        runImportPipeline(true);
+        // NO iniciar automáticamente - esperar a DocConversionDialog
+        // runImportPipeline(true);
 
         // Cleanup
         return () => {
             unlistenPromise.then(unlisten => unlisten());
         };
     }, [extractedDir]);
+
+    const handleDocConversionComplete = (success: boolean) => {
+        console.log(`✅ Conversión de .doc completada. Éxito: ${success}`);
+        setStage('loading');
+        runImportPipeline(true);
+    };
+
+    const handleSkipDocConversion = () => {
+        console.log('⏭️ Conversión de .doc omitida');
+        setStage('loading');
+        runImportPipeline(true);
+    };
 
     async function runImportPipeline(previewOnly: boolean = false) {
         try {
@@ -128,6 +141,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel 
 
         try {
             setStage('importing');
+            setProgressMessage('Iniciando persistencia...');
             console.log('💾 Iniciando persistencia...');
 
             const result: any = await invoke('confirm_and_persist_import');
@@ -151,127 +165,223 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel 
         onCancel();
     }
 
-    if (stage === 'loading' || stage === 'loading-full') {
+    // --- RENDERIZADO ESTILO WINDOWS 11 FLUENT DARK ---
+
+    // Renderizar diálogo de conversión de .doc si es necesario
+    if (stage === 'checking-docs') {
         return (
-            <div className="h-full flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-blue-50 p-4">
-                <Card className="p-8 max-w-lg w-full shadow-md border-slate-200/70">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="h-12 w-12 rounded-xl bg-blue-500/10 border border-blue-200 flex items-center justify-center">
-                            <Database className="w-6 h-6 text-blue-600 animate-pulse" />
+            <>
+                <DocConversionDialog
+                    sourcePath={extractedDir}
+                    onConversionComplete={handleDocConversionComplete}
+                    onSkip={handleSkipDocConversion}
+                />
+                {embedded ? (
+                    <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                        <div className="mb-6 relative">
+                            <div className="absolute inset-0 bg-[#0078d4] blur-[30px] opacity-20 rounded-full"></div>
+                            <RefreshCw className="w-12 h-12 text-[#0078d4] animate-spin relative z-10" />
                         </div>
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.12em] text-blue-500 font-semibold">Importación</p>
-                            <h2 className="text-2xl font-bold text-slate-800">
-                                {stage === 'loading' ? 'Vista previa rápida' : 'Procesando todos los datos'}
-                            </h2>
+                        <h2 className="text-xl font-semibold mb-2">Verificando archivos...</h2>
+                        <p className="text-[#a0a0a0] text-sm">Detectando archivos de historias clínicas</p>
+                    </div>
+                ) : (
+                    <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans select-none">
+                        <div className="w-[500px] bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5 p-8 flex flex-col items-center text-center">
+                            <div className="mb-6 relative">
+                                <div className="absolute inset-0 bg-[#0078d4] blur-[30px] opacity-20 rounded-full"></div>
+                                <RefreshCw className="w-12 h-12 text-[#0078d4] animate-spin relative z-10" />
+                            </div>
+                            <h2 className="text-xl font-semibold mb-2">Verificando archivos...</h2>
+                            <p className="text-[#a0a0a0] text-sm">Detectando archivos de historias clínicas</p>
                         </div>
                     </div>
+                )}
+            </>
+        );
+    }
 
-                    {/* Mensaje de progreso en tiempo real */}
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                        <p className="text-sm text-slate-700 font-medium mb-2">
-                            {progressStage === 'reading' && '📖 Leyendo datos...'}
-                            {progressStage === 'transforming' && '🔄 Transformando...'}
-                            {progressStage === 'complete' && '✅ Completado'}
-                        </p>
-                        <p className="text-sm text-slate-600 font-mono">
-                            {progressMessage}
-                        </p>
+    // Si está embebido, NO mostramos el contenedor fixed ni el backdrop, solo el contenido.
+    // Ajustaremos el estilo para que fluya dentro del FirstRunWizard.
+
+    if (stage === 'loading' || stage === 'loading-full') {
+        const progressValue = stage === 'loading' ? 45 : 70;
+
+        if (embedded) {
+            return (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                    <div className="mb-6 relative">
+                        <div className="absolute inset-0 bg-[#0078d4] blur-[30px] opacity-20 rounded-full"></div>
+                        <RefreshCw className="w-12 h-12 text-[#0078d4] animate-spin relative z-10" />
                     </div>
-
-                    <p className="text-slate-600 mb-4">
-                        {stage === 'loading'
-                            ? 'Leyendo los primeros registros para mostrar un adelanto rápido.'
-                            : 'Esto puede tardar unos minutos dependiendo del tamaño de la base de datos.'
-                        }
+                    <h2 className="text-xl font-semibold mb-2">
+                        {stage === 'loading' ? 'Preparando vista previa...' : 'Analizando todo...'}
+                    </h2>
+                    <p className="text-[#a0a0a0] text-sm mb-6">
+                        {progressMessage}
                     </p>
-                    <div className="space-y-3">
-                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                            <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: stage === 'loading' ? '45%' : '70%' }}></div>
+                    <div className="w-full max-w-sm space-y-2">
+                        <div className="h-1 w-full bg-[#333] rounded-full overflow-hidden">
+                            <div className="h-full bg-[#0078d4] transition-all duration-500 ease-out" style={{ width: `${progressValue}%` }} />
                         </div>
-                        <p className="text-xs text-slate-500">No cierres la app durante el proceso.</p>
                     </div>
-                </Card>
+                </div>
+            );
+        }
+
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans select-none">
+                <div className="w-[500px] bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5 p-8 flex flex-col items-center text-center">
+                    <div className="mb-6 relative">
+                        <div className="absolute inset-0 bg-[#0078d4] blur-[30px] opacity-20 rounded-full"></div>
+                        <RefreshCw className="w-12 h-12 text-[#0078d4] animate-spin relative z-10" />
+                    </div>
+
+                    <h2 className="text-xl font-semibold mb-2">
+                        {stage === 'loading' ? 'Preparando vista previa...' : 'Analizando base de datos completa'}
+                    </h2>
+
+                    <p className="text-[#a0a0a0] text-sm mb-8 leading-relaxed max-w-[80%]">
+                        {progressStage === 'reading' && 'Leyendo tablas y registros...'}
+                        {progressStage === 'transforming' && 'Transformando estructura de datos...'}
+                        <br />
+                        <span className="text-xs opacity-70 mt-1 block font-mono">{progressMessage}</span>
+                    </p>
+
+                    <div className="w-full space-y-2 mb-4">
+                        <div className="h-1 w-full bg-[#333] rounded-full overflow-hidden">
+                            <div className="h-full bg-[#0078d4] transition-all duration-500 ease-out" style={{ width: `${progressValue}%` }} />
+                        </div>
+                    </div>
+
+                    <p className="text-xs text-[#666]">
+                        Esto puede tomar unos momentos. Por favor no cierre la ventana.
+                    </p>
+                </div>
             </div>
         );
     }
 
     if (stage === 'error') {
-        return (
-            <div className="flex items-center justify-center h-full p-4 bg-gradient-to-br from-rose-50 via-white to-slate-50">
-                <Card className="p-8 max-w-2xl border-red-200 shadow-md">
-                    <div className="text-center space-y-4">
-                        <XCircle className="w-16 h-16 mx-auto text-red-500" />
-                        <h2 className="text-2xl font-bold text-red-600">Error en importación</h2>
-                        <p className="text-slate-700 bg-red-50/80 p-4 rounded border border-red-200 font-mono text-sm">
-                            {error}
-                        </p>
-                        <Button onClick={handleCancel} variant="outline" className="border-red-200 text-red-600">
-                            Volver
-                        </Button>
+        if (embedded) {
+            return (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in zoom-in-95 duration-300">
+                    <div className="mb-6 bg-[#3b1717] p-4 rounded-full border border-[#442222]">
+                        <XCircle className="w-10 h-10 text-[#ff4b4b]" />
                     </div>
-                </Card>
+                    <h2 className="text-xl font-semibold mb-2 text-[#ff4b4b]">Error</h2>
+                    <p className="text-[#a0a0a0] max-w-md mb-6">{error}</p>
+                    <Button onClick={onCancel} variant="secondary">Volver</Button>
+                </div>
+            );
+        }
+
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
+                <div className="w-[500px] bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5 p-8 flex flex-col items-center text-center">
+                    <div className="mb-6 bg-[#3b1717] p-4 rounded-full border border-[#442222]">
+                        <XCircle className="w-10 h-10 text-[#ff4b4b]" />
+                    </div>
+                    <h2 className="text-xl font-semibold mb-2 text-[#ff4b4b]">Error en la importación</h2>
+                    <div className="bg-[#2b1b1b] border border-[#442222] p-4 rounded-[6px] w-full mb-6 max-h-[150px] overflow-y-auto custom-scrollbar text-left">
+                        <p className="text-sm font-mono text-[#ff9999] break-words">{error}</p>
+                    </div>
+                    <Button onClick={handleCancel} className="bg-[#333] hover:bg-[#3d3d3d] text-white border border-white/10 px-6 py-2 h-[36px] min-w-[120px]">
+                        Cerrar
+                    </Button>
+                </div>
             </div>
         );
     }
 
     if (stage === 'importing') {
-        return (
-            <div className="flex items-center justify-center h-full bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4">
-                <Card className="p-8 max-w-md shadow-md">
-                    <div className="text-center space-y-4">
-                        <Database className="w-16 h-16 mx-auto text-emerald-500 animate-pulse" />
-                        <h2 className="text-2xl font-bold">Guardando en base de datos</h2>
-                        <p className="text-slate-600">
-                            Insertando registros de forma transaccional...
-                        </p>
-                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                            <div className="bg-emerald-500 h-2 rounded-full animate-pulse" style={{ width: '100%' }}></div>
-                        </div>
+        if (embedded) {
+            return (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                    <div className="mb-8 relative">
+                        <div className="absolute inset-0 bg-[#107c10] blur-[40px] opacity-20 rounded-full"></div>
+                        <Database className="w-16 h-16 text-[#107c10] animate-pulse relative z-10" />
                     </div>
-                </Card>
+                    <h2 className="text-2xl font-semibold mb-2">Importando...</h2>
+                    <p className="text-[#a0a0a0] mb-2">No cierre la aplicación.</p>
+                    <p className="text-xs text-[#666] mb-8 font-mono">{progressMessage}</p>
+                    <div className="w-full max-w-md h-1 bg-[#333] rounded-full overflow-hidden">
+                        <div className="h-full bg-[#107c10] w-full animate-[shimmer_2s_infinite_linear] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)]" />
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
+                <div className="w-[500px] bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5 p-10 flex flex-col items-center text-center">
+                    <div className="mb-8 relative">
+                        <div className="absolute inset-0 bg-[#107c10] blur-[40px] opacity-20 rounded-full"></div>
+                        <Database className="w-16 h-16 text-[#107c10] animate-pulse relative z-10" />
+                    </div>
+                    <h2 className="text-2xl font-semibold mb-2">Importando Datos</h2>
+                    <p className="text-[#a0a0a0] mb-2">Escribiendo registros en la base de datos local...</p>
+                    <p className="text-xs text-[#666] mb-8 font-mono">{progressMessage}</p>
+                    <div className="w-full h-1 bg-[#333] rounded-full overflow-hidden">
+                        <div className="h-full bg-[#107c10] w-full animate-[shimmer_2s_infinite_linear] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)]" />
+                    </div>
+                </div>
             </div>
         );
     }
 
     if (stage === 'complete') {
-        return (
-            <div className="flex items-center justify-center h-full p-4 bg-gradient-to-br from-emerald-50 via-white to-blue-50">
-                <Card className="p-8 max-w-2xl border-emerald-200 shadow-lg">
-                    <div className="text-center space-y-6">
-                        <CheckCircle className="w-20 h-20 mx-auto text-emerald-500" />
-                        <h2 className="text-3xl font-bold text-emerald-600">Importación exitosa</h2>
-
-                        {importResult && (
-                            <div className="grid grid-cols-3 gap-4 mt-6">
-                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                    <Users className="w-8 h-8 mx-auto text-blue-600 mb-2" />
-                                    <div className="text-2xl font-bold text-blue-700">{importResult.patients_inserted}</div>
-                                    <div className="text-sm text-slate-600">Pacientes</div>
-                                </div>
-                                <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                                    <Database className="w-8 h-8 mx-auto text-purple-600 mb-2" />
-                                    <div className="text-2xl font-bold text-purple-700">{importResult.treatments_inserted}</div>
-                                    <div className="text-sm text-slate-600">Tratamientos</div>
-                                </div>
-                                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                                    <CreditCard className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
-                                    <div className="text-2xl font-bold text-emerald-700">{importResult.payments_inserted}</div>
-                                    <div className="text-sm text-slate-600">Pagos</div>
-                                </div>
-                            </div>
-                        )}
-
-                        <p className="text-slate-600 mt-4">
-                            Todos los datos fueron importados y están listos para usar.
-                        </p>
+        if (embedded) {
+            return (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in zoom-in-95 duration-500">
+                    <div className="mb-6 bg-[#162916] p-4 rounded-full border border-[#1b3d1b]">
+                        <CheckCircle className="w-12 h-12 text-[#6ccb5f]" />
                     </div>
-                </Card>
+                    <h2 className="text-2xl font-semibold mb-2">¡Listo!</h2>
+                    <p className="text-[#a0a0a0] mb-8">Importación finalizada correctamente.</p>
+                    <Button onClick={onComplete} className="bg-[#107c10] hover:bg-[#0f700f] text-white px-8">Continuar</Button>
+                </div>
+            );
+        }
+
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
+                <div className="w-[600px] bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5 p-8 flex flex-col items-center text-center">
+                    <div className="mb-6 bg-[#162916] p-4 rounded-full border border-[#1b3d1b]">
+                        <CheckCircle className="w-12 h-12 text-[#6ccb5f]" />
+                    </div>
+                    <h2 className="text-2xl font-semibold mb-2">Importación Exitosa</h2>
+                    <p className="text-[#a0a0a0] mb-8">Todos los datos han sido migrados correctamente.</p>
+
+                    {importResult && (
+                        <div className="grid grid-cols-3 gap-3 w-full mb-8">
+                            <div className="bg-[#2b2b2b] p-4 rounded-[6px] border border-[#333]">
+                                <Users className="w-6 h-6 mx-auto text-[#60cdff] mb-2" />
+                                <div className="text-2xl font-bold">{importResult.patients_inserted}</div>
+                                <div className="text-xs text-[#888] uppercase tracking-wider">Pacientes</div>
+                            </div>
+                            <div className="bg-[#2b2b2b] p-4 rounded-[6px] border border-[#333]">
+                                <Database className="w-6 h-6 mx-auto text-[#c3b1e1] mb-2" />
+                                <div className="text-2xl font-bold">{importResult.treatments_inserted}</div>
+                                <div className="text-xs text-[#888] uppercase tracking-wider">Tratamientos</div>
+                            </div>
+                            <div className="bg-[#2b2b2b] p-4 rounded-[6px] border border-[#333]">
+                                <CreditCard className="w-6 h-6 mx-auto text-[#6ccb5f] mb-2" />
+                                <div className="text-2xl font-bold">{importResult.payments_inserted}</div>
+                                <div className="text-xs text-[#888] uppercase tracking-wider">Pagos</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300">
+                        <p className="text-sm text-[#666]">Redirigiendo al inicio de sesión...</p>
+                    </div>
+                </div>
             </div>
         );
     }
 
-    // PREVIEW STAGE
+    // --- PREVIEW STAGE (MAIN UI) ---
     if (!preview) return null;
 
     const formatCurrency = (value: number) => {
@@ -281,221 +391,299 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel 
         }).format(value);
     };
 
-    return (
-        <div className="h-full overflow-y-auto bg-gradient-to-br from-sky-50 via-white to-blue-50 p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
-                {/* Hero */}
-                <Card className="p-6 bg-white shadow-md border-slate-200/70">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-2xl bg-blue-500/10 border border-blue-200 flex items-center justify-center">
-                                <Database className="w-6 h-6 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="text-xs uppercase tracking-[0.14em] text-blue-500 font-semibold">Revisión</p>
-                                <h1 className="text-3xl font-bold text-slate-900">Revisión de Importación</h1>
-                                <p className="text-slate-600">Verifica antes de aplicar los cambios. Importación estilo MD3.</p>
-                            </div>
-                        </div>
-                        {isPreviewOnly && (
-                            <Button onClick={handleLoadFullData} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
-                                📊 Cargar todos los datos
-                            </Button>
-                        )}
+    if (embedded) {
+        return (
+            <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Header Embebido */}
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-xl font-semibold">Resumen de Importación</h2>
+                        <p className="text-sm text-[#a0a0a0]">Revise los datos antes de confirmar.</p>
                     </div>
-                </Card>
+                    {isPreviewOnly && (
+                        <Button
+                            onClick={handleLoadFullData}
+                            variant="outline"
+                            className="bg-[#333] hover:bg-[#3d3d3d] text-[#e0e0e0] border-[#444] text-xs h-[28px] gap-2"
+                        >
+                            <RefreshCw className="w-3 h-3" />
+                            Analizar Todo
+                        </Button>
+                    )}
+                </div>
 
-                {/* Resumen Ejecutivo */}
-                <Card className="p-6 bg-white shadow-sm border-slate-200/70">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-900">
-                        <Database className="w-5 h-5 text-blue-600" />
-                        Resumen ejecutivo
-                    </h2>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar flex-1 pb-4">
+                    {/* Summary Stats Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <StatCard
-                            icon={<Users className="w-6 h-6 text-blue-600" />}
+                            icon={<Users className="w-5 h-5 text-[#60cdff]" />}
                             label="Pacientes"
                             value={preview.summary.total_patients}
-                            sublabel={`${preview.summary.patients_with_data} con datos completos`}
+                            sublabel={preview.summary.patients_with_data > 0 ? `${preview.summary.patients_with_data} ok` : undefined}
                         />
                         <StatCard
-                            icon={<Database className="w-6 h-6 text-purple-600" />}
+                            icon={<Database className="w-5 h-5 text-[#c3b1e1]" />}
                             label="Tratamientos"
                             value={preview.summary.total_treatments}
-                            sublabel={`${preview.summary.treatments_completed} completados`}
                         />
                         <StatCard
-                            icon={<CreditCard className="w-6 h-6 text-emerald-600" />}
-                            label="Pagos"
-                            value={preview.summary.total_payments}
-                        />
-                        <StatCard
-                            icon={<DollarSign className="w-6 h-6 text-emerald-600" />}
+                            icon={<DollarSign className="w-5 h-5 text-[#6ccb5f]" />}
                             label="Recaudación"
                             value={formatCurrency(preview.summary.total_revenue)}
                         />
                         <StatCard
-                            icon={<AlertCircle className="w-6 h-6 text-orange-600" />}
-                            label="Saldo adeudado"
+                            icon={<AlertCircle className="w-5 h-5 text-[#e0e0e0]" />}
+                            label="Adeudado"
                             value={formatCurrency(preview.summary.total_outstanding)}
                         />
                     </div>
-                </Card>
 
-                {/* Validación */}
-                <Card className={`p-6 bg-white shadow-sm border ${preview.can_proceed ? 'border-emerald-200' : 'border-red-200'}`}>
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-900">
-                        {preview.can_proceed ? (
-                            <CheckCircle className="w-5 h-5 text-emerald-600" />
-                        ) : (
-                            <XCircle className="w-5 h-5 text-red-600" />
+                    {/* Validation Brief */}
+                    <div className={`rounded-[6px] border p-4 flex items-center justify-between ${preview.can_proceed ? 'bg-[#1b2b1b] border-[#1b3d1b]' : 'bg-[#2b1b1b] border-[#442222]'}`}>
+                        <div className="flex items-center gap-3">
+                            {preview.can_proceed ? <CheckCircle className="w-5 h-5 text-[#6ccb5f]" /> : <XCircle className="w-5 h-5 text-[#ff4b4b]" />}
+                            <span className={`font-semibold text-sm ${preview.can_proceed ? 'text-[#6ccb5f]' : 'text-[#ff4b4b]'}`}>
+                                {preview.can_proceed ? 'Validación Correcta' : 'Errores Detectados'}
+                            </span>
+                        </div>
+                        {/* Mostrar conteo de errores si hay */}
+                        {!preview.can_proceed && (
+                            <span className="text-xs text-[#ff99a4] bg-[#3b1717] px-2 py-1 rounded">
+                                {preview.validation_report.total_issues} problemas
+                            </span>
                         )}
-                        Reporte de validación
-                    </h2>
+                    </div>
 
-                    {preview.validation_report.critical_issues.length > 0 && (
-                        <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4">
-                            <h3 className="font-bold text-red-700 mb-2 flex items-center gap-2">
-                                <XCircle className="w-5 h-5" />
-                                Errores críticos ({preview.validation_report.critical_issues.length})
-                            </h3>
-                            <ul className="list-disc list-inside space-y-1 text-sm text-red-800 max-h-40 overflow-y-auto pr-2">
-                                {preview.validation_report.critical_issues.map((issue, i) => (
-                                    <li key={i}>{issue}</li>
-                                ))}
-                            </ul>
+                    {/* Data Preview Table */}
+                    <div className="border border-[#333] rounded-[6px] overflow-hidden bg-[#252525]">
+                        <div className="px-4 py-2 bg-[#2d2d2d] border-b border-[#333]">
+                            <h3 className="font-semibold text-xs text-[#a0a0a0] uppercase tracking-wider">Muestra de datos</h3>
                         </div>
-                    )}
-
-                    {preview.validation_report.errors.length > 0 && (
-                        <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4">
-                            <h3 className="font-bold text-orange-700 mb-2 flex items-center gap-2">
-                                <AlertCircle className="w-5 h-5" />
-                                Errores ({preview.validation_report.errors.length})
-                            </h3>
-                            <ul className="list-disc list-inside space-y-1 text-sm text-orange-800 max-h-60 overflow-y-auto pr-2">
-                                {preview.validation_report.errors.map((issue, i) => (
-                                    <li key={i}>{issue}</li>
-                                ))}
-                            </ul>
+                        <div className="overflow-x-auto max-h-[250px] custom-scrollbar">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs uppercase bg-[#333] text-[#a0a0a0] sticky top-0">
+                                    <tr>
+                                        <th className="px-3 py-2 font-medium">Paciente</th>
+                                        <th className="px-3 py-2 font-medium text-right">Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#333]">
+                                    {preview.sample_patients.map(patient => (
+                                        <tr key={patient.temp_id} className="hover:bg-[#333]">
+                                            <td className="px-3 py-2">
+                                                <div className="font-medium text-white">{patient.full_name}</div>
+                                                <div className="text-[10px] text-[#808080]">{patient.document || 'S/D'}</div>
+                                            </td>
+                                            <td className={`px-3 py-2 text-right font-semibold ${patient.balance > 0 ? 'text-[#ff99a4]' : 'text-[#6ccb5f]'}`}>
+                                                {formatCurrency(patient.balance)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
+                    </div>
+                </div>
 
-                    {preview.validation_report.warnings.length > 0 && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                            <h3 className="font-bold text-yellow-700 mb-2 flex items-center gap-2">
-                                <AlertTriangle className="w-5 h-5" />
-                                Advertencias ({preview.validation_report.warnings.length})
-                            </h3>
-                            <ul className="list-disc list-inside space-y-1 text-sm text-yellow-800 max-h-40 overflow-y-auto pr-2">
-                                {preview.validation_report.warnings.map((issue, i) => (
-                                    <li key={i}>{issue}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
+                <div className="flex justify-end gap-3 pt-4 border-t border-[#333] mt-2">
+                    <Button onClick={onCancel} variant="ghost" className="h-[32px]">Cancelar</Button>
+                    <Button
+                        onClick={handleConfirmImport}
+                        disabled={!preview.can_proceed}
+                        className={`h-[32px] px-6 text-sm ${preview.can_proceed ? 'bg-[#0078d4] hover:bg-[#006cc1]' : 'bg-[#333]'}`}
+                    >
+                        Confirmar
+                    </Button>
+                </div>
+            </div>
+        );
+    }
 
-                    {preview.can_proceed && preview.validation_report.total_issues === 0 && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-                            <CheckCircle className="w-8 h-8 mx-auto text-emerald-600 mb-2" />
-                            <p className="font-bold text-emerald-700">Todos los datos son válidos</p>
-                            <p className="text-sm text-emerald-600">No se encontraron problemas</p>
-                        </div>
-                    )}
-                </Card>
+    return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-md p-6 font-['Segoe_UI_Variable',_'Segoe_UI',_sans-serif]">
+            {/* Main Window */}
+            <div className="w-full max-w-[1100px] h-[85vh] flex flex-col bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-2xl overflow-hidden ring-1 ring-white/5">
 
-                {/* Vista Previa de Pacientes */}
-                <Card className="p-6 bg-white shadow-sm border-slate-200/70">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <p className="text-xs uppercase tracking-[0.12em] text-slate-500 font-semibold">Muestra</p>
-                            <h2 className="text-xl font-bold text-slate-900">Vista previa de pacientes {isPreviewOnly && '(primeros 5)'}</h2>
+                {/* Header */}
+                <div className="flex-none px-8 py-6 border-b border-[#333] bg-[#252525]">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 bg-[#0078d4] rounded-[6px] flex items-center justify-center text-white shadow-md">
+                                <Database className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-semibold tracking-tight">Revisión de Importación</h1>
+                                <p className="text-sm text-[#a0a0a0]">Verifique los datos antes de completar la migración</p>
+                            </div>
                         </div>
                         {isPreviewOnly && (
                             <Button
                                 onClick={handleLoadFullData}
                                 variant="outline"
-                                size="sm"
-                                className="rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50"
+                                className="bg-[#333] hover:bg-[#3d3d3d] text-[#e0e0e0] border-[#444] text-sm h-[32px] gap-2"
                             >
-                                Cargar todos
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                Analizar Todo
                             </Button>
                         )}
                     </div>
-                    <div className="overflow-x-auto rounded-xl border border-slate-200/70">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="px-3 py-2 text-left text-slate-700">Nombre Completo</th>
-                                    <th className="px-3 py-2 text-left text-slate-700">Documento</th>
-                                    <th className="px-3 py-2 text-left text-slate-700">Teléfono</th>
-                                    <th className="px-3 py-2 text-center text-slate-700">Tratamientos</th>
-                                    <th className="px-3 py-2 text-right text-slate-700">Total Facturado</th>
-                                    <th className="px-3 py-2 text-right text-slate-700">Total Pagado</th>
-                                    <th className="px-3 py-2 text-right text-slate-700">Saldo</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {preview.sample_patients.map(patient => (
-                                    <tr
-                                        key={patient.temp_id}
-                                        className={`hover:bg-blue-50/60 ${patient.has_issues ? 'bg-amber-50' : ''}`}
-                                    >
-                                        <td className="px-3 py-2 font-medium text-slate-900">{patient.full_name}</td>
-                                        <td className="px-3 py-2 text-slate-600">{patient.document || '—'}</td>
-                                        <td className="px-3 py-2 text-slate-600">{patient.phone || '—'}</td>
-                                        <td className="px-3 py-2 text-center text-slate-700">{patient.treatments_count}</td>
-                                        <td className="px-3 py-2 text-right text-slate-700">{formatCurrency(patient.total_billed)}</td>
-                                        <td className="px-3 py-2 text-right text-emerald-600">{formatCurrency(patient.total_paid)}</td>
-                                        <td className={`px-3 py-2 text-right font-semibold ${patient.balance > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
-                                            {formatCurrency(patient.balance)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
+                </div>
 
-                {/* Botones de Acción */}
-                <Card className="p-6 bg-white shadow-sm border-slate-200/70">
-                    <div className="flex items-center justify-between">
-                        <Button onClick={handleCancel} variant="outline" size="lg" className="rounded-xl border-slate-200 text-slate-700">
-                            Cancelar
-                        </Button>
+                {/* Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 custom-scrollbar bg-[#202020]">
+                    <div className="space-y-6">
 
-                        <Button
-                            onClick={handleConfirmImport}
-                            disabled={!preview.can_proceed}
-                            size="lg"
-                            className={preview.can_proceed
-                                ? "rounded-xl bg-emerald-600 hover:bg-emerald-700"
-                                : "rounded-xl bg-slate-300 cursor-not-allowed"
-                            }
-                        >
-                            {preview.can_proceed
-                                ? "✓ Confirmar e importar"
-                                : "✗ Revisa los errores antes"}
-                        </Button>
+                        {/* Summary Stats Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <StatCard
+                                icon={<Users className="w-5 h-5 text-[#60cdff]" />}
+                                label="Pacientes"
+                                value={preview.summary.total_patients}
+                                sublabel={preview.summary.patients_with_data > 0 ? `${preview.summary.patients_with_data} válidos` : undefined}
+                            />
+                            <StatCard
+                                icon={<Database className="w-5 h-5 text-[#c3b1e1]" />}
+                                label="Tratamientos"
+                                value={preview.summary.total_treatments}
+                                sublabel={`${preview.summary.treatments_completed} fin.`}
+                            />
+                            <StatCard
+                                icon={<CreditCard className="w-5 h-5 text-[#6ccb5f]" />}
+                                label="Pagos"
+                                value={preview.summary.total_payments}
+                            />
+                            <StatCard
+                                icon={<DollarSign className="w-5 h-5 text-[#6ccb5f]" />}
+                                label="Recaudación"
+                                value={formatCurrency(preview.summary.total_revenue)}
+                            />
+                            <StatCard
+                                icon={<AlertCircle className="w-5 h-5 text-[#e0e0e0]" />}
+                                label="Adeudado"
+                                value={formatCurrency(preview.summary.total_outstanding)}
+                            />
+                        </div>
+
+                        {/* Validation Box */}
+                        <div className={`rounded-[6px] border p-5 ${preview.can_proceed ? 'bg-[#1b2b1b] border-[#1b3d1b]' : 'bg-[#2b1b1b] border-[#442222]'}`}>
+                            <div className="flex items-center gap-3 mb-4">
+                                {preview.can_proceed ? (
+                                    <div className="w-8 h-8 rounded-full bg-[#107c10]/20 flex items-center justify-center">
+                                        <CheckCircle className="w-5 h-5 text-[#6ccb5f]" />
+                                    </div>
+                                ) : (
+                                    <div className="w-8 h-8 rounded-full bg-[#c50f1f]/20 flex items-center justify-center">
+                                        <XCircle className="w-5 h-5 text-[#ff4b4b]" />
+                                    </div>
+                                )}
+                                <h3 className={`font-semibold text-base ${preview.can_proceed ? 'text-[#6ccb5f]' : 'text-[#ff4b4b]'}`}>
+                                    {preview.can_proceed ? 'Datos validados correctamente' : 'Se requieren correcciones'}
+                                </h3>
+                            </div>
+
+                            <div className="space-y-3 pl-11">
+                                {preview.validation_report.critical_issues.length > 0 && (
+                                    <ValidationList title="Errores Críticos" items={preview.validation_report.critical_issues} color="text-[#ff4b4b]" />
+                                )}
+                                {preview.validation_report.errors.length > 0 && (
+                                    <ValidationList title="Errores" items={preview.validation_report.errors} color="text-[#ff99a4]" />
+                                )}
+                                {preview.validation_report.warnings.length > 0 && (
+                                    <ValidationList title="Advertencias" items={preview.validation_report.warnings} color="text-[#fce100]" />
+                                )}
+                                {preview.can_proceed && preview.validation_report.total_issues === 0 && (
+                                    <p className="text-sm text-[#a0a0a0]">La estructura de la base de datos es compatible y consistente.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Data Preview Table */}
+                        <div className="border border-[#333] rounded-[6px] overflow-hidden bg-[#252525]">
+                            <div className="px-4 py-3 bg-[#2d2d2d] border-b border-[#333] flex justify-between items-center">
+                                <h3 className="font-semibold text-sm text-[#e0e0e0]">Vista Previa de Registros {isPreviewOnly && "(Muestra)"}</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs uppercase bg-[#333] text-[#a0a0a0]">
+                                        <tr>
+                                            <th className="px-4 py-3 font-medium">Paciente</th>
+                                            <th className="px-4 py-3 font-medium">Documento</th>
+                                            <th className="px-4 py-3 font-medium text-center">Tram.</th>
+                                            <th className="px-4 py-3 font-medium text-right">Facturado</th>
+                                            <th className="px-4 py-3 font-medium text-right">Pagado</th>
+                                            <th className="px-4 py-3 font-medium text-right">Saldo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#333]">
+                                        {preview.sample_patients.map(patient => (
+                                            <tr key={patient.temp_id} className={`hover:bg-[#333] transition-colors ${patient.has_issues ? 'bg-[#3b1717]/30' : ''}`}>
+                                                <td className="px-4 py-3 font-medium text-white">{patient.full_name}</td>
+                                                <td className="px-4 py-3 text-[#a0a0a0] font-mono text-xs">{patient.document || '—'}</td>
+                                                <td className="px-4 py-3 text-center text-[#d0d0d0]">{patient.treatments_count}</td>
+                                                <td className="px-4 py-3 text-right text-[#d0d0d0]">{formatCurrency(patient.total_billed)}</td>
+                                                <td className="px-4 py-3 text-right text-[#6ccb5f]">{formatCurrency(patient.total_paid)}</td>
+                                                <td className={`px-4 py-3 text-right font-semibold ${patient.balance > 0 ? 'text-[#ff99a4]' : 'text-[#6ccb5f]'}`}>
+                                                    {formatCurrency(patient.balance)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                     </div>
-                    {preview.can_proceed && (
-                        <p className="text-sm text-slate-600 text-center mt-4">
-                            Acción irreversible: confirma solo si todo luce correcto.
-                        </p>
-                    )}
-                </Card>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="flex-none px-8 py-6 bg-[#202020] border-t border-[#333] flex justify-between items-center">
+                    <Button
+                        onClick={handleCancel}
+                        variant="ghost"
+                        className="text-[#d0d0d0] hover:bg-[#333] hover:text-white px-6"
+                    >
+                        Cancelar Importación
+                    </Button>
+
+                    <Button
+                        onClick={handleConfirmImport}
+                        disabled={!preview.can_proceed}
+                        className={`h-[40px] px-8 text-sm font-semibold shadow-lg transition-all ${preview.can_proceed
+                            ? "bg-[#0078d4] hover:bg-[#006cc1] text-white"
+                            : "bg-[#333] text-[#666] cursor-not-allowed"
+                            }`}
+                    >
+                        {preview.can_proceed ? "Confirmar e Importar" : "Corregir Errores"}
+                    </Button>
+                </div>
+
             </div>
         </div>
     );
 }
 
+// Subcomponents helper styles for Dark Mode
 function StatCard({ icon, label, value, sublabel }: { icon: React.ReactNode; label: string; value: string | number; sublabel?: string }) {
     return (
-        <div className="bg-white border border-slate-200 rounded-lg p-4 text-center">
-            <div className="flex justify-center mb-2">{icon}</div>
-            <div className="text-2xl font-bold text-slate-800">{value}</div>
-            <div className="text-xs text-slate-600 font-medium">{label}</div>
-            {sublabel && <div className="text-xs text-slate-500 mt-1">{sublabel}</div>}
+        <div className="bg-[#2b2b2b] border border-[#333] rounded-[6px] p-4 text-center hover:bg-[#333] transition-colors group cursor-default">
+            <div className="flex justify-center mb-3 group-hover:scale-110 transition-transform duration-300">{icon}</div>
+            <div className="text-xl font-bold text-white mb-1 tracking-tight">{value}</div>
+            <div className="text-xs text-[#a0a0a0] uppercase font-semibold tracking-wider">{label}</div>
+            {sublabel && <div className="text-[10px] text-[#666] mt-1">{sublabel}</div>}
+        </div>
+    );
+}
+
+function ValidationList({ title, items, color }: { title: string, items: string[], color: string }) {
+    return (
+        <div className="mb-2">
+            <h4 className={`text-sm font-semibold mb-1 ${color}`}>{title} ({items.length})</h4>
+            <ul className="list-disc list-inside space-y-0.5 text-xs text-[#d0d0d0]/80 font-mono">
+                {items.slice(0, 5).map((item, i) => (
+                    <li key={i} className="truncate">{item}</li>
+                ))}
+                {items.length > 5 && <li className="text-[#666] italic">...y {items.length - 5} más</li>}
+            </ul>
         </div>
     );
 }

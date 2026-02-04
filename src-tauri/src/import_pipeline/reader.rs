@@ -3,6 +3,7 @@
 
 use crate::import_pipeline::models::{RawField, RawParadoxData, RawTable};
 use crate::importer;
+use rayon::prelude::*;
 use std::path::Path;
 
 /// Callback para reportar progreso durante la lectura
@@ -23,7 +24,7 @@ pub async fn read_all_tables_with_limit(
     if let Some(ref cb) = progress_cb {
         cb("Listando archivos de la base de datos...".to_string());
     }
-    let files_result = importer::list_extracted_files(extracted_dir.to_string()).await?;
+    let files_result: serde_json::Value = importer::list_extracted_files(extracted_dir.to_string()).await?;
 
     let db_files = files_result
         .get("db_files")
@@ -35,24 +36,31 @@ pub async fn read_all_tables_with_limit(
         cb(format!("Encontrados {} archivos de base de datos", total_files));
     }
 
-    for (idx, db_file) in db_files.iter().enumerate() {
-        let path_str = db_file.as_str().ok_or("Ruta de archivo inválida")?;
-        let table_name = Path::new(path_str)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown");
+    // Procesar tablas en paralelo usando rayon
+    let results: Vec<Result<RawTable, String>> = db_files
+        .par_iter()
+        .enumerate()
+        .map(|(_idx, db_file): (usize, &serde_json::Value)| {
+            let path_str = db_file.as_str().ok_or("Ruta de archivo inválida")?;
 
-        if let Some(ref cb) = progress_cb {
-            cb(format!("📖 Leyendo tabla {} de {}: {}", idx + 1, total_files, table_name));
-        }
+            // Ejecutar la lectura async en un bloque sync
+            tauri::async_runtime::block_on(async {
+                read_single_table(path_str, limit).await
+            })
+        })
+        .collect();
 
-        match read_single_table(path_str, limit).await {
+    if let Some(ref cb) = progress_cb {
+        cb(format!("📖 Procesadas {} tablas en paralelo", results.len()));
+    }
+
+    for result in results {
+        match result {
             Ok(table) => data.tables.push(table),
             Err(e) => {
-                data.errors
-                    .push(format!("Error leyendo {}: {}", path_str, e));
+                data.errors.push(e.clone());
                 if let Some(ref cb) = progress_cb {
-                    cb(format!("⚠️ Error en {}: {}", table_name, e));
+                    cb(format!("⚠️ Error: {}", e));
                 }
             }
         }
@@ -90,14 +98,13 @@ async fn read_single_table(file_path: &str, limit: usize) -> Result<RawTable, St
     let path = Path::new(file_path);
     let table_name = path
         .file_stem()
-        .and_then(|s| s.to_str())
+        .and_then(|s: &std::ffi::OsStr| s.to_str())
         .unwrap_or("unknown")
         .to_string();
 
     // Usar la función existente del importer con el límite especificado
-    let result = importer::read_table_data(file_path.to_string(), limit).await?;
+    let result: serde_json::Value = importer::read_table_data(file_path.to_string(), limit).await?;
 
-    // Parsear el resultado JSON
     let fields = result
         .get("fields")
         .and_then(|v: &serde_json::Value| v.as_array())
@@ -197,28 +204,60 @@ pub fn identify_patients_table(data: &RawParadoxData) -> Option<&RawTable> {
 
 /// Identifica qué tabla contiene tratamientos
 pub fn identify_treatments_table(data: &RawParadoxData) -> Option<&RawTable> {
+    let mut best: Option<&RawTable> = None;
+    let mut best_score = 0i32;
+
     for table in &data.tables {
-        let has_treatment_fields = table.fields.iter().any(|f| {
-            let name_lower = f.name.to_lowercase();
-            name_lower.contains("tratamiento")
-                || name_lower.contains("treatment")
-                || name_lower.contains("procedimiento")
-                || name_lower.contains("procedure")
-        });
+        let mut score = 0i32;
 
-        let has_cost_field = table.fields.iter().any(|f| {
+        for f in &table.fields {
             let name_lower = f.name.to_lowercase();
-            name_lower.contains("costo")
-                || name_lower.contains("precio")
-                || name_lower.contains("cost")
-                || name_lower.contains("price")
-        });
 
-        if has_treatment_fields || has_cost_field {
-            return Some(table);
+            // Columnas específicas de Tratam.db
+            if name_lower.contains("notrat") || (name_lower.contains("trat") && name_lower.contains("id")) {
+                score += 10;
+            }
+            if name_lower.contains("descripcio") || name_lower.contains("descripcion") {
+                score += 5;
+            }
+            if name_lower.contains("precio") || name_lower.contains("honorario") {
+                score += 5;
+            }
+            if name_lower.contains("referencia") {
+                score += 3;
+            }
+            if name_lower.contains("categoria") || name_lower.contains("tipo") {
+                score += 3;
+            }
+
+            // Términos genéricos
+            if name_lower.contains("tratamiento") || name_lower.contains("treatment") {
+                score += 4;
+            }
+            if name_lower.contains("procedimiento") || name_lower.contains("procedure") {
+                score += 4;
+            }
+            if name_lower.contains("costo") || name_lower.contains("cost") {
+                score += 3;
+            }
+        }
+
+        // Penalizar si parece tabla de pacientes
+        let looks_like_patients = table.fields.iter().any(|f| {
+            let n = f.name.to_lowercase();
+            n.contains("clavpac") || n.contains("clavepac") || (n.contains("nombre") && table.fields.len() > 10)
+        });
+        if looks_like_patients {
+            score -= 20;
+        }
+
+        if score > best_score && score > 5 {
+            best_score = score;
+            best = Some(table);
         }
     }
-    None
+
+    best
 }
 
 /// Identifica qué tabla contiene pagos

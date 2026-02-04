@@ -8,7 +8,7 @@ use super::get_connection;
 pub struct Treatment {
     pub id: i64,
     pub patient_id: i64,
-    pub legacy_id: Option<String>,
+    pub legacy_treatment_id: Option<String>,
     pub name: String,
     pub tooth_number: Option<String>,
     pub sector: Option<String>,
@@ -88,7 +88,7 @@ pub fn get_treatment_by_id(id: i64) -> Result<Option<Treatment>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_id, name, tooth_number, sector, status,
+            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments WHERE id = ?1",
@@ -99,7 +99,7 @@ pub fn get_treatment_by_id(id: i64) -> Result<Option<Treatment>, String> {
         Ok(Treatment {
             id: row.get(0)?,
             patient_id: row.get(1)?,
-            legacy_id: row.get(2)?,
+            legacy_treatment_id: row.get(2)?,
             name: row.get(3)?,
             tooth_number: row.get(4)?,
             sector: row.get(5)?,
@@ -127,7 +127,7 @@ pub fn get_treatments_by_patient(patient_id: i64) -> Result<Vec<Treatment>, Stri
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_id, name, tooth_number, sector, status,
+            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments 
@@ -141,7 +141,7 @@ pub fn get_treatments_by_patient(patient_id: i64) -> Result<Vec<Treatment>, Stri
             Ok(Treatment {
                 id: row.get(0)?,
                 patient_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_treatment_id: row.get(2)?,
                 name: row.get(3)?,
                 tooth_number: row.get(4)?,
                 sector: row.get(5)?,
@@ -168,7 +168,7 @@ pub fn get_treatments_by_status(status: &str) -> Result<Vec<Treatment>, String> 
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_id, name, tooth_number, sector, status,
+            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments 
@@ -182,7 +182,7 @@ pub fn get_treatments_by_status(status: &str) -> Result<Vec<Treatment>, String> 
             Ok(Treatment {
                 id: row.get(0)?,
                 patient_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_treatment_id: row.get(2)?,
                 name: row.get(3)?,
                 tooth_number: row.get(4)?,
                 sector: row.get(5)?,
@@ -214,7 +214,7 @@ pub fn get_all_treatments(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_id, name, tooth_number, sector, status,
+            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments 
@@ -228,7 +228,7 @@ pub fn get_all_treatments(
             Ok(Treatment {
                 id: row.get(0)?,
                 patient_id: row.get(1)?,
-                legacy_id: row.get(2)?,
+                legacy_treatment_id: row.get(2)?,
                 name: row.get(3)?,
                 tooth_number: row.get(4)?,
                 sector: row.get(5)?,
