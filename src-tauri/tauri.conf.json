@@ -45,11 +45,12 @@
   "plugins": {
     "updater": {
       "active": true,
+      "installMode": "quiet",
       "endpoints": [
-        "https://github.com/OWNER/REPO/releases/latest/download/latest.json"
+        "https://github.com/yanquisalexander/NuevoGaleno/releases/latest/download/latest.json"
       ],
       "dialog": false,
-      "pubkey": "YOUR_PUBLIC_KEY_HERE"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE3QjAxMDY4Njc4NzFDMTcKUldRWEhJZG5hQkN3cHoxdGh5NVM5SkVTY1RnemxGWm8rdkFWNG9xcEJLQjkxYThvWGZ4VFpzNE8K"
     }
   }
 }
