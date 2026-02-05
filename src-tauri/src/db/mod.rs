@@ -1,10 +1,12 @@
 pub mod config;
 pub mod migrations;
 pub mod odontograms;
+pub mod odontogram_surfaces;
 pub mod path;
 pub mod patients;
 pub mod payments;
 pub mod treatments;
+pub mod treatment_catalog;
 pub mod users;
 pub mod appointments;
 pub mod templates;

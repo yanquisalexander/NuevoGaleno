@@ -252,6 +252,109 @@ fn get_tooth_history(
     db::odontograms::get_tooth_history(patient_id, &tooth_number)
 }
 
+// ===== ODONTOGRAM SURFACES COMMANDS =====
+#[tauri::command]
+fn get_odontogram_surfaces_by_patient(
+    patient_id: i64,
+) -> Result<Vec<db::odontogram_surfaces::OdontogramSurface>, String> {
+    db::odontogram_surfaces::get_odontogram_surfaces_by_patient(patient_id)
+}
+
+#[tauri::command]
+fn get_tooth_surfaces(
+    patient_id: i64,
+    tooth_number: String,
+) -> Result<Vec<db::odontogram_surfaces::OdontogramSurface>, String> {
+    db::odontogram_surfaces::get_tooth_surfaces(patient_id, &tooth_number)
+}
+
+#[tauri::command]
+fn update_tooth_surface(
+    input: db::odontogram_surfaces::UpdateSurfaceInput,
+) -> Result<i64, String> {
+    db::odontogram_surfaces::update_tooth_surface(input)
+}
+
+#[tauri::command]
+fn delete_tooth_surface(
+    patient_id: i64,
+    tooth_number: String,
+    surface: String,
+) -> Result<(), String> {
+    db::odontogram_surfaces::delete_tooth_surface(patient_id, &tooth_number, &surface)
+}
+
+#[tauri::command]
+fn clear_tooth_surfaces(patient_id: i64, tooth_number: String) -> Result<(), String> {
+    db::odontogram_surfaces::clear_tooth_surfaces(patient_id, &tooth_number)
+}
+
+// ===== TREATMENT CATALOG COMMANDS =====
+#[tauri::command]
+fn get_all_treatment_catalog(
+) -> Result<Vec<db::treatment_catalog::TreatmentCatalogEntry>, String> {
+    db::treatment_catalog::get_all_treatment_catalog()
+}
+
+#[tauri::command]
+fn get_treatment_catalog_by_id(
+    id: i64,
+) -> Result<Option<db::treatment_catalog::TreatmentCatalogEntry>, String> {
+    db::treatment_catalog::get_treatment_catalog_by_id(id)
+}
+
+#[tauri::command]
+fn create_treatment_catalog(
+    input: db::treatment_catalog::CreateTreatmentCatalogInput,
+) -> Result<i64, String> {
+    db::treatment_catalog::create_treatment_catalog(input)
+}
+
+#[tauri::command]
+fn update_treatment_catalog(
+    input: db::treatment_catalog::UpdateTreatmentCatalogInput,
+) -> Result<(), String> {
+    db::treatment_catalog::update_treatment_catalog(input)
+}
+
+#[tauri::command]
+fn delete_treatment_catalog(id: i64) -> Result<(), String> {
+    db::treatment_catalog::delete_treatment_catalog(id)
+}
+
+#[tauri::command]
+fn get_treatment_catalog_items(
+    treatment_catalog_id: i64,
+) -> Result<Vec<db::treatment_catalog::TreatmentCatalogItem>, String> {
+    db::treatment_catalog::get_treatment_catalog_items(treatment_catalog_id)
+}
+
+#[tauri::command]
+fn get_treatment_catalog_item_by_id(
+    id: i64,
+) -> Result<Option<db::treatment_catalog::TreatmentCatalogItem>, String> {
+    db::treatment_catalog::get_treatment_catalog_item_by_id(id)
+}
+
+#[tauri::command]
+fn create_treatment_catalog_item(
+    input: db::treatment_catalog::CreateTreatmentCatalogItemInput,
+) -> Result<i64, String> {
+    db::treatment_catalog::create_treatment_catalog_item(input)
+}
+
+#[tauri::command]
+fn update_treatment_catalog_item(
+    input: db::treatment_catalog::UpdateTreatmentCatalogItemInput,
+) -> Result<(), String> {
+    db::treatment_catalog::update_treatment_catalog_item(input)
+}
+
+#[tauri::command]
+fn delete_treatment_catalog_item(id: i64) -> Result<(), String> {
+    db::treatment_catalog::delete_treatment_catalog_item(id)
+}
+
 // ===== APPOINTMENTS COMMANDS =====
 #[tauri::command]
 fn create_appointment(appointment: db::appointments::Appointment) -> Result<i64, String> {
@@ -413,6 +516,23 @@ pub fn run() {
             delete_tooth_condition,
             clear_patient_odontogram,
             get_tooth_history,
+            // odontogram surfaces
+            get_odontogram_surfaces_by_patient,
+            get_tooth_surfaces,
+            update_tooth_surface,
+            delete_tooth_surface,
+            clear_tooth_surfaces,
+            // treatment catalog
+            get_all_treatment_catalog,
+            get_treatment_catalog_by_id,
+            create_treatment_catalog,
+            update_treatment_catalog,
+            delete_treatment_catalog,
+            get_treatment_catalog_items,
+            get_treatment_catalog_item_by_id,
+            create_treatment_catalog_item,
+            update_treatment_catalog_item,
+            delete_treatment_catalog_item,
             // appointments
             create_appointment,
             update_appointment,

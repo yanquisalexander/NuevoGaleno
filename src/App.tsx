@@ -22,6 +22,7 @@ import { SearchOverlay } from "./components/kiosk/SearchOverlay";
 import { NotificationCenterPanel } from "./components/NotificationCenterPanel";
 import { CalendarWidget } from "./components/kiosk/CalendarWidget";
 import { PowerMenu } from "./components/kiosk/PowerMenu";
+import { useAutoUpdate } from '@/hooks/useAutoUpdate';
 
 interface User {
   id: number;
@@ -42,11 +43,20 @@ function KioskContent() {
     showSearch, setShowSearch,
     showNotifications, setShowNotifications,
     showCalendar, setShowCalendar,
-    showPowerMenu, setShowPowerMenu
+    showPowerMenu, setShowPowerMenu,
+    setUpdateAvailable
   } = useShell();
 
   const layoutStyle = (values.layoutStyle as string) || 'windows';
   const isMac = layoutStyle === 'macos';
+
+  // Auto-update hook - checks for updates and manages state
+  const { updateAvailable } = useAutoUpdate(currentStep === 'desktop');
+
+  // Sync update state to ShellContext
+  useEffect(() => {
+    setUpdateAvailable(updateAvailable);
+  }, [updateAvailable, setUpdateAvailable]);
 
   const handleShutdown = async () => {
     setShowPowerMenu(false);

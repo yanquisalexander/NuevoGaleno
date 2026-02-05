@@ -19,7 +19,7 @@ import { MedicalHistory } from '../components/patients/MedicalHistory';
 import { TreatmentList } from '../components/treatments/TreatmentList';
 import { TreatmentPayments } from '../components/payments/TreatmentPayments';
 import { BalanceCard } from '../components/payments/BalanceCard';
-import { Odontogram } from '../components/odontogram/Odontogram';
+import { OdontogramAdvanced } from '../components/odontogram/OdontogramAdvanced';
 import { useAppMenuBar } from '../hooks/useAppMenuBar';
 import type { WindowId } from '../types/window-manager';
 import { cn } from '@/lib/utils';
@@ -360,7 +360,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
 
                     {activeTab === 'odontogram' && (
                         <div className="bg-[#272727] border border-white/5 rounded-xl p-6 shadow-sm">
-                            <Odontogram patientId={patient.id} />
+                            <OdontogramAdvanced patientId={patient.id} />
                         </div>
                     )}
                 </motion.div>

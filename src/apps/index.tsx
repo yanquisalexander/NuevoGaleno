@@ -14,6 +14,7 @@ import { UserAccountsApp } from './UserAccounts';
 import { ConfigurationApp } from '@/components/ConfigurationApp';
 import AppointmentsApp from './Appointments';
 import { GalenoUpdateApp } from './GalenoUpdate';
+import { TreatmentCatalogApp } from './TreatmentCatalog';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -26,6 +27,7 @@ export { ConfigurationApp };
 export { AppointmentsApp };
 export { GalenoUpdateApp } from './GalenoUpdate';
 export { UserAccountsApp } from './UserAccounts';
+export { TreatmentCatalogApp } from './TreatmentCatalog';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -79,6 +81,14 @@ export const APP_DEFINITIONS = [
         allowMultipleInstances: false,
         defaultSize: { width: 900, height: 700 },
         component: AccountsApp,
+    },
+    {
+        id: 'treatment-catalog',
+        name: 'Catálogo de Tratamientos',
+        icon: '📋',
+        allowMultipleInstances: false,
+        defaultSize: { width: 1200, height: 800 },
+        component: TreatmentCatalogApp,
     },
     {
         id: 'appointments',

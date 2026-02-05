@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Treatment, getTreatmentsByPatient, createTreatment, updateTreatment } from '../../hooks/useTreatments';
-import { TreatmentStatusBadge } from './TreatmentStatusBadge';
 import { TreatmentForm } from './TreatmentForm';
 import { Stethoscope, DollarSign, Calendar, Plus, Edit } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
 interface TreatmentListProps {
@@ -56,6 +55,38 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
         }
     };
 
+    const StatusSelect = ({ current, onChange }: { current: string, onChange: (s: any) => void }) => (
+        <select
+            value={current}
+            onChange={(e) => onChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs bg-white/5 border border-white/10 rounded-md py-1 pl-2 pr-8 focus:ring-2 focus:ring-blue-500/20 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors text-white/80"
+            style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: 'right 0.25rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.25em 1.25em',
+            }}
+        >
+            <option value="Pending" className="bg-[#1e1e1e] text-yellow-500">Por Hacer</option>
+            <option value="InProgress" className="bg-[#1e1e1e] text-blue-500">En Proceso</option>
+            <option value="Completed" className="bg-[#1e1e1e] text-green-500">Terminado</option>
+            <option value="Cancelled" className="bg-[#1e1e1e] text-red-500">Cancelado</option>
+        </select>
+    );
+
+    const handleQuickStatusChange = async (treatment: Treatment, newStatus: string) => {
+        try {
+            setTreatments(prev => prev.map(t => t.id === treatment.id ? { ...t, status: newStatus as any } : t));
+            await updateTreatment(treatment.id, { ...treatment, status: newStatus as any });
+            toast.success('Estado actualizado');
+        } catch (error) {
+            console.error('Error updating status:', error);
+            toast.error('Error al actualizar estado');
+            loadTreatments();
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -68,11 +99,14 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
         return (
             <>
                 <div className="flex flex-col items-center justify-center py-20 text-white/40">
-                    <Stethoscope className="w-12 h-12 mb-4 opacity-20" />
-                    <p className="text-sm font-medium mb-4">No hay tratamientos registrados</p>
+                    <div className="bg-white/5 p-4 rounded-full mb-4 ring-1 ring-white/10">
+                        <Stethoscope className="w-8 h-8 opacity-40" />
+                    </div>
+                    <p className="text-base font-medium mb-2 text-white/80">No hay tratamientos registrados</p>
+                    <p className="text-sm mb-6 text-white/50 max-w-sm text-center">Comienza registrando un nuevo tratamiento para este paciente para llevar un seguimiento detallado.</p>
                     <button
                         onClick={() => setShowForm(true)}
-                        className="flex items-center gap-2 px-6 py-2 bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] text-white rounded-[4px] font-medium shadow-sm transition-all border border-white/10"
+                        className="flex items-center gap-2 px-6 py-2.5 bg-[#0067c0] hover:bg-[#0074d9] active:bg-[#005a9e] text-white rounded-lg font-medium shadow-lg shadow-blue-500/20 transition-all border border-white/10"
                     >
                         <Plus className="w-4 h-4" />
                         Crear Primer Tratamiento
@@ -90,106 +124,121 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
     }
 
     return (
-        <div className="space-y-4 max-w-5xl">
-            {/* Header con botón */}
-            <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                <div className="flex items-baseline gap-2">
-                    <h3 className="text-lg font-semibold text-white/90">Tratamientos</h3>
-                    <span className="text-xs text-white/40">{treatments.length} total</span>
+        <div className="space-y-4 max-w-6xl mx-auto">
+            {/* Header Moderno */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/5">
+                <div className="flex flex-col">
+                    <h3 className="text-xl font-semibold text-white/95 tracking-tight">Tratamientos</h3>
+                    <div className="flex items-center gap-2 text-xs text-white/50 mt-1">
+                        <span className="bg-white/5 px-2 py-0.5 rounded text-white/60">{treatments.length} registros</span>
+                    </div>
                 </div>
                 <button
                     onClick={() => setShowForm(true)}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] text-white rounded-[4px] text-sm font-medium shadow-sm transition-all border border-white/10"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0067c0] hover:bg-[#0074d9] active:bg-[#005a9e] text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/10 transition-all border border-white/10 hover:scale-[1.02] active:scale-[0.98]"
                 >
                     <Plus className="w-4 h-4" />
                     Nuevo Tratamiento
                 </button>
             </div>
 
-            {/* Lista */}
-            <div className="grid grid-cols-1 gap-3">
-                {treatments.map((treatment, index) => (
-                    <motion.div
-                        key={treatment.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="bg-[#272727] border border-white/5 rounded-[8px] p-5 hover:border-white/10 transition-all group"
-                    >
-                        <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                                <h3 className="font-semibold text-white/90 text-[15px]">{treatment.name}</h3>
-                                {(treatment.tooth_number) && (
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-white/5 text-white/60">
-                                            Pieza {treatment.tooth_number}
-                                        </span>
+            {/* Grid de Tarjetas Fluent */}
+            <div className="grid grid-cols-1 gap-4">
+                <AnimatePresence mode="popLayout">
+                    {treatments.map((treatment, index) => (
+                        <motion.div
+                            key={treatment.id}
+                            layout
+                            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, delay: index * 0.05 }}
+                            className="bg-[#202020]/80 backdrop-blur-md border border-white/5 rounded-xl p-5 hover:bg-[#252525] transition-all group shadow-sm hover:shadow-md hover:border-white/10 relative overflow-hidden"
+                        >
+                            {/* Decorative gradient blob */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+
+                            <div className="flex items-start justify-between relative z-10">
+                                <div className="flex-1 min-w-0 pr-4">
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <h3 className="font-semibold text-white/95 text-lg truncate flex items-center gap-2">
+                                            {treatment.name}
+                                            {treatment.tooth_number && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 tracking-wide uppercase">
+                                                    Pieza {treatment.tooth_number}
+                                                </span>
+                                            )}
+                                        </h3>
                                     </div>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <TreatmentStatusBadge status={treatment.status} size="sm" />
+
+                                    {/* Inline Status Changer */}
+                                    <div className="flex items-center gap-3 mt-3">
+                                        <StatusSelect
+                                            current={treatment.status}
+                                            onChange={(val) => handleQuickStatusChange(treatment, val)}
+                                        />
+                                        <div className="h-4 w-px bg-white/10"></div>
+                                        {treatment.completion_date && (
+                                            <span className="text-xs text-green-400/80 flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                Finalizado el {new Date(treatment.completion_date).toLocaleDateString('es-AR')}
+                                            </span>
+                                        )}
+                                        {!treatment.completion_date && treatment.start_date && (
+                                            <span className="text-xs text-white/40 flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                Iniciado el {new Date(treatment.start_date).toLocaleDateString('es-AR')}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         setSelectedTreatment(treatment);
                                         setShowForm(true);
                                     }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-[4px] bg-[#323232] hover:bg-[#3d3d3d] text-white/60 hover:text-white transition-colors border border-white/5"
+                                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors border border-white/5"
+                                    title="Editar detalles"
                                 >
                                     <Edit className="w-4 h-4" />
                                 </button>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#202020] rounded-[6px] p-3 border border-white/5">
-                            <div>
-                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
-                                    <DollarSign className="w-3 h-3" />
-                                    <span>Costo</span>
+                            {/* Info Grid */}
+                            <div className="grid grid-cols-2 gap-1 mt-5 bg-black/20 rounded-lg p-1 border border-white/5 max-w-md">
+                                <div className="p-3 rounded-md hover:bg-white/5 transition-colors">
+                                    <div className="flex items-center gap-2 text-white/40 text-[11px] uppercase font-bold tracking-wider mb-1">
+                                        <DollarSign className="w-3.5 h-3.5" />
+                                        <span>Costo</span>
+                                    </div>
+                                    <div className="text-white/90 font-medium text-base tracking-tight">
+                                        {formatCurrency(treatment.total_cost)}
+                                    </div>
                                 </div>
-                                <div className="text-white/90 font-medium text-sm">{formatCurrency(treatment.total_cost)}</div>
-                            </div>
 
-                            <div>
-                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
-                                    <DollarSign className="w-3 h-3" />
-                                    <span>Saldo</span>
-                                </div>
-                                <div className={`font-medium text-sm ${treatment.balance > 0 ? 'text-red-400' : 'text-green-500'}`}>
-                                    {formatCurrency(treatment.balance)}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
-                                    <Calendar className="w-3 h-3" />
-                                    <span>Inicio</span>
-                                </div>
-                                <div className="text-white/70 text-sm">
-                                    {treatment.start_date ? new Date(treatment.start_date).toLocaleDateString('es-AR') : '-'}
+                                <div className="p-3 rounded-md hover:bg-white/5 transition-colors border-l border-white/5">
+                                    <div className="flex items-center gap-2 text-white/40 text-[11px] uppercase font-bold tracking-wider mb-1">
+                                        <DollarSign className="w-3.5 h-3.5" />
+                                        <span>Saldo</span>
+                                    </div>
+                                    <div className={`font-medium text-base tracking-tight ${treatment.balance > 0 ? 'text-red-400' : 'text-green-500'}`}>
+                                        {formatCurrency(treatment.balance)}
+                                    </div>
                                 </div>
                             </div>
 
-                            <div>
-                                <div className="flex items-center gap-1.5 text-white/40 text-[10px] uppercase font-bold tracking-wider mb-1">
-                                    <Calendar className="w-3 h-3" />
-                                    <span>Estado</span>
+                            {treatment.notes && (
+                                <div className="mt-4 pt-3 border-t border-dashed border-white/10">
+                                    <p className="text-xs text-white/50 leading-relaxed line-clamp-2 italic">
+                                        "{treatment.notes}"
+                                    </p>
                                 </div>
-                                <div className="text-white/70 text-sm">
-                                    {treatment.completion_date ? new Date(treatment.completion_date).toLocaleDateString('es-AR') : 'En curso'}
-                                </div>
-                            </div>
-                        </div>
-
-                        {treatment.notes && (
-                            <div className="mt-3 pt-3 border-t border-white/5">
-                                <p className="text-xs text-white/50 line-clamp-2">
-                                    {treatment.notes}
-                                </p>
-                            </div>
-                        )}
-                    </motion.div>
-                ))}
+                            )}
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
             </div>
 
             {/* Formulario Modal */}

@@ -17,6 +17,7 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
         name: treatment?.name || '',
         tooth_number: treatment?.tooth_number || '',
         sector: treatment?.sector || '',
+        status: treatment?.status || 'Pending',
         total_cost: treatment?.total_cost || 0,
         start_date: treatment?.start_date || '',
         notes: treatment?.notes || '',
@@ -131,6 +132,22 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
                                     placeholder="Ej: Superior, Inferior"
                                     className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 rounded-lg h-11"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-white/80 mb-2">
+                                    Estado
+                                </label>
+                                <select
+                                    value={formData.status}
+                                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none h-11"
+                                >
+                                    <option value="Pending" className="bg-[#1e1e1e]">Por Hacer</option>
+                                    <option value="InProgress" className="bg-[#1e1e1e]">En Tratamiento</option>
+                                    <option value="Completed" className="bg-[#1e1e1e]">Terminado</option>
+                                    <option value="Cancelled" className="bg-[#1e1e1e]">Cancelado</option>
+                                </select>
                             </div>
 
                             <div>

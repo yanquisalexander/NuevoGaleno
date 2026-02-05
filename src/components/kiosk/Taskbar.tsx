@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell } from 'lucide-react';
+import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RotateCw, RotateCcwIcon, RefreshCcwIcon } from 'lucide-react';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useSession } from '@/hooks/useSession';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -26,7 +26,8 @@ export function Taskbar() {
         setShowNotifications,
         setShowCalendar,
         showCalendar,
-        setShowPowerMenu
+        setShowPowerMenu,
+        updateAvailable
     } = useShell();
 
     const [systemInfo, setSystemInfo] = useState<SystemInfo>({
@@ -158,6 +159,24 @@ export function Taskbar() {
 
                 {/* Sección Derecha: System Tray */}
                 <div className="flex items-center h-full gap-1">
+                    {/* Indicador de Actualización Disponible */}
+                    {updateAvailable && (
+                        <motion.button
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => openWindow('galeno-update')}
+                            className="relative h-10 w-10 flex items-center justify-center rounded-[4px] transition-colors group"
+                            title="Reiniciar para instalar actualizaciones"
+                        >
+
+                            <RefreshCcwIcon className="w-[18px] h-[18px] text-white/90 group-hover:text-blue-400 transition-colors" />
+                            {/* Subtle notification dot */}
+                            <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-400 rounded-full shadow-[0_0_6px_rgba(59,130,246,0.8)]" />
+                        </motion.button>
+                    )}
+
                     {/* Centro de Notificaciones */}
                     <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}

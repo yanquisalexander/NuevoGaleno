@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 4;
+const CURRENT_SCHEMA_VERSION: i32 = 5;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -45,6 +45,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 4 {
         migrate_v4(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (4)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 5 {
+        migrate_v5(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (5)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -337,4 +343,91 @@ fn migrate_v4(conn: &Connection) -> Result<(), String> {
         .map_err(|e| format!("Error creando tabla templates: {}", e))?;
 
     Ok(())
+}
+
+/// Migración v5: Catálogo de tratamientos y mejoras al odontograma
+fn migrate_v5(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Catálogo de tratamientos disponibles
+        CREATE TABLE IF NOT EXISTS treatment_catalog (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            default_cost REAL NOT NULL DEFAULT 0.0,
+            category TEXT,
+            color TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_treatment_catalog_category ON treatment_catalog(category);
+        CREATE INDEX IF NOT EXISTS idx_treatment_catalog_active ON treatment_catalog(is_active);
+
+        -- Sub-tratamientos del catálogo
+        CREATE TABLE IF NOT EXISTS treatment_catalog_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            treatment_catalog_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            default_cost REAL NOT NULL DEFAULT 0.0,
+            color TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_catalog_items_treatment ON treatment_catalog_items(treatment_catalog_id);
+        CREATE INDEX IF NOT EXISTS idx_catalog_items_active ON treatment_catalog_items(is_active);
+
+        -- Actualizar tabla de odontogramas para soportar caras dentales y tratamientos
+        CREATE TABLE IF NOT EXISTS odontogram_surfaces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            tooth_number TEXT NOT NULL,
+            surface TEXT NOT NULL, -- 'mesial', 'distal', 'vestibular', 'palatina', 'lingual', 'oclusal'
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            condition TEXT NOT NULL DEFAULT 'healthy',
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_item_id) REFERENCES treatment_catalog_items(id) ON DELETE SET NULL,
+            UNIQUE(patient_id, tooth_number, surface)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_patient ON odontogram_surfaces(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_tooth ON odontogram_surfaces(tooth_number);
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_treatment ON odontogram_surfaces(treatment_catalog_id);
+
+        -- Insertar algunos tratamientos de ejemplo
+        INSERT OR IGNORE INTO treatment_catalog (id, name, description, default_cost, category, color)
+        VALUES 
+            (1, 'Obturación', 'Restauración dental con resina o amalgama', 800.00, 'Operatoria', '#10b981'),
+            (2, 'Endodoncia', 'Tratamiento de conductos', 2500.00, 'Endodoncia', '#3b82f6'),
+            (3, 'Corona', 'Corona protésica', 4000.00, 'Prótesis', '#fbbf24'),
+            (4, 'Extracción', 'Extracción dental', 500.00, 'Cirugía', '#ef4444'),
+            (5, 'Limpieza', 'Profilaxis dental', 400.00, 'Prevención', '#4ade80'),
+            (6, 'Caries', 'Diagnóstico de caries', 0.00, 'Diagnóstico', '#f97316');
+
+        -- Sub-tratamientos de ejemplo
+        INSERT OR IGNORE INTO treatment_catalog_items (id, treatment_catalog_id, name, default_cost, display_order)
+        VALUES
+            (1, 1, 'Obturación simple', 800.00, 1),
+            (2, 1, 'Obturación compuesta', 1200.00, 2),
+            (3, 2, 'Endodoncia unirradicular', 2000.00, 1),
+            (4, 2, 'Endodoncia birradicular', 2500.00, 2),
+            (5, 2, 'Endodoncia multirradicular', 3500.00, 3),
+            (6, 3, 'Corona de porcelana', 4000.00, 1),
+            (7, 3, 'Corona de zirconio', 6000.00, 2),
+            (8, 4, 'Extracción simple', 500.00, 1),
+            (9, 4, 'Extracción compleja', 1200.00, 2);
+        "#,
+    )
+    .map_err(|e| format!("migration v5 err: {}", e))
 }
