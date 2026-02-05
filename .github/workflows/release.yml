@@ -8,44 +8,58 @@ on:
 
 jobs:
   release:
+    name: Build & Release (Windows)
+    runs-on: windows-latest
+
     permissions:
       contents: write
+
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'windows-latest'
+          - platform: windows-latest
             args: '--target x86_64-pc-windows-msvc'
 
-    runs-on: ${{ matrix.platform }}
     steps:
+      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2️⃣ Node + pnpm cache (CLAVE)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'pnpm'
 
+      # 3️⃣ pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
+      # 4️⃣ Frontend deps
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 5️⃣ Rust toolchain
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
+      # 6️⃣ Rust cache (target + cargo)
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: |
+            ./src-tauri -> target
+          cache-on-failure: true
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Install frontend dependencies
-        run: pnpm install
-
-      - name: Build the app
+      # 7️⃣ Build + Release Tauri
+      - name: Build and release app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,7 +68,10 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Nuevo Galeno ${{ github.ref_name }}'
-          releaseBody: 'Ver el changelog para más detalles.'
+          releaseBody: |
+            🚀 Nueva versión de **Nuevo Galeno**
+
+            Revisá el changelog para ver mejoras y correcciones.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
