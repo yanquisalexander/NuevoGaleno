@@ -174,7 +174,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
         <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-['Segoe_UI_Variable',_'Segoe_UI',_sans-serif]">
             {/* Windows 11 Installer Window Frame */}
             <div className="w-full max-w-[900px] h-[650px] flex flex-col bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5">
-                
+
                 {/* 1. Header Fijo (Draggable area concept) */}
                 <div className="flex-none px-10 pt-10 pb-6 select-none relative">
                     <div className="flex items-start justify-between">
@@ -198,198 +198,198 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                 {/* 2. Scrollable Content Area */}
                 <div className="flex-1 overflow-y-auto overflow-x-hidden px-10 py-2 custom-scrollbar relative">
                     {showReview && extractedDir ? (
-                         <div className="absolute inset-0 bg-[#202020] z-20 px-6">
-                            <ImportReviewScreen 
+                        <div className="absolute inset-0 bg-[#202020] z-20 px-6">
+                            <ImportReviewScreen
                                 extractedDir={extractedDir}
                                 onComplete={handleReviewComplete}
                                 onCancel={handleReviewCancel}
                                 embedded={true}
                             />
-                         </div>
+                        </div>
                     ) : (
                         <>
-                    {step === 0 && (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-                            {isFirstUser ? (
-                                <div className="space-y-4">
-                                   <div className="p-5 bg-[#272727] border border-[#333] rounded-[6px] flex gap-5 hover:bg-[#2c2c2c] transition-colors cursor-default group">
-                                        <div className="p-3 bg-[#333] rounded-full group-hover:bg-[#3d3d3d] transition-colors">
-                                            <ShieldCheck className="w-6 h-6 text-[#60cdff]" />
+                            {step === 0 && (
+                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+                                    {isFirstUser ? (
+                                        <div className="space-y-4">
+                                            <div className="p-5 bg-[#272727] border border-[#333] rounded-[6px] flex gap-5 hover:bg-[#2c2c2c] transition-colors cursor-default group">
+                                                <div className="p-3 bg-[#333] rounded-full group-hover:bg-[#3d3d3d] transition-colors">
+                                                    <ShieldCheck className="w-6 h-6 text-[#60cdff]" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-semibold text-base mb-1">Comenzar la instalación</h3>
+                                                    <p className="text-sm text-[#bcbcbc] leading-relaxed">
+                                                        Este asistente le guiará a través de la configuración inicial de Nuevo Galeno.
+                                                        Se creará una base de datos local y se configurará el usuario administrador principal.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="font-semibold text-base mb-1">Comenzar la instalación</h3>
-                                            <p className="text-sm text-[#bcbcbc] leading-relaxed">
-                                                Este asistente le guiará a través de la configuración inicial de Nuevo Galeno. 
-                                                Se creará una base de datos local y se configurará el usuario administrador principal.
+                                    ) : (
+                                        <div className="p-5 bg-[#272727] border border-[#333] rounded-[6px]">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center">
+                                                    <UserCircle className="w-6 h-6 text-[#60cdff]" />
+                                                </div>
+                                                <h3 className="font-semibold text-base">Usuarios del Sistema</h3>
+                                            </div>
+                                            <div className="max-h-[300px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                                {existingUsers.map((user: any) => (
+                                                    <div key={user.id} className="flex items-center gap-4 p-3 rounded-[4px] hover:bg-[#333] transition-colors group cursor-default">
+                                                        <div className="w-9 h-9 rounded-full bg-[#333] group-hover:bg-[#404040] flex items-center justify-center text-sm font-semibold border border-[#404040]">
+                                                            {user.username.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-medium truncate text-white">{user.name}</div>
+                                                            <div className="text-xs text-[#999] truncate mt-0.5">{user.role} &bull; @{user.username}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="text-xs text-[#808080] space-y-2 pt-8 border-t border-[#333]">
+                                        <p>Al continuar, usted acepta los términos de licencia del software médico.</p>
+                                        <p>Versión del instalador: 2.0.0 (Build 2026)</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {step === 1 && (
+                                <div className="space-y-6 py-2 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[480px]">
+                                    <div className="space-y-2 group">
+                                        <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Nombre completo</label>
+                                        <Input
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="Ej. Dr. Juan Pérez"
+                                            className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2 group">
+                                        <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Nombre de usuario</label>
+                                        <Input
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            placeholder="admin"
+                                            className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2 group">
+                                        <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Contraseña</label>
+                                        <Input
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            placeholder="••••••••"
+                                            className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
+                                        />
+                                        <div className="flex items-start gap-2 pt-2">
+                                            <ShieldCheck className="w-3 h-3 text-[#60cdff] mt-0.5" />
+                                            <p className="text-xs text-[#a0a0a0]">
+                                                {isFirstUser
+                                                    ? "Esta será la cuenta administrativa principal. Guárdela en un lugar seguro."
+                                                    : "El usuario deberá cambiar su contraseña al primer inicio de sesión."}
                                             </p>
                                         </div>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="p-5 bg-[#272727] border border-[#333] rounded-[6px]">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center">
-                                            <UserCircle className="w-6 h-6 text-[#60cdff]" />
-                                        </div>
-                                        <h3 className="font-semibold text-base">Usuarios del Sistema</h3>
-                                    </div>
-                                    <div className="max-h-[300px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
-                                        {existingUsers.map((user: any) => (
-                                            <div key={user.id} className="flex items-center gap-4 p-3 rounded-[4px] hover:bg-[#333] transition-colors group cursor-default">
-                                                <div className="w-9 h-9 rounded-full bg-[#333] group-hover:bg-[#404040] flex items-center justify-center text-sm font-semibold border border-[#404040]">
-                                                    {user.username.substring(0,2).toUpperCase()}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium truncate text-white">{user.name}</div>
-                                                    <div className="text-xs text-[#999] truncate mt-0.5">{user.role} &bull; @{user.username}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
                             )}
 
-                            <div className="text-xs text-[#808080] space-y-2 pt-8 border-t border-[#333]">
-                                <p>Al continuar, usted acepta los términos de licencia del software médico.</p>
-                                <p>Versión del instalador: 2.0.0 (Build 2026)</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {step === 1 && (
-                        <div className="space-y-6 py-2 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[480px]">
-                            <div className="space-y-2 group">
-                                <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Nombre completo</label>
-                                <Input
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Ej. Dr. Juan Pérez"
-                                    className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
-                                />
-                            </div>
-
-                            <div className="space-y-2 group">
-                                <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Nombre de usuario</label>
-                                <Input
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="admin"
-                                    className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
-                                />
-                            </div>
-
-                            <div className="space-y-2 group">
-                                <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Contraseña</label>
-                                <Input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
-                                />
-                                <div className="flex items-start gap-2 pt-2">
-                                    <ShieldCheck className="w-3 h-3 text-[#60cdff] mt-0.5" />
-                                    <p className="text-xs text-[#a0a0a0]">
-                                        {isFirstUser 
-                                            ? "Esta será la cuenta administrativa principal. Guárdela en un lugar seguro."
-                                            : "El usuario deberá cambiar su contraseña al primer inicio de sesión."}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {step === 2 && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {/* File Selection Box */}
-                            <div 
-                                onClick={handleSelectGln}
-                                className="p-6 bg-[#272727] border border-[#333] hover:border-[#555] hover:bg-[#2f2f2f] rounded-[6px] flex items-center justify-between cursor-pointer transition-all group"
-                            >
-                                <div className="flex items-center gap-5 overflow-hidden">
-                                    <div className="p-3 bg-[#333] rounded-full group-hover:bg-[#3d3d3d] transition-colors">
-                                        <HardDrive className="w-6 h-6 text-[#a0a0a0] group-hover:text-[#60cdff] transition-colors" />
+                            {step === 2 && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    {/* File Selection Box */}
+                                    <div
+                                        onClick={handleSelectGln}
+                                        className="p-6 bg-[#272727] border border-[#333] hover:border-[#555] hover:bg-[#2f2f2f] rounded-[6px] flex items-center justify-between cursor-pointer transition-all group"
+                                    >
+                                        <div className="flex items-center gap-5 overflow-hidden">
+                                            <div className="p-3 bg-[#333] rounded-full group-hover:bg-[#3d3d3d] transition-colors">
+                                                <HardDrive className="w-6 h-6 text-[#a0a0a0] group-hover:text-[#60cdff] transition-colors" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-base font-medium truncate text-[#f0f0f0]">
+                                                    {selectedFile || "Seleccionar archivo de respaldo (.gln)"}
+                                                </p>
+                                                <p className="text-sm text-[#808080] mt-0.5">
+                                                    {selectedFile ? "Archivo cargado y listo" : "Haga clic para examinar su equipo"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-[#383838] px-4 py-2 rounded-[4px] text-xs font-medium text-[#d0d0d0] group-hover:bg-[#454545] transition-colors">
+                                            Examinar
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-base font-medium truncate text-[#f0f0f0]">
-                                            {selectedFile || "Seleccionar archivo de respaldo (.gln)"}
-                                        </p>
-                                        <p className="text-sm text-[#808080] mt-0.5">
-                                            {selectedFile ? "Archivo cargado y listo" : "Haga clic para examinar su equipo"}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="bg-[#383838] px-4 py-2 rounded-[4px] text-xs font-medium text-[#d0d0d0] group-hover:bg-[#454545] transition-colors">
-                                    Examinar
-                                </div>
-                            </div>
 
-                            {/* Processing Status */}
-                            {selectedFile && !extractedFiles.length && (
-                                <div className="space-y-4">
-                                    {extracting ? (
-                                        <>
-                                            <div className="flex justify-between text-xs text-[#d0d0d0] font-medium tracking-wide uppercase">
-                                                <span>Procesando...</span>
-                                                <span>{progress}%</span>
+                                    {/* Processing Status */}
+                                    {selectedFile && !extractedFiles.length && (
+                                        <div className="space-y-4">
+                                            {extracting ? (
+                                                <>
+                                                    <div className="flex justify-between text-xs text-[#d0d0d0] font-medium tracking-wide uppercase">
+                                                        <span>Procesando...</span>
+                                                        <span>{progress}%</span>
+                                                    </div>
+                                                    <div className="h-1 w-full bg-[#333] rounded-full overflow-hidden">
+                                                        <div className="h-full bg-[#60cdff] transition-all duration-300" style={{ width: `${progress}%` }} />
+                                                    </div>
+
+                                                    {/* Terminal Output */}
+                                                    <div className="bg-[#1e1e1e] rounded-[6px] border border-[#333] h-56 overflow-hidden font-mono text-xs p-4 shadow-inner">
+                                                        <ScrollArea className="h-full">
+                                                            {terminalLogs.length === 0 ? (
+                                                                <span className="text-[#666]">Iniciando motor de migración Paradox...</span>
+                                                            ) : (
+                                                                terminalLogs.map((log, i) => (
+                                                                    <div key={i} className="text-[#cccccc] py-0.5 border-l-2 border-transparent hover:border-[#60cdff] hover:bg-[#252525] pl-2 font-['Consolas']">
+                                                                        <span className="text-[#60cdff] mr-2">➜</span>
+                                                                        {log}
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </ScrollArea>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="flex justify-end pt-2">
+                                                    <Button
+                                                        onClick={handleImport}
+                                                        className="bg-[#0078d4] hover:bg-[#006cc1] text-white px-8 py-6 text-base font-semibold rounded-[4px] shadow-lg shadow-blue-900/20 w-auto"
+                                                    >
+                                                        Iniciar Importación de Datos
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Results Grid */}
+                                    {extractedFiles.length > 0 && (
+                                        <div className="bg-[#272727] border border-[#333] rounded-[6px] overflow-hidden">
+                                            <div className="px-4 py-3 border-b border-[#333] flex justify-between items-center bg-[#2c2c2c]">
+                                                <h3 className="text-xs font-bold uppercase tracking-wider text-[#a0a0a0]">Tablas Importadas</h3>
+                                                <span className="text-xs bg-[#0078d4] text-white px-2 py-0.5 rounded-full font-medium">{Object.keys(dbTables).length} Archivos</span>
                                             </div>
-                                            <div className="h-1 w-full bg-[#333] rounded-full overflow-hidden">
-                                                <div className="h-full bg-[#60cdff] transition-all duration-300" style={{ width: `${progress}%` }} />
+                                            <div className="grid grid-cols-1 gap-[1px] bg-[#333] max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                {Object.entries(dbTables).map(([path, _]) => (
+                                                    <div key={path} className="flex items-center justify-between p-3 bg-[#252525] hover:bg-[#2f2f2f] group">
+                                                        <div className="flex items-center gap-3">
+                                                            <FileCode className="w-4 h-4 text-[#60cdff]" />
+                                                            <span className="text-sm text-[#e0e0e0] font-mono">{path.split(/[\\/]/).pop()}</span>
+                                                        </div>
+                                                        <div className="text-xs text-[#666] group-hover:text-[#a0a0a0] font-mono">
+                                                            {tableData[path]?.length || Object.keys(tableData[path] || {}).length || 0} reg
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            
-                                            {/* Terminal Output */}
-                                            <div className="bg-[#1e1e1e] rounded-[6px] border border-[#333] h-56 overflow-hidden font-mono text-xs p-4 shadow-inner">
-                                                <ScrollArea className="h-full">
-                                                    {terminalLogs.length === 0 ? (
-                                                        <span className="text-[#666]">Iniciando motor de migración Paradox...</span>
-                                                    ) : (
-                                                        terminalLogs.map((log, i) => (
-                                                            <div key={i} className="text-[#cccccc] py-0.5 border-l-2 border-transparent hover:border-[#60cdff] hover:bg-[#252525] pl-2 font-['Consolas']">
-                                                                <span className="text-[#60cdff] mr-2">➜</span>
-                                                                {log}
-                                                            </div>
-                                                        ))
-                                                    )}
-                                                </ScrollArea>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="flex justify-end pt-2">
-                                            <Button 
-                                                onClick={handleImport}
-                                                className="bg-[#0078d4] hover:bg-[#006cc1] text-white px-8 py-6 text-base font-semibold rounded-[4px] shadow-lg shadow-blue-900/20 w-auto"
-                                            >
-                                                Iniciar Importación de Datos
-                                            </Button>
                                         </div>
                                     )}
                                 </div>
                             )}
-
-                            {/* Results Grid */}
-                            {extractedFiles.length > 0 && (
-                                <div className="bg-[#272727] border border-[#333] rounded-[6px] overflow-hidden">
-                                    <div className="px-4 py-3 border-b border-[#333] flex justify-between items-center bg-[#2c2c2c]">
-                                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#a0a0a0]">Tablas Importadas</h3>
-                                        <span className="text-xs bg-[#0078d4] text-white px-2 py-0.5 rounded-full font-medium">{Object.keys(dbTables).length} Archivos</span>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-[1px] bg-[#333] max-h-[300px] overflow-y-auto custom-scrollbar">
-                                        {Object.entries(dbTables).map(([path, _]) => (
-                                            <div key={path} className="flex items-center justify-between p-3 bg-[#252525] hover:bg-[#2f2f2f] group">
-                                                <div className="flex items-center gap-3">
-                                                    <FileCode className="w-4 h-4 text-[#60cdff]" />
-                                                    <span className="text-sm text-[#e0e0e0] font-mono">{path.split(/[\\/]/).pop()}</span>
-                                                </div>
-                                                <div className="text-xs text-[#666] group-hover:text-[#a0a0a0] font-mono">
-                                                    {tableData[path]?.length || Object.keys(tableData[path] || {}).length || 0} reg
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
                         </>
                     )}
                 </div>
@@ -406,12 +406,13 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                 Atrás
                             </Button>
                         ) : (
-                            <div /> 
+                            <div />
                         )}
 
                         <div className="flex gap-4">
-                            {!isFirstUser && (
-                            <Button
+                            {/* Mostrar Omitir en step 2 sin archivos, o Cancelar si no es primer usuario */}
+                            {((step === 2 && extractedFiles.length === 0) || !isFirstUser) && (
+                                <Button
                                     variant="secondary"
                                     onClick={onFinish}
                                     className="bg-[#333] hover:bg-[#3d3d3d] text-white border border-white/5 h-[36px] px-6 rounded-[4px] text-sm"
@@ -419,7 +420,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                     {step === 2 && extractedFiles.length === 0 ? "Omitir" : "Cancelar"}
                                 </Button>
                             )}
-                            
+
                             {(step < 2) && (
                                 <Button
                                     onClick={step === 1 ? handleCreateAdmin : next}
