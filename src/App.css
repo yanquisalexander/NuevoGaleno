@@ -216,3 +216,57 @@
   min-height: 0; /* allow flex children to scroll */
   overflow: auto;
 }
+
+/* 
+  Windows 10/11 Fluent Design Scrollbar Styles
+  Applied globally to all scrollable elements
+*/
+
+/* Windows 11 Fluent Design Scrollbar 
+  Diseño: Delgado, minimalista y con bordes redondeados
+*/
+
+/* 1. Contenedor del scroll (Track) */
+::-webkit-scrollbar {
+  width: 12px; /* Espacio total para no mover el contenido */
+  height: 12px;
+}
+
+/* 2. El "fondo" del scrollbar (invisible para estilo Mica) */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 3. La barra de desplazamiento (Thumb) */
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12); /* Color base muy sutil */
+  border: 4px solid transparent; /* Crea un "padding" visual alrededor de la barra */
+  background-clip: padding-box; /* Permite que el borde sea transparente y reduzca la barra */
+  border-radius: 10px; /* Estilo píldora de Windows 11 */
+  transition: all 0.2s ease;
+}
+
+/* 4. Efecto Hover (cuando pasas el mouse por encima) */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25); /* Se vuelve más visible */
+  border: 3px solid transparent; /* Se ensancha ligeramente al reducir el padding */
+}
+
+/* 5. Efecto Active (cuando haces click) */
+::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.35);
+  border: 2px solid transparent; /* Máximo grosor al arrastrar */
+}
+
+/* Esquinas de unión de scrolls (si hay horiz. y vert.) */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox Support */
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+}

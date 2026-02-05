@@ -7,6 +7,9 @@ mod pxlib;
 mod config;
 mod session;
 mod wizard;
+mod licensing;
+
+use tauri::Emitter;
 
 // Simple greeting for sanity checks
 #[tauri::command]
@@ -406,6 +409,90 @@ fn get_upcoming_appointments(hours: i32) -> Result<Vec<db::appointments::Appoint
     db::appointments::get_upcoming_appointments(&conn, hours)
 }
 
+// ===== LICENSING COMMANDS =====
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+
+static LICENSE_MANAGER: Lazy<Mutex<Option<licensing::LicenseManager>>> = Lazy::new(|| Mutex::new(None));
+
+fn get_license_manager() -> Result<licensing::LicenseManager, String> {
+    let mut manager_lock = LICENSE_MANAGER.lock().unwrap();
+    
+    if manager_lock.is_none() {
+        // TODO: Reemplazar estos valores con tus IDs reales de Lemon Squeezy
+        let store_id = 0;
+        let product_id = 0;
+        let variant_id = 0;
+        
+        let manager = licensing::LicenseManager::new(store_id, product_id, variant_id)
+            .map_err(|e| e.to_string())?;
+        *manager_lock = Some(manager);
+    }
+    
+    Ok(manager_lock.as_ref().unwrap().clone())
+}
+
+#[tauri::command]
+async fn activate_license(
+    app: tauri::AppHandle,
+    license_key: String,
+    customer_email: String,
+    instance_name: String,
+) -> Result<licensing::LemonSqueezyActivateResponse, String> {
+    let manager = get_license_manager()?;
+    let result = manager
+        .activate_license(&license_key, &customer_email, &instance_name)
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    // Emitir evento para que la UI se actualice
+    let _ = app.emit("license-status-changed", ());
+    
+    Ok(result)
+}
+
+#[tauri::command]
+async fn validate_license(app: tauri::AppHandle) -> Result<licensing::LicenseStatus, String> {
+    let manager = get_license_manager()?;
+    let status = manager.validate_license().await.map_err(|e| e.to_string())?;
+    
+    // Emitir evento para que la UI se actualice
+    let _ = app.emit("license-status-changed", ());
+    
+    Ok(status)
+}
+
+#[tauri::command]
+async fn deactivate_license(app: tauri::AppHandle) -> Result<licensing::LemonSqueezyDeactivateResponse, String> {
+    let manager = get_license_manager()?;
+    let result = manager
+        .deactivate_license()
+        .await
+        .map_err(|e| e.to_string())?;
+    
+    // Emitir evento para que la UI se actualice
+    let _ = app.emit("license-status-changed", ());
+    
+    Ok(result)
+}
+
+#[tauri::command]
+fn get_license_status() -> Result<licensing::LicenseStatus, String> {
+    let manager = get_license_manager()?;
+    manager.get_trial_status().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn start_trial(app: tauri::AppHandle) -> Result<(), String> {
+    let manager = get_license_manager()?;
+    manager.start_trial().map_err(|e| e.to_string())?;
+    
+    // Emitir evento para que la UI se actualice
+    let _ = app.emit("license-status-changed", ());
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -542,6 +629,12 @@ pub fn run() {
             get_pending_reminders,
             mark_reminder_sent,
             get_upcoming_appointments,
+            // licensing
+            activate_license,
+            validate_license,
+            deactivate_license,
+            get_license_status,
+            start_trial,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

@@ -23,6 +23,8 @@ import { NotificationCenterPanel } from "./components/NotificationCenterPanel";
 import { CalendarWidget } from "./components/kiosk/CalendarWidget";
 import { PowerMenu } from "./components/kiosk/PowerMenu";
 import { useAutoUpdate } from '@/hooks/useAutoUpdate';
+import { LicenseWatermark } from '@/components/LicenseWatermark';
+import { useLicense } from '@/hooks/useLicense';
 
 interface User {
   id: number;
@@ -53,10 +55,20 @@ function KioskContent() {
   // Auto-update hook - checks for updates and manages state
   const { updateAvailable } = useAutoUpdate(currentStep === 'desktop');
 
+  // License hook - validate on app start
+  const { getLicenseStatus } = useLicense();
+
   // Sync update state to ShellContext
   useEffect(() => {
     setUpdateAvailable(updateAvailable);
   }, [updateAvailable, setUpdateAvailable]);
+
+  // Validar licencia al iniciar la app
+  useEffect(() => {
+    if (currentStep === 'desktop') {
+      getLicenseStatus().catch(err => console.error('Error checking license:', err));
+    }
+  }, [currentStep, getLicenseStatus]);
 
   const handleShutdown = async () => {
     setShowPowerMenu(false);
@@ -251,6 +263,7 @@ function KioskContent() {
               onShutdown={handleShutdown}
               onRestart={() => { }}
             />
+            <LicenseWatermark />
           </motion.div>
         )}
       </AnimatePresence>

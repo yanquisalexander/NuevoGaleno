@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { WindowControls } from "./WindowControls";
 import { NativeContextMenu } from "./NativeContextMenu";
+import { LicenseStatusIndicator } from './LicenseStatusIndicator';
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -125,6 +126,10 @@ export const AppTitleBar = () => {
                         <span className="text-sm font-normal select-none pointer-events-none">
                             Nuevo Galeno
                         </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mr-2">
+                        <LicenseStatusIndicator />
                     </div>
 
                     <WindowControls

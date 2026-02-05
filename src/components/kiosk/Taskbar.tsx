@@ -6,6 +6,7 @@ import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useSession } from '@/hooks/useSession';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useShell } from '@/contexts/ShellContext';
+import { LicenseStatusIndicator } from "../LicenseStatusIndicator";
 
 interface SystemInfo {
     batteryLevel: number;
@@ -159,6 +160,8 @@ export function Taskbar() {
 
                 {/* Sección Derecha: System Tray */}
                 <div className="flex items-center h-full gap-1">
+
+
                     {/* Indicador de Actualización Disponible */}
                     {updateAvailable && (
                         <motion.button
@@ -198,6 +201,9 @@ export function Taskbar() {
                             </motion.div>
                         )}
                     </motion.button>
+
+                    <LicenseStatusIndicator />
+
 
                     <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}

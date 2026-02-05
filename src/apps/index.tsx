@@ -15,6 +15,7 @@ import { ConfigurationApp } from '@/components/ConfigurationApp';
 import AppointmentsApp from './Appointments';
 import { GalenoUpdateApp } from './GalenoUpdate';
 import { TreatmentCatalogApp } from './TreatmentCatalog';
+import { MiGalenoApp } from './MiGaleno';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -28,6 +29,7 @@ export { AppointmentsApp };
 export { GalenoUpdateApp } from './GalenoUpdate';
 export { UserAccountsApp } from './UserAccounts';
 export { TreatmentCatalogApp } from './TreatmentCatalog';
+export { MiGalenoApp } from './MiGaleno';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -148,5 +150,14 @@ export const APP_DEFINITIONS = [
         defaultSize: { width: 800, height: 600 },
         showOnDesktop: false,
         component: GalenoUpdateApp,
+    },
+    {
+        id: 'migaleno',
+        name: 'MiGaleno',
+        icon: '🛡️',
+        allowMultipleInstances: false,
+        defaultSize: { width: 1000, height: 700 },
+        component: MiGalenoApp,
+        requiresAdmin: true,
     },
 ];

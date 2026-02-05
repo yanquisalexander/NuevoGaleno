@@ -1,4 +1,4 @@
-import { X, Calendar, Clock, User, Phone, MapPin, FileText, Tag, Bell } from 'lucide-react';
+import { X, Calendar, Clock, User, Phone, MapPin, FileText, Tag, Bell, LucidePen, LucideEdit2, LucideEdit } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
@@ -46,7 +46,7 @@ export function AppointmentDetails({
                                     className="p-1.5 rounded-[4px] hover:bg-white/5 text-white/60 hover:text-white transition-colors"
                                     title="Editar"
                                 >
-                                    <FileText className="w-5 h-5" />
+                                    <LucideEdit className="w-5 h-5" />
                                 </button>
                                 <button
                                     onClick={onClose}

@@ -9,9 +9,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileCode, Database, HardDrive, ShieldCheck, UserCircle } from "lucide-react";
 import { useWindowManager } from "@/contexts/WindowManagerContext";
 import ImportReviewScreen from "./ImportReviewScreen";
+import { useLicense } from "@/hooks/useLicense";
 
 export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const { openWindow } = useWindowManager();
+    const { startTrial } = useLicense();
     const [step, setStep] = useState(0);
     const [name, setName] = useState("");
     const [username, setUsername] = useState("");
@@ -56,6 +58,8 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     // Callback cuando termina la revisión (embedded)
     const handleReviewComplete = () => {
         toast.success("Datos importados correctamente");
+        // Iniciar trial automáticamente al completar el wizard
+        startTrial().catch(err => console.error('Error iniciando trial:', err));
         setTimeout(() => onFinish(), 1500);
     };
 

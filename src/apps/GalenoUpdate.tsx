@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/useToast';
 import { getVersion } from '@tauri-apps/api/app';
 import { useNotImplemented } from "@/utils/system/NotImplemented";
+import { useAutoUpdate } from '@/hooks/useAutoUpdate';
 
 interface UpdateInfo {
     version: string;
@@ -28,16 +29,13 @@ type UpdateState =
 export function GalenoUpdateApp() {
     const [state, setState] = useState<UpdateState>({ type: 'idle' });
     const [currentVersion, setCurrentVersion] = useState<string>('');
-    const [lastChecked, setLastChecked] = useState<Date | null>(null);
     const toastHelpers = useToast();
     const notImplemented = useNotImplemented();
+    const { lastChecked, checkForUpdates: autoCheckForUpdates } = useAutoUpdate(false);
 
     // Cargar versión inicial
     useEffect(() => {
         getVersion().then(setCurrentVersion).catch(console.error);
-
-        // Simular que ya se chequeó al cargar si queremos
-        setLastChecked(new Date());
     }, []);
 
     const formatLastChecked = (date: Date | null) => {
@@ -61,8 +59,10 @@ export function GalenoUpdateApp() {
             // Simular un pequeño delay para que se vea la animación de carga
             await new Promise(resolve => setTimeout(resolve, 800));
 
+            // Llamar al check del hook para sincronizar el lastChecked
+            await autoCheckForUpdates();
+
             const update = await check();
-            setLastChecked(new Date());
 
             if (update?.available) {
                 const info: UpdateInfo = {

@@ -16,16 +16,19 @@ export function useAutoUpdate(enabled: boolean = true) {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
     const [isChecking, setIsChecking] = useState(false);
+    const [lastChecked, setLastChecked] = useState<Date | null>(null);
     const notificationIdRef = useRef<string | null>(null);
+    const hasCheckedOnMount = useRef(false); // Nuevo ref
 
     const checkForUpdates = useCallback(async () => {
         if (isChecking) return;
 
         setIsChecking(true);
+        setLastChecked(new Date());
         try {
             const update = await check();
 
-            if (update?.available) {
+            if (update) {
                 const info: UpdateInfo = {
                     version: update.version,
                     currentVersion: update.currentVersion,
@@ -36,7 +39,6 @@ export function useAutoUpdate(enabled: boolean = true) {
                 setUpdateAvailable(true);
                 setUpdateInfo(info);
 
-                // Mostrar notificación solo si no hay una activa
                 if (!notificationIdRef.current) {
                     notificationIdRef.current = addNotification({
                         type: 'info',
@@ -44,7 +46,7 @@ export function useAutoUpdate(enabled: boolean = true) {
                         message: `Galeno ${update.version} está listo para instalar`,
                         icon: '📦',
                         priority: 'high',
-                        duration: 0, // Persistente
+                        duration: 0,
                         actions: [
                             {
                                 label: 'Instalar ahora',
@@ -79,36 +81,38 @@ export function useAutoUpdate(enabled: boolean = true) {
         } finally {
             setIsChecking(false);
         }
-    }, [isChecking, addNotification, openWindow]);
+    }, [isChecking, addNotification, openWindow]); // Mantén estas dependencias
 
-    // Check for updates on mount (after a delay to let the app load)
+    // Check inicial solo UNA vez
     useEffect(() => {
-        if (!enabled) return;
+        if (!enabled || hasCheckedOnMount.current) return;
 
+        hasCheckedOnMount.current = true;
         const checkTimer = setTimeout(() => {
             checkForUpdates();
-        }, 5000); // 5 seconds after app loads
+        }, 5000);
 
         return () => {
             clearTimeout(checkTimer);
         };
-    }, [enabled, checkForUpdates]);
+    }, [enabled]); // Quita checkForUpdates de aquí
 
-    // Periódicamente verificar actualizaciones (cada 4 horas)
+    // Intervalo de 4 horas
     useEffect(() => {
         if (!enabled) return;
 
         const interval = setInterval(() => {
             checkForUpdates();
-        }, 4 * 60 * 60 * 1000); // 4 horas
+        }, 4 * 60 * 60 * 1000);
 
         return () => clearInterval(interval);
-    }, [enabled, checkForUpdates]);
+    }, [enabled]); // Quita checkForUpdates y lastChecked de aquí
 
     return {
         updateAvailable,
         updateInfo,
         isChecking,
+        lastChecked,
         checkForUpdates,
     };
 }
