@@ -20,14 +20,151 @@ import { TreatmentList } from '../components/treatments/TreatmentList';
 import { TreatmentPayments } from '../components/payments/TreatmentPayments';
 import { BalanceCard } from '../components/payments/BalanceCard';
 import { Odontogram } from '../components/odontogram/Odontogram';
+import { useAppMenuBar } from '../hooks/useAppMenuBar';
 import type { WindowId } from '../types/window-manager';
-import { cn } from '@/lib/utils'; // Asumiendo que tienes esta utilidad, sino puedes usar strings
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-export function PatientRecordApp({ windowId: _windowId, data }: { windowId: WindowId; data?: any }) {
+export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?: any }) {
     const [patient, setPatient] = useState<Patient | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram'>('info');
     const patientId = data?.patientId;
+
+    // Configurar el MenuBar de la aplicación
+    useAppMenuBar({
+        windowId,
+        config: {
+            appName: patient ? `${patient.first_name} ${patient.last_name}` : 'Ficha de Paciente',
+            menus: [
+                {
+                    id: 'file',
+                    label: 'Archivo',
+                    items: [
+                        {
+                            id: 'refresh',
+                            label: 'Actualizar',
+                            type: 'item',
+                            shortcut: '⌘R',
+                            action: () => {
+                                loadPatient();
+                                toast.success('Expediente actualizado');
+                            },
+                        },
+                        {
+                            id: 'sep1',
+                            label: '',
+                            type: 'separator',
+                        },
+                        {
+                            id: 'export',
+                            label: 'Exportar Historial',
+                            type: 'item',
+                            action: () => {
+                                toast.info('Exportar historial médico');
+                            },
+                        },
+                        {
+                            id: 'print',
+                            label: 'Imprimir Ficha',
+                            type: 'item',
+                            shortcut: '⌘P',
+                            action: () => {
+                                toast.info('Imprimir ficha del paciente');
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: 'edit',
+                    label: 'Edición',
+                    items: [
+                        {
+                            id: 'edit-patient',
+                            label: 'Editar Información',
+                            type: 'item',
+                            action: () => {
+                                toast.info('Editar datos del paciente');
+                            },
+                        },
+                        {
+                            id: 'add-note',
+                            label: 'Agregar Nota Médica',
+                            type: 'item',
+                            shortcut: '⌘N',
+                            action: () => {
+                                setActiveTab('history');
+                                toast.info('Nueva nota médica');
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: 'view',
+                    label: 'Ver',
+                    items: [
+                        {
+                            id: 'view-info',
+                            label: 'Información General',
+                            type: 'item',
+                            action: () => setActiveTab('info'),
+                        },
+                        {
+                            id: 'view-history',
+                            label: 'Historial Médico',
+                            type: 'item',
+                            action: () => setActiveTab('history'),
+                        },
+                        {
+                            id: 'view-treatments',
+                            label: 'Tratamientos',
+                            type: 'item',
+                            action: () => setActiveTab('treatments'),
+                        },
+                        {
+                            id: 'view-payments',
+                            label: 'Pagos',
+                            type: 'item',
+                            action: () => setActiveTab('payments'),
+                        },
+                        {
+                            id: 'view-odontogram',
+                            label: 'Odontograma',
+                            type: 'item',
+                            action: () => setActiveTab('odontogram'),
+                        },
+                    ],
+                },
+                {
+                    id: 'treatment',
+                    label: 'Tratamiento',
+                    items: [
+                        {
+                            id: 'new-treatment',
+                            label: 'Nuevo Tratamiento',
+                            type: 'item',
+                            shortcut: '⌘T',
+                            action: () => {
+                                setActiveTab('treatments');
+                                toast.info('Crear nuevo tratamiento');
+                            },
+                        },
+                        {
+                            id: 'new-payment',
+                            label: 'Registrar Pago',
+                            type: 'item',
+                            shortcut: '⌘$',
+                            action: () => {
+                                setActiveTab('payments');
+                                toast.info('Registrar nuevo pago');
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+        deps: [patient],
+    });
 
     useEffect(() => {
         if (patientId) {

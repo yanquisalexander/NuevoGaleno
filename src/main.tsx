@@ -7,6 +7,7 @@ import { ShellProvider } from "./contexts/ShellContext";
 import { SessionProvider } from "./contexts/SessionContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { WindowManagerProvider } from "./contexts/WindowManagerContext";
+import { MenuBarProvider } from "./contexts/MenuBarContext";
 import { NotificationCenter } from "./components/NotificationCenter";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
@@ -15,10 +16,12 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <ShellProvider>
         <SessionProvider>
           <NotificationProvider>
-            <WindowManagerProvider>
-              <App />
-              <NotificationCenter />
-            </WindowManagerProvider>
+            <MenuBarProvider>
+              <WindowManagerProvider>
+                <App />
+                <NotificationCenter />
+              </WindowManagerProvider>
+            </MenuBarProvider>
           </NotificationProvider>
         </SessionProvider>
       </ShellProvider>

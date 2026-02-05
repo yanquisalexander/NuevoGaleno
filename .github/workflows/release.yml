@@ -55,6 +55,6 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Nuevo Galeno ${{ github.ref_name }}'
           releaseBody: 'Ver el changelog para más detalles.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
