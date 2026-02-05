@@ -44,10 +44,7 @@ export function MiGalenoApp() {
                                     <div className="px-3 py-2 mb-1 mt-5">
                                         <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">Configuración</span>
                                     </div>
-                                    <FluentTabTrigger value="billing" icon={CreditCard} label="Suscripción y Pagos" />
-                                    <FluentTabTrigger value="notifications" icon={Bell} label="Notificaciones" />
                                     <FluentTabTrigger value="database" icon={Database} label="Base de Datos" />
-                                    <FluentTabTrigger value="settings" icon={Settings} label="Preferencias" />
                                 </TabsList>
                             </div>
                         </aside>
@@ -169,12 +166,10 @@ function AccessDeniedScreen() {
                     <div className="space-y-3">
                         <h2 className="text-xl font-semibold text-white/95">Acceso denegado</h2>
                         <p className="text-[13px] text-white/55 leading-relaxed max-w-xs mx-auto">
-                            No tienes los privilegios necesarios para acceder al panel de administración de licencias.
+                            No tienes los privilegios necesarios para acceder al panel de MiGaleno
                         </p>
                     </div>
-                    <button className="w-full py-2.5 rounded-[4px] bg-[#0067c0] hover:bg-[#005a9e] text-white text-[13px] font-medium active:scale-[0.98] transition-all shadow-sm">
-                        Cerrar aplicación
-                    </button>
+
                 </div>
             </div>
         </div>

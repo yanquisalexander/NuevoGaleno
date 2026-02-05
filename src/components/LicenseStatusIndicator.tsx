@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLicense } from '@/hooks/useLicense';
+import { useSession } from '@/hooks/useSession';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -24,6 +25,7 @@ import { LicenseActivationDialog } from './LicenseActivationDialog';
 import { FluentCertificate } from "@/icons/FluentCertificate";
 
 export function LicenseStatusIndicator() {
+    const { currentUser } = useSession();
     const {
         licenseStatus,
         isLicensed,
@@ -147,36 +149,38 @@ export function LicenseStatusIndicator() {
                         </div>
 
                         {/* Acciones */}
-                        <div className="space-y-0.5">
-                            {!isLicensed && (
-                                <DropdownMenuItem
-                                    onClick={() => setShowActivationDialog(true)}
-                                    className="cursor-pointer bg-white/5 focus:bg-emerald-500/20 focus:text-emerald-400 text-white gap-2 mb-1 rounded-[4px]"
-                                >
-                                    <Key className="w-4 h-4" />
-                                    <span>Activar ahora</span>
-                                </DropdownMenuItem>
-                            )}
+                        {currentUser?.role === 'admin' && (
+                            <div className="space-y-0.5">
+                                {!isLicensed && (
+                                    <DropdownMenuItem
+                                        onClick={() => setShowActivationDialog(true)}
+                                        className="cursor-pointer bg-white/5 focus:bg-emerald-500/20 focus:text-emerald-400 text-white gap-2 mb-1 rounded-[4px]"
+                                    >
+                                        <Key className="w-4 h-4" />
+                                        <span>Activar ahora</span>
+                                    </DropdownMenuItem>
+                                )}
 
-                            <DropdownMenuItem
-                                onClick={handleValidate}
-                                disabled={isValidating}
-                                className="cursor-pointer focus:bg-white/10 text-white/70 gap-2 rounded-[4px]"
-                            >
-                                <RefreshCw className={cn('w-4 h-4', isValidating && 'animate-spin')} />
-                                <span>Sincronizar</span>
-                            </DropdownMenuItem>
-
-                            {isLicensed && (
                                 <DropdownMenuItem
-                                    onSelect={(e) => { e.preventDefault(); setShowDeactivateAlert(true); }}
-                                    className="cursor-pointer focus:bg-red-500/10 focus:text-red-400 text-white/50 gap-2 rounded-[4px]"
+                                    onClick={handleValidate}
+                                    disabled={isValidating}
+                                    className="cursor-pointer focus:bg-white/10 text-white/70 gap-2 rounded-[4px]"
                                 >
-                                    <LogOut className="w-4 h-4" />
-                                    <span>Desvincular</span>
+                                    <RefreshCw className={cn('w-4 h-4', isValidating && 'animate-spin')} />
+                                    <span>Sincronizar</span>
                                 </DropdownMenuItem>
-                            )}
-                        </div>
+
+                                {isLicensed && (
+                                    <DropdownMenuItem
+                                        onSelect={(e) => { e.preventDefault(); setShowDeactivateAlert(true); }}
+                                        className="cursor-pointer focus:bg-red-500/10 focus:text-red-400 text-white/50 gap-2 rounded-[4px]"
+                                    >
+                                        <LogOut className="w-4 h-4" />
+                                        <span>Desvincular</span>
+                                    </DropdownMenuItem>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </DropdownMenuContent>
             </DropdownMenu>

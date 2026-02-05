@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCircle, Activity, AlertTriangle } from 'lucide-react';
+import { UserCircle, Activity, AlertTriangle, ArrowRight, Clock } from 'lucide-react';
 import { useWindowManager } from '../contexts/WindowManagerContext';
 import { NotificationDemo } from '../components/NotificationDemo';
 import { getPatientsCount } from '../hooks/usePatients';
@@ -23,9 +23,7 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
     const [isLoading, setIsLoading] = useState(true);
     const { openWindow } = useWindowManager();
 
-    useEffect(() => {
-        loadStats();
-    }, []);
+    useEffect(() => { loadStats(); }, []);
 
     const loadStats = async () => {
         setIsLoading(true);
@@ -53,101 +51,132 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center h-full bg-[#1c1c1c] text-white/70">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <span className="text-sm font-medium tracking-wide">Cargando sistema...</span>
             </div>
         );
     }
 
     return (
-        <div className="p-6 h-full overflow-y-auto bg-gradient-to-br from-[#1a1a1a] to-[#0f0f0f]">
-            <h2 className="text-3xl font-bold text-white mb-2">
-                Panel de Control
-            </h2>
-            <p className="text-sm text-white/60 mb-8">Última actualización: {new Date().toLocaleString('es-AR')}</p>
+        <div className="h-full overflow-y-auto bg-[#1c1c1c] text-[#ffffff] font-sans selection:bg-blue-500/30">
+            {/* Header Estilo Windows 11 */}
+            <header className="px-8 pt-8 pb-6 sticky top-0 bg-[#1c1c1c]/80 backdrop-blur-md z-10">
+                <h2 className="text-3xl font-semibold tracking-tight text-white/95">
+                    Panel de Control
+                </h2>
+                <div className="flex items-center gap-2 mt-1 text-white/40">
+                    <Clock size={14} />
+                    <p className="text-xs font-medium">
+                        Actualizado: {new Date().toLocaleTimeString('es-AR')}
+                    </p>
+                </div>
+            </header>
 
-            {/* Estadísticas Principales */}
-            <div className="grid grid-cols-4 gap-4 mb-8">
-                <div className="bg-gradient-to-br from-blue-500/15 to-blue-600/10 border border-blue-500/30 rounded-2xl p-5 shadow-lg shadow-blue-500/10 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                            <UserCircle className="w-6 h-6 text-blue-400" />
-                        </div>
-                        <span className="text-sm font-medium text-white/70 uppercase tracking-wide">Total Pacientes</span>
-                    </div>
-                    <div className="text-4xl font-bold text-blue-400">
-                        {stats.patientsCount}
-                    </div>
+            <main className="px-8 pb-8">
+                {/* Grid de Estadísticas con Efecto de Elevación (Cards) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+                    <StatCard
+                        title="Pacientes"
+                        value={stats.patientsCount}
+                        icon={<UserCircle className="text-blue-400" />}
+                        color="blue"
+                    />
+                    <StatCard
+                        title="Por Hacer"
+                        value={stats.treatmentStats.pending_count}
+                        subtitle={formatCurrency(stats.treatmentStats.total_pending_cost)}
+                        icon={<Activity className="text-amber-400" />}
+                        color="amber"
+                    />
+                    <StatCard
+                        title="En Curso"
+                        value={stats.treatmentStats.in_progress_count}
+                        subtitle={formatCurrency(stats.treatmentStats.total_in_progress_cost)}
+                        icon={<Activity className="text-indigo-400" />}
+                        color="indigo"
+                    />
+                    <StatCard
+                        title="Deuda Total"
+                        value={formatCurrency(stats.totalDebt)}
+                        icon={<AlertTriangle className="text-rose-400" />}
+                        color="rose"
+                        isCritical
+                    />
                 </div>
 
-                <div className="bg-gradient-to-br from-yellow-500/15 to-yellow-600/10 border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                            <Activity className="w-6 h-6 text-yellow-400" />
-                        </div>
-                        <span className="text-sm font-medium text-white/70 uppercase tracking-wide">Por Hacer</span>
+                {/* Accesos Rápidos Estilo Windows Tiles */}
+                <section className="mb-10">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-white/50 mb-4 px-1">
+                        Acceso Directo
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <QuickAction
+                            onClick={() => openWindow('patients')}
+                            title="Pacientes"
+                            desc="Gestión de historias clínicas"
+                            icon="👥"
+                            bg="bg-blue-600/10 border-blue-500/20"
+                        />
+                        <QuickAction
+                            onClick={() => openWindow('treatments')}
+                            title="Tratamientos"
+                            desc="Seguimiento de planes"
+                            icon="🦷"
+                            bg="bg-purple-600/10 border-purple-500/20"
+                        />
+                        <QuickAction
+                            onClick={() => openWindow('accounts')}
+                            title="Cuentas"
+                            desc="Balances y pagos"
+                            icon="💰"
+                            bg="bg-emerald-600/10 border-emerald-500/20"
+                        />
                     </div>
-                    <div className="text-4xl font-bold text-yellow-400">
-                        {stats.treatmentStats.pending_count}
-                    </div>
-                    <div className="text-xs text-white/50 mt-2">
-                        {formatCurrency(stats.treatmentStats.total_pending_cost)}
-                    </div>
-                </div>
+                </section>
 
-                <div className="bg-gradient-to-br from-blue-500/15 to-indigo-600/10 border border-blue-500/30 rounded-2xl p-5 shadow-lg shadow-blue-500/10 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                            <Activity className="w-6 h-6 text-blue-400" />
-                        </div>
-                        <span className="text-sm font-medium text-white/70 uppercase tracking-wide">En Tratamiento</span>
-                    </div>
-                    <div className="text-4xl font-bold text-blue-400">
-                        {stats.treatmentStats.in_progress_count}
-                    </div>
-                    <div className="text-xs text-white/50 mt-2">
-                        {formatCurrency(stats.treatmentStats.total_in_progress_cost)}
-                    </div>
-                </div>
 
-                <div className="bg-gradient-to-br from-red-500/15 to-red-600/10 border border-red-500/30 rounded-2xl p-5 shadow-lg shadow-red-500/10 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center">
-                            <AlertTriangle className="w-6 h-6 text-red-400" />
-                        </div>
-                        <span className="text-sm font-medium text-white/70 uppercase tracking-wide">Deuda Total</span>
-                    </div>
-                    <div className="text-4xl font-bold text-red-400">
-                        {formatCurrency(stats.totalDebt)}
-                    </div>
-                </div>
-            </div>
-
-            {/* Accesos Rápidos */}
-            <div className="mb-8">
-                <h3 className="text-xl font-bold text-white mb-4">Accesos Rápidos</h3>
-                <div className="grid grid-cols-3 gap-4">
-                    {[
-                        { id: 'patients', name: 'Pacientes', icon: '👥', color: 'from-blue-500 to-blue-600', shadow: 'shadow-blue-500/30' },
-                        { id: 'treatments', name: 'Tratamientos', icon: '🦷', color: 'from-purple-500 to-purple-600', shadow: 'shadow-purple-500/30' },
-                        { id: 'accounts', name: 'Cuentas Corrientes', icon: '💰', color: 'from-green-500 to-emerald-600', shadow: 'shadow-green-500/30' },
-                    ].map((app) => (
-                        <button
-                            key={app.id}
-                            onClick={() => openWindow(app.id)}
-                            className="flex items-center gap-4 p-5 bg-gradient-to-br from-white/10 to-white/5 hover:from-white/15 hover:to-white/10 border border-white/10 hover:border-white/20 rounded-2xl transition-all backdrop-blur-sm group shadow-lg hover:shadow-xl"
-                        >
-                            <div className={`w-14 h-14 bg-gradient-to-br ${app.color} rounded-xl flex items-center justify-center text-3xl shadow-lg ${app.shadow} group-hover:scale-110 transition-transform`}>
-                                {app.icon}
-                            </div>
-                            <span className="font-semibold text-white text-lg">{app.name}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Demo de Notificaciones */}
-            <NotificationDemo />
+            </main>
         </div>
+    );
+}
+
+// Sub-componente para las Cards de Estadísticas
+function StatCard({ title, value, icon, subtitle, isCritical }: any) {
+    return (
+        <div className="group relative overflow-hidden bg-white/[0.03] border border-white/10 rounded-xl p-5 hover:bg-white/[0.06] transition-all duration-300">
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-2 rounded-lg bg-white/5 border border-white/5 group-hover:scale-110 transition-transform">
+                    {icon}
+                </div>
+                {isCritical && <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />}
+            </div>
+            <div>
+                <p className="text-xs font-medium text-white/50 uppercase tracking-wider">{title}</p>
+                <h4 className="text-2xl font-bold mt-1 tracking-tight">{value}</h4>
+                {subtitle && <p className="text-xs text-white/30 mt-1 font-mono">{subtitle}</p>}
+            </div>
+            {/* Sutil brillo inferior */}
+            <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-blue-500 group-hover:w-full transition-all duration-500 opacity-50" />
+        </div>
+    );
+}
+
+// Sub-componente para botones de acción
+function QuickAction({ onClick, title, desc, icon, bg }: any) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 group relative text-left active:scale-[0.98] ${bg} hover:bg-white/10`}
+        >
+            <div className="text-3xl filter drop-shadow-md group-hover:scale-110 transition-transform">
+                {icon}
+            </div>
+            <div className="flex-1">
+                <p className="font-semibold text-white/90 text-sm">{title}</p>
+                <p className="text-[11px] text-white/40 leading-tight">{desc}</p>
+            </div>
+            <ArrowRight size={16} className="text-white/0 group-hover:text-white/40 transition-all -translate-x-2 group-hover:translate-x-0" />
+        </button>
     );
 }

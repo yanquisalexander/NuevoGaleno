@@ -115,13 +115,19 @@ export function UserManagementPanel() {
 
         try {
             setProcessing(true);
+
+            // Hashear la contraseña con SHA-256
+            const pwBuffer = new TextEncoder().encode(formData.password);
+            const hashBuf = await crypto.subtle.digest('SHA-256', pwBuffer);
+            const hashHex = Array.from(new Uint8Array(hashBuf))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+
             await invoke('create_user', {
-                input: {
-                    username: formData.username,
-                    password_hash: formData.password, // En producción debería hashearse
-                    name: formData.name,
-                    role: formData.role,
-                },
+                username: formData.username,
+                passwordHash: hashHex,
+                name: formData.name,
+                role: formData.role,
             });
 
             toast.success('Usuario creado', `${formData.name} ha sido agregado correctamente`);
@@ -150,9 +156,17 @@ export function UserManagementPanel() {
 
         try {
             setProcessing(true);
+
+            // Hashear la contraseña con SHA-256
+            const pwBuffer = new TextEncoder().encode(formData.password);
+            const hashBuf = await crypto.subtle.digest('SHA-256', pwBuffer);
+            const hashHex = Array.from(new Uint8Array(hashBuf))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+
             await invoke('update_user_password', {
                 username: selectedUser.username,
-                newPasswordHash: formData.password,
+                newPasswordHash: hashHex,
             });
 
             toast.success('Contraseña actualizada', 'La contraseña se ha cambiado correctamente');

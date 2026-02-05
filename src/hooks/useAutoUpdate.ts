@@ -16,7 +16,11 @@ export function useAutoUpdate(enabled: boolean = true) {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
     const [isChecking, setIsChecking] = useState(false);
-    const [lastChecked, setLastChecked] = useState<Date | null>(null);
+    const [lastChecked, setLastChecked] = useState<Date | null>(() => {
+        // Cargar desde localStorage al inicializar
+        const stored = localStorage.getItem('lastUpdateCheck');
+        return stored ? new Date(stored) : null;
+    });
     const notificationIdRef = useRef<string | null>(null);
     const hasCheckedOnMount = useRef(false); // Nuevo ref
 
@@ -24,7 +28,10 @@ export function useAutoUpdate(enabled: boolean = true) {
         if (isChecking) return;
 
         setIsChecking(true);
-        setLastChecked(new Date());
+        const now = new Date();
+        setLastChecked(now);
+        // Persistir en localStorage
+        localStorage.setItem('lastUpdateCheck', now.toISOString());
         try {
             const update = await check();
 

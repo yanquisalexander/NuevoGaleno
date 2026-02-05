@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect } from 'react';
 import type { WindowState, WindowAction, WindowId, AppDefinition } from '../types/window-manager';
 
 interface WindowManagerContextType {
@@ -6,6 +6,7 @@ interface WindowManagerContextType {
     apps: Map<string, AppDefinition>;
     openWindow: (appId: string, data?: any) => void;
     closeWindow: (windowId: WindowId) => void;
+    closeAllWindows: () => void;
     minimizeWindow: (windowId: WindowId) => void;
     maximizeWindow: (windowId: WindowId) => void;
     restoreWindow: (windowId: WindowId) => void;
@@ -17,12 +18,13 @@ interface WindowManagerContextType {
 
 const WindowManagerContext = createContext<WindowManagerContextType | null>(null);
 
-function windowReducer(state: WindowState[], action: WindowAction): WindowState[] {
+function windowReducer(state: WindowState[], action: WindowAction, apps: Map<string, AppDefinition>): WindowState[] {
     switch (action.type) {
         case 'OPEN_WINDOW': {
-            // Definimos primero el tamaño para poder usarlo en el cálculo de posición
-            const windowWidth = 800;
-            const windowHeight = 600;
+            // Obtenemos el tamaño por defecto de la aplicación o usamos 800x600 como fallback
+            const app = apps.get(action.appId);
+            const windowWidth = app?.defaultSize?.width ?? 800;
+            const windowHeight = app?.defaultSize?.height ?? 600;
 
             // Obtenemos las dimensiones actuales del viewport
             const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
@@ -56,6 +58,9 @@ function windowReducer(state: WindowState[], action: WindowAction): WindowState[
 
         case 'CLOSE_WINDOW':
             return state.filter(w => w.id !== action.windowId);
+
+        case 'CLOSE_ALL_WINDOWS':
+            return [];
 
         case 'MINIMIZE_WINDOW':
             return state.map(w =>
@@ -98,8 +103,7 @@ function windowReducer(state: WindowState[], action: WindowAction): WindowState[
 }
 
 export function WindowManagerProvider({ children }: { children: ReactNode }) {
-    const [windows, dispatch] = useReducer(windowReducer, []);
-    const [apps] = useReducer(
+    const [apps, appsDispatch] = useReducer(
         (state: Map<string, AppDefinition>, action: { type: 'REGISTER'; app: AppDefinition }) => {
             if (action.type === 'REGISTER') {
                 const newMap = new Map(state);
@@ -110,6 +114,20 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         },
         new Map()
     );
+
+    const [windows, dispatch] = useReducer((state: WindowState[], action: WindowAction) => {
+        return windowReducer(state, action, apps);
+    }, []);
+
+    // Escuchar eventos de logout para cerrar todas las ventanas
+    useEffect(() => {
+        const handleLogout = () => {
+            dispatch({ type: 'CLOSE_ALL_WINDOWS' });
+        };
+
+        window.addEventListener('session:logout', handleLogout);
+        return () => window.removeEventListener('session:logout', handleLogout);
+    }, []);
 
     const openWindow = useCallback((appId: string, data?: any) => {
         const app = apps.get(appId);
@@ -129,6 +147,10 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
 
     const closeWindow = useCallback((windowId: WindowId) => {
         dispatch({ type: 'CLOSE_WINDOW', windowId });
+    }, []);
+
+    const closeAllWindows = useCallback(() => {
+        dispatch({ type: 'CLOSE_ALL_WINDOWS' });
     }, []);
 
     const minimizeWindow = useCallback((windowId: WindowId) => {
@@ -156,8 +178,8 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const registerApp = useCallback((app: AppDefinition) => {
-        apps.set(app.id, app);
-    }, [apps]);
+        appsDispatch({ type: 'REGISTER', app });
+    }, []);
 
     return (
         <WindowManagerContext.Provider
@@ -166,6 +188,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
                 apps,
                 openWindow,
                 closeWindow,
+                closeAllWindows,
                 minimizeWindow,
                 maximizeWindow,
                 restoreWindow,

@@ -21,7 +21,7 @@ export interface AppDefinition {
     name: string;
     icon: string;
     allowMultipleInstances: boolean;
-    defaultSize: { width: number; height: number };
+    defaultSize?: { width: number; height: number };
     minSize?: { width: number; height: number };
     component: React.ComponentType<{ windowId: WindowId; data?: any }>;
     showOnDesktop?: boolean;
@@ -30,6 +30,7 @@ export interface AppDefinition {
 export type WindowAction =
     | { type: 'OPEN_WINDOW'; appId: string; data?: any }
     | { type: 'CLOSE_WINDOW'; windowId: WindowId }
+    | { type: 'CLOSE_ALL_WINDOWS' }
     | { type: 'MINIMIZE_WINDOW'; windowId: WindowId }
     | { type: 'MAXIMIZE_WINDOW'; windowId: WindowId }
     | { type: 'RESTORE_WINDOW'; windowId: WindowId }

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-
 interface User {
     id: number;
     username: string;
@@ -131,6 +130,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const logout = async () => {
         await invoke('logout_user');
+        // Emitir evento para que WindowManager cierre todas las ventanas
+        window.dispatchEvent(new CustomEvent('session:logout'));
         setCurrentUser(null);
         setIsLocked(false);
         setSessionDuration(null);

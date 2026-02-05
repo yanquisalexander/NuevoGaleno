@@ -7,6 +7,7 @@ import { useSession } from '@/hooks/useSession';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useShell } from '@/contexts/ShellContext';
 import { LicenseStatusIndicator } from "../LicenseStatusIndicator";
+import { Clock } from './Clock';
 
 interface SystemInfo {
     batteryLevel: number;
@@ -18,7 +19,6 @@ export function Taskbar() {
     const { windows, apps, openWindow, focusWindow } = useWindowManager();
     const { currentUser } = useSession();
     const { notifications } = useNotifications();
-    const [currentTime, setCurrentTime] = useState(new Date());
     const {
         showStartMenu, setShowStartMenu,
         showNotifications,
@@ -36,12 +36,6 @@ export function Taskbar() {
         isCharging: false,
         batteryAvailable: false
     });
-
-    // Reloj
-    useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
 
     // Batería
     useEffect(() => {
@@ -217,20 +211,10 @@ export function Taskbar() {
                         </div>
                     </motion.button>
 
-                    <motion.button
-                        whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                        whileTap={{ scale: 0.95 }}
+                    <Clock
+                        showCalendar={showCalendar}
                         onClick={() => setShowCalendar(!showCalendar)}
-                        className={`flex flex-col items-end px-2 h-10 justify-center rounded-[4px] text-right transition-colors ${showCalendar ? 'bg-white/10' : ''
-                            }`}
-                    >
-                        <span className="text-[11px] text-white font-medium leading-none mb-1">
-                            {currentTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="text-[10px] text-white/70 leading-none">
-                            {currentTime.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', })}
-                        </span>
-                    </motion.button>
+                    />
                 </div>
             </div>
 
