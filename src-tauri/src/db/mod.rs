@@ -7,6 +7,7 @@ pub mod payments;
 pub mod treatments;
 pub mod users;
 pub mod appointments;
+pub mod templates;
 
 use once_cell::sync::Lazy;
 use rusqlite::Connection;

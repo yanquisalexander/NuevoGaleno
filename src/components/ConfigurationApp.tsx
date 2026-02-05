@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
     Sliders, Shield, RefreshCw,
-    Monitor, HardDrive, User, Search, ChevronRight, Download
+    Monitor, HardDrive, User, Search, ChevronRight, Download, FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useConfig } from '@/hooks/useConfig';
 import { useSession } from '@/hooks/useSession';
 import { ConfigDefinition } from '@/types/config';
+import { TemplateManager } from '@/components/templates';
 
 // --- Tipos ---
 type ConfigEntry = {
@@ -45,6 +46,7 @@ export function ConfigurationApp() {
     const { currentUser } = useSession();
     const { openWindow } = useWindowManager();
     const [savingKey, setSavingKey] = useState<string | null>(null);
+    const [showTemplates, setShowTemplates] = useState(false);
 
     const isAdmin = currentUser?.role === 'admin';
 
@@ -169,6 +171,24 @@ export function ConfigurationApp() {
             <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#202020]">
                 <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-blue-500 border-t-transparent" />
                 <p className="text-sm font-medium text-white/60">Cargando configuración...</p>
+            </div>
+        );
+    }
+
+    // Si está en modo plantillas, mostrar el TemplateManager
+    if (showTemplates) {
+        return (
+            <div className="flex h-full flex-col bg-[#202020] text-white">
+                <div className="flex items-center justify-between p-4 border-b border-white/10">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setShowTemplates(false)}
+                        className="text-white/60 hover:text-white"
+                    >
+                        ← Volver a Configuración
+                    </Button>
+                </div>
+                <TemplateManager />
             </div>
         );
     }
@@ -338,6 +358,29 @@ export function ConfigurationApp() {
                                 className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/20 shadow-lg shadow-blue-500/20"
                             >
                                 Buscar Actualizaciones
+                                <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* --- Sección Plantillas (Hero Card) --- */}
+                    <div className="mt-8 rounded-xl border border-purple-500/20 bg-gradient-to-br from-purple-900/10 to-[#272727] p-6 relative overflow-hidden group">
+                        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-purple-500/5 to-transparent pointer-events-none" />
+                        <div className="relative z-10 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-purple-400" />
+                                    Plantillas de Documentos
+                                </h3>
+                                <p className="text-sm text-white/60 mt-1 max-w-lg">
+                                    Gestiona plantillas personalizables para recibos, facturas y otros documentos.
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => setShowTemplates(true)}
+                                className="bg-purple-600 hover:bg-purple-500 text-white border border-purple-500/20 shadow-lg shadow-purple-500/20"
+                            >
+                                Gestionar Plantillas
                                 <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
                             </Button>
                         </div>

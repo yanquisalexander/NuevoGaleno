@@ -97,6 +97,56 @@ fn delete_treatment(id: i64) -> Result<(), String> {
     db::treatments::delete_treatment(id)
 }
 
+// ===== TEMPLATES COMMANDS =====
+#[tauri::command]
+fn get_all_templates() -> Result<Vec<db::templates::Template>, String> {
+    let conn = db::get_connection()?;
+    db::templates::get_all_templates(&conn)
+        .map_err(|e| format!("Error getting templates: {}", e))
+}
+
+#[tauri::command]
+fn get_template_by_id(id: i64) -> Result<Option<db::templates::Template>, String> {
+    let conn = db::get_connection()?;
+    db::templates::get_template_by_id(&conn, id)
+        .map_err(|e| format!("Error getting template: {}", e))
+}
+
+#[tauri::command]
+fn get_templates_by_type(template_type: String) -> Result<Vec<db::templates::Template>, String> {
+    let conn = db::get_connection()?;
+    db::templates::get_templates_by_type(&conn, &template_type)
+        .map_err(|e| format!("Error getting templates by type: {}", e))
+}
+
+#[tauri::command]
+fn create_template(input: db::templates::CreateTemplateInput) -> Result<db::templates::Template, String> {
+    let conn = db::get_connection()?;
+    db::templates::create_template(&conn, input)
+        .map_err(|e| format!("Error creating template: {}", e))
+}
+
+#[tauri::command]
+fn update_template(id: i64, input: db::templates::UpdateTemplateInput) -> Result<(), String> {
+    let conn = db::get_connection()?;
+    db::templates::update_template(&conn, id, input)
+        .map_err(|e| format!("Error updating template: {}", e))
+}
+
+#[tauri::command]
+fn delete_template(id: i64) -> Result<(), String> {
+    let conn = db::get_connection()?;
+    db::templates::delete_template(&conn, id)
+        .map_err(|e| format!("Error deleting template: {}", e))
+}
+
+#[tauri::command]
+fn set_default_template(id: i64, template_type: String) -> Result<(), String> {
+    let conn = db::get_connection()?;
+    db::templates::set_default_template(&conn, id, &template_type)
+        .map_err(|e| format!("Error setting default template: {}", e))
+}
+
 #[tauri::command]
 fn get_treatment_stats() -> Result<db::treatments::TreatmentStats, String> {
     db::treatments::get_treatment_stats()
@@ -336,6 +386,14 @@ pub fn run() {
             update_treatment_status,
             delete_treatment,
             get_treatment_stats,
+            // templates
+            get_all_templates,
+            get_template_by_id,
+            get_templates_by_type,
+            create_template,
+            update_template,
+            delete_template,
+            set_default_template,
             // payments
             get_all_payments,
             get_payment_by_id,

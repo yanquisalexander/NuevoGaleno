@@ -212,7 +212,10 @@ export function PatientRecordApp({ windowId: _windowId, data }: { windowId: Wind
                                     <h3 className="font-medium text-white/90">Historial de Pagos</h3>
                                 </div>
                                 <div className="p-4">
-                                    <TreatmentPayments patientId={patient.id} />
+                                    <TreatmentPayments
+                                        patientId={patient.id}
+                                        patientName={`${patient.first_name} ${patient.last_name}`}
+                                    />
                                 </div>
                             </div>
                         </div>

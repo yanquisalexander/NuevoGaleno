@@ -7,9 +7,10 @@ import { TreatmentStatusBadge } from '../treatments/TreatmentStatusBadge';
 
 interface TreatmentPaymentsProps {
     patientId: number;
+    patientName: string;
 }
 
-export function TreatmentPayments({ patientId }: TreatmentPaymentsProps) {
+export function TreatmentPayments({ patientId, patientName }: TreatmentPaymentsProps) {
     const [treatments, setTreatments] = useState<Treatment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -110,6 +111,7 @@ export function TreatmentPayments({ patientId }: TreatmentPaymentsProps) {
                                         <h4 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Historial de Pagos</h4>
                                         <PaymentHistory
                                             patientId={patientId}
+                                            patientName={patientName}
                                             treatmentId={treatment.id}
                                             remainingBalance={treatment.balance}
                                         />

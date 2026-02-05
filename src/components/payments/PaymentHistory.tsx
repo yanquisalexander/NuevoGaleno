@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Payment, getPaymentsByPatient, createPayment } from '../../hooks/usePayments';
 import { PaymentForm } from './PaymentForm';
-import { DollarSign, Calendar, CreditCard, Plus } from 'lucide-react';
+import { DollarSign, Calendar, CreditCard, Plus, Printer } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { PrintReceipt } from '@/components/templates';
 
 interface PaymentHistoryProps {
     patientId: number;
+    patientName: string;
     treatmentId?: number;
     remainingBalance?: number;
 }
 
-export function PaymentHistory({ patientId, treatmentId, remainingBalance = 0 }: PaymentHistoryProps) {
+export function PaymentHistory({ patientId, patientName, treatmentId, remainingBalance = 0 }: PaymentHistoryProps) {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [printingPayment, setPrintingPayment] = useState<Payment | null>(null);
 
     useEffect(() => {
         loadPayments();
@@ -136,6 +139,14 @@ export function PaymentHistory({ patientId, treatmentId, remainingBalance = 0 }:
                                     </div>
                                 </div>
                             </div>
+                            <button
+                                onClick={() => setPrintingPayment(payment)}
+                                className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors"
+                                title="Imprimir recibo"
+                            >
+                                <Printer className="w-4 h-4" />
+                                Imprimir
+                            </button>
                         </div>
                         {payment.notes && (
                             <p className="text-xs text-white/50 mt-3 pl-14">{payment.notes}</p>
@@ -151,6 +162,15 @@ export function PaymentHistory({ patientId, treatmentId, remainingBalance = 0 }:
                     remainingBalance={remainingBalance}
                     onSave={handleSave}
                     onCancel={() => setShowForm(false)}
+                />
+            )}
+
+            {/* Modal de Impresión */}
+            {printingPayment && (
+                <PrintReceipt
+                    payment={printingPayment}
+                    patientName={patientName}
+                    onClose={() => setPrintingPayment(null)}
                 />
             )}
         </div>

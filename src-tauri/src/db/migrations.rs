@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 3;
+const CURRENT_SCHEMA_VERSION: i32 = 4;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -39,6 +39,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 3 {
         migrate_v3(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (3)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 4 {
+        migrate_v4(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (4)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -319,6 +325,16 @@ fn migrate_v3(conn: &Connection) -> Result<(), String> {
     
     let _ = conn.execute("ALTER TABLE treatments RENAME COLUMN started_date TO start_date", []);
     let _ = conn.execute("ALTER TABLE treatments RENAME COLUMN completed_date TO completion_date", []);
+
+    Ok(())
+}
+
+/// Migración v4: Agregar tabla de templates
+fn migrate_v4(conn: &Connection) -> Result<(), String> {
+    use crate::db::templates;
+    
+    templates::init_templates_table(conn)
+        .map_err(|e| format!("Error creando tabla templates: {}", e))?;
 
     Ok(())
 }
