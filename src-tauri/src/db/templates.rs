@@ -66,7 +66,7 @@ pub fn get_all_templates(conn: &Connection) -> Result<Vec<Template>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, type, content, variables, is_default, created_at, updated_at 
          FROM templates 
-         ORDER BY is_default DESC, created_at DESC"
+         ORDER BY is_default DESC, created_at DESC",
     )?;
 
     let templates = stmt
@@ -91,11 +91,11 @@ pub fn get_template_by_id(conn: &Connection, id: i64) -> Result<Option<Template>
     let mut stmt = conn.prepare(
         "SELECT id, name, type, content, variables, is_default, created_at, updated_at 
          FROM templates 
-         WHERE id = ?"
+         WHERE id = ?",
     )?;
 
     let mut rows = stmt.query(params![id])?;
-    
+
     if let Some(row) = rows.next()? {
         Ok(Some(Template {
             id: row.get(0)?,
@@ -117,7 +117,7 @@ pub fn get_templates_by_type(conn: &Connection, template_type: &str) -> Result<V
         "SELECT id, name, type, content, variables, is_default, created_at, updated_at 
          FROM templates 
          WHERE type = ? 
-         ORDER BY is_default DESC, created_at DESC"
+         ORDER BY is_default DESC, created_at DESC",
     )?;
 
     let templates = stmt
@@ -171,11 +171,7 @@ pub fn create_template(conn: &Connection, input: CreateTemplateInput) -> Result<
     get_template_by_id(conn, id)?.ok_or_else(|| rusqlite::Error::QueryReturnedNoRows)
 }
 
-pub fn update_template(
-    conn: &Connection,
-    id: i64,
-    input: UpdateTemplateInput,
-) -> Result<()> {
+pub fn update_template(conn: &Connection, id: i64, input: UpdateTemplateInput) -> Result<()> {
     let mut updates = Vec::new();
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 

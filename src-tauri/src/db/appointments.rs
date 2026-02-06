@@ -81,7 +81,12 @@ pub fn create_appointment(conn: &Connection, appointment: &Appointment) -> Resul
     // Crear recordatorio automático si se especificó
     if let Some(reminder_mins) = appointment.reminder_minutes {
         if reminder_mins > 0 {
-            create_reminder_for_appointment(conn, appointment_id, &appointment.start_time, reminder_mins)?;
+            create_reminder_for_appointment(
+                conn,
+                appointment_id,
+                &appointment.start_time,
+                reminder_mins,
+            )?;
         }
     }
 
@@ -342,16 +347,19 @@ pub fn mark_reminder_sent(
     Ok(())
 }
 
-pub fn get_upcoming_appointments(conn: &Connection, hours: i32) -> Result<Vec<AppointmentWithPatient>, String> {
+pub fn get_upcoming_appointments(
+    conn: &Connection,
+    hours: i32,
+) -> Result<Vec<AppointmentWithPatient>, String> {
     let now = chrono::Utc::now();
     let end_time = now + chrono::Duration::hours(hours as i64);
-    
+
     let filter = AppointmentFilter {
         start_date: Some(now.to_rfc3339()),
         end_date: Some(end_time.to_rfc3339()),
         patient_id: None,
         status: Some("scheduled".to_string()),
     };
-    
+
     list_appointments(conn, &filter)
 }

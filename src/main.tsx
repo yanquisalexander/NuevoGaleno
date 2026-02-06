@@ -1,4 +1,3 @@
-import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./App.css";
@@ -9,22 +8,55 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 import { WindowManagerProvider } from "./contexts/WindowManagerContext";
 import { MenuBarProvider } from "./contexts/MenuBarContext";
 import { NotificationCenter } from "./components/NotificationCenter";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { initErrorLogging } from "./utils/errorLogging";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <div className="ng-layout-base h-dvh w-full overflow-hidden bg-[#1c1c1c]">
-    <ConfigProvider>
-      <ShellProvider>
-        <SessionProvider>
-          <NotificationProvider>
-            <MenuBarProvider>
-              <WindowManagerProvider>
-                <App />
-                <NotificationCenter />
-              </WindowManagerProvider>
-            </MenuBarProvider>
-          </NotificationProvider>
-        </SessionProvider>
-      </ShellProvider>
-    </ConfigProvider>
-  </div>
-);
+// Inicializar el sistema de logging antes de renderizar
+initErrorLogging().then(() => {
+  console.info('NuevoGaleno - Application starting');
+
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <ErrorBoundary>
+      <div className="ng-layout-base h-dvh w-full overflow-hidden bg-[#1c1c1c]">
+        <ConfigProvider>
+          <ShellProvider>
+            <SessionProvider>
+              <NotificationProvider>
+                <MenuBarProvider>
+                  <WindowManagerProvider>
+                    <App />
+                    <NotificationCenter />
+                  </WindowManagerProvider>
+                </MenuBarProvider>
+              </NotificationProvider>
+            </SessionProvider>
+          </ShellProvider>
+        </ConfigProvider>
+      </div>
+    </ErrorBoundary>
+  );
+}).catch((error) => {
+  console.error('Failed to initialize error logging:', error);
+
+  // Renderizar de todas formas aunque falle el logging
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <ErrorBoundary>
+      <div className="ng-layout-base h-dvh w-full overflow-hidden bg-[#1c1c1c]">
+        <ConfigProvider>
+          <ShellProvider>
+            <SessionProvider>
+              <NotificationProvider>
+                <MenuBarProvider>
+                  <WindowManagerProvider>
+                    <App />
+                    <NotificationCenter />
+                  </WindowManagerProvider>
+                </MenuBarProvider>
+              </NotificationProvider>
+            </SessionProvider>
+          </ShellProvider>
+        </ConfigProvider>
+      </div>
+    </ErrorBoundary>
+  );
+});

@@ -173,7 +173,7 @@ pub fn verify_user_pin(username: &str, pin: &str) -> Result<Option<User>, String
             if !user.active {
                 return Err("Usuario inactivo".to_string());
             }
-            
+
             match &user.pin {
                 Some(stored_pin) if stored_pin == pin => Ok(Some(user)),
                 Some(_) => Err("PIN incorrecto".to_string()),
@@ -184,4 +184,3 @@ pub fn verify_user_pin(username: &str, pin: &str) -> Result<Option<User>, String
         Err(e) => Err(format!("Error verificando PIN: {}", e)),
     }
 }
-

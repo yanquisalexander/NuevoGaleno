@@ -16,6 +16,7 @@
     "core:window:allow-minimize",
     "opener:allow-open-path",
     "opener:allow-reveal-item-in-dir",
-    "updater:default"
+    "updater:default",
+    "log:default"
   ]
 }

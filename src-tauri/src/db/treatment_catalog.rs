@@ -205,7 +205,9 @@ pub fn delete_treatment_catalog(id: i64) -> Result<(), String> {
 // CRUD para Items de Catálogo de Tratamientos (Sub-tratamientos)
 // ============================================================================
 
-pub fn get_treatment_catalog_items(treatment_catalog_id: i64) -> Result<Vec<TreatmentCatalogItem>, String> {
+pub fn get_treatment_catalog_items(
+    treatment_catalog_id: i64,
+) -> Result<Vec<TreatmentCatalogItem>, String> {
     let conn = get_connection()?;
 
     let mut stmt = conn
@@ -239,7 +241,9 @@ pub fn get_treatment_catalog_items(treatment_catalog_id: i64) -> Result<Vec<Trea
     Ok(items)
 }
 
-pub fn create_treatment_catalog_item(input: CreateTreatmentCatalogItemInput) -> Result<i64, String> {
+pub fn create_treatment_catalog_item(
+    input: CreateTreatmentCatalogItemInput,
+) -> Result<i64, String> {
     let conn = get_connection()?;
     let now = Utc::now().to_rfc3339();
 

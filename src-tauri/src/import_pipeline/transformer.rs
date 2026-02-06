@@ -6,11 +6,11 @@ use crate::import_pipeline::reader;
 use crate::import_pipeline::ValidationIssue;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
+use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use rayon::prelude::*;
 use walkdir::WalkDir;
 
 /// Callback para reportar progreso durante la transformación
@@ -63,7 +63,10 @@ pub fn transform_raw_data(
 
     // 1. Identificar tablas por contenido
     if let Some(ref cb) = progress_cb {
-        cb("🔍 Identificando tablas de pacientes, tratamientos, pagos y odontogramas...".to_string());
+        cb(
+            "🔍 Identificando tablas de pacientes, tratamientos, pagos y odontogramas..."
+                .to_string(),
+        );
     }
 
     let patients_table = reader::identify_patients_table(raw_data)
@@ -117,66 +120,62 @@ pub fn transform_raw_data(
             let global_row_idx = batch_idx * batch_size + row_idx_in_batch;
 
             match transform_patient_row(row, patients_table, global_row_idx) {
-            Ok(mut patient_dto) => {
-                if let Some(legacy_id) = patient_dto.legacy_patient_id.clone() {
-                    let key = legacy_id.clone();
-                    if let Some(existing_temp_id) = legacy_maps.patient_by_legacy.get(&key) {
-                        anomalies.push(build_anomaly(
-                            "critical",
-                            "patient",
-                            Some(&legacy_id),
-                            None,
-                            format!(
-                                "Clave de paciente '{}' duplicada; registros {} y {}",
-                                legacy_id,
-                                existing_temp_id,
-                                patient_dto.temp_id
-                            ),
-                            serde_json::json!({
-                                "existing_temp_id": existing_temp_id,
-                                "duplicated_temp_id": patient_dto.temp_id
-                            }),
-                        ));
-                        issues.push(super::ValidationIssue::error(
-                            "patient",
-                            &patient_dto.temp_id,
-                            "legacy_patient_id",
-                            format!("Clave legacy duplicada: {}", legacy_id),
-                        ));
-                    } else {
-                        legacy_maps
-                            .patient_by_legacy
-                            .insert(key, patient_dto.temp_id.clone());
+                Ok(mut patient_dto) => {
+                    if let Some(legacy_id) = patient_dto.legacy_patient_id.clone() {
+                        let key = legacy_id.clone();
+                        if let Some(existing_temp_id) = legacy_maps.patient_by_legacy.get(&key) {
+                            anomalies.push(build_anomaly(
+                                "critical",
+                                "patient",
+                                Some(&legacy_id),
+                                None,
+                                format!(
+                                    "Clave de paciente '{}' duplicada; registros {} y {}",
+                                    legacy_id, existing_temp_id, patient_dto.temp_id
+                                ),
+                                serde_json::json!({
+                                    "existing_temp_id": existing_temp_id,
+                                    "duplicated_temp_id": patient_dto.temp_id
+                                }),
+                            ));
+                            issues.push(super::ValidationIssue::error(
+                                "patient",
+                                &patient_dto.temp_id,
+                                "legacy_patient_id",
+                                format!("Clave legacy duplicada: {}", legacy_id),
+                            ));
+                        } else {
+                            legacy_maps
+                                .patient_by_legacy
+                                .insert(key, patient_dto.temp_id.clone());
+                        }
+                        patient_dto.metadata.legacy_primary_key = Some(legacy_id.clone());
                     }
-                    patient_dto
-                        .metadata
-                        .legacy_primary_key = Some(legacy_id.clone());
-                }
 
-                legacy_maps
-                    .patient_index_by_temp
-                    .insert(patient_dto.temp_id.clone(), patients.len());
-                patients.push(patient_dto);
-            }
-            Err(err) => {
-                anomalies.push(build_anomaly(
-                    "error",
-                    "patient",
-                    None,
-                    None,
-                    format!("Paciente descartado por error de parseo: {}", err),
-                    serde_json::Value::Null,
-                ));
-                issues.push(super::ValidationIssue::warning(
-                    "patient",
-                    "unknown",
-                    "parsing",
-                    format!("Paciente ignorado por error de parseo: {}", err),
-                ));
+                    legacy_maps
+                        .patient_index_by_temp
+                        .insert(patient_dto.temp_id.clone(), patients.len());
+                    patients.push(patient_dto);
+                }
+                Err(err) => {
+                    anomalies.push(build_anomaly(
+                        "error",
+                        "patient",
+                        None,
+                        None,
+                        format!("Paciente descartado por error de parseo: {}", err),
+                        serde_json::Value::Null,
+                    ));
+                    issues.push(super::ValidationIssue::warning(
+                        "patient",
+                        "unknown",
+                        "parsing",
+                        format!("Paciente ignorado por error de parseo: {}", err),
+                    ));
+                }
             }
         }
     }
-}
 
     // 2. Procesar tratamientos
     if let Some(treat_table) = treatments_table {
@@ -196,10 +195,14 @@ pub fn transform_raw_data(
                         .map(|v| normalize_legacy_key(&v));
 
                     if let Some(legacy_patient_id) = legacy_patient_id {
-                        if let Some(patient_temp_id) = legacy_maps.patient_by_legacy.get(&legacy_patient_id) {
+                        if let Some(patient_temp_id) =
+                            legacy_maps.patient_by_legacy.get(&legacy_patient_id)
+                        {
                             treatment.patient_temp_id = Some(patient_temp_id.clone());
 
-                            if let Some(patient_index) = legacy_maps.patient_index_by_temp.get(patient_temp_id) {
+                            if let Some(patient_index) =
+                                legacy_maps.patient_index_by_temp.get(patient_temp_id)
+                            {
                                 let treatment_index = patients[*patient_index].treatments.len();
 
                                 if let Some(legacy_treatment_id) = treatment
@@ -223,10 +226,7 @@ pub fn transform_raw_data(
                                 anomalies.push(build_anomaly(
                                     "error",
                                     "treatment",
-                                    treatment
-                                        .legacy_treatment_id
-                                        .as_ref()
-                                        .map(|s| s.as_str()),
+                                    treatment.legacy_treatment_id.as_ref().map(|s| s.as_str()),
                                     None,
                                     "Tratamiento con paciente temp no localizado".to_string(),
                                     serde_json::json!({
@@ -239,10 +239,7 @@ pub fn transform_raw_data(
                             anomalies.push(build_anomaly(
                                 "error",
                                 "treatment",
-                                treatment
-                                    .legacy_treatment_id
-                                    .as_ref()
-                                    .map(|s| s.as_str()),
+                                treatment.legacy_treatment_id.as_ref().map(|s| s.as_str()),
                                 None,
                                 format!(
                                     "Tratamiento sin paciente legacy mapeado (clave: {})",
@@ -256,10 +253,7 @@ pub fn transform_raw_data(
                         anomalies.push(build_anomaly(
                             "warning",
                             "treatment",
-                            treatment
-                                .legacy_treatment_id
-                                .as_ref()
-                                .map(|s| s.as_str()),
+                            treatment.legacy_treatment_id.as_ref().map(|s| s.as_str()),
                             None,
                             "Tratamiento sin clave legacy de paciente".to_string(),
                             serde_json::Value::Null,
@@ -306,16 +300,15 @@ pub fn transform_raw_data(
                         .map(|v| normalize_legacy_key(&v));
 
                     if let Some(legacy_treatment_key) = legacy_treatment_key {
-                        if let Some((patient_temp_id, treatment_temp_id)) = legacy_maps
-                            .treatment_by_legacy
-                            .get(&legacy_treatment_key)
+                        if let Some((patient_temp_id, treatment_temp_id)) =
+                            legacy_maps.treatment_by_legacy.get(&legacy_treatment_key)
                         {
                             payment.treatment_temp_id = Some(treatment_temp_id.clone());
-                            payment.metadata.legacy_primary_key = Some(legacy_treatment_key.clone());
+                            payment.metadata.legacy_primary_key =
+                                Some(legacy_treatment_key.clone());
 
-                            if let Some((patient_index, treatment_index)) = legacy_maps
-                                .treatment_index_by_temp
-                                .get(treatment_temp_id)
+                            if let Some((patient_index, treatment_index)) =
+                                legacy_maps.treatment_index_by_temp.get(treatment_temp_id)
                             {
                                 patients[*patient_index].treatments[*treatment_index]
                                     .payments
@@ -324,10 +317,7 @@ pub fn transform_raw_data(
                                 anomalies.push(build_anomaly(
                                     "error",
                                     "payment",
-                                    payment
-                                        .legacy_payment_id
-                                        .as_ref()
-                                        .map(|s| s.as_str()),
+                                    payment.legacy_payment_id.as_ref().map(|s| s.as_str()),
                                     None,
                                     "Pago no pudo asociarse a tratamiento por índice".to_string(),
                                     serde_json::json!({
@@ -342,10 +332,7 @@ pub fn transform_raw_data(
                             anomalies.push(build_anomaly(
                                 "warning",
                                 "payment",
-                                payment
-                                    .legacy_payment_id
-                                    .as_ref()
-                                    .map(|s| s.as_str()),
+                                payment.legacy_payment_id.as_ref().map(|s| s.as_str()),
                                 None,
                                 "Pago sin tratamiento legacy conocido".to_string(),
                                 serde_json::json!({
@@ -354,13 +341,11 @@ pub fn transform_raw_data(
                                 }),
                             ));
                             if let Some(legacy_patient_key) = legacy_patient_key.clone() {
-                                if let Some(patient_temp_id) = legacy_maps
-                                    .patient_by_legacy
-                                    .get(&legacy_patient_key)
+                                if let Some(patient_temp_id) =
+                                    legacy_maps.patient_by_legacy.get(&legacy_patient_key)
                                 {
-                                    if let Some(patient_index) = legacy_maps
-                                        .patient_index_by_temp
-                                        .get(patient_temp_id)
+                                    if let Some(patient_index) =
+                                        legacy_maps.patient_index_by_temp.get(patient_temp_id)
                                     {
                                         patients[*patient_index].orphan_payments.push(payment);
                                     } else {
@@ -378,23 +363,18 @@ pub fn transform_raw_data(
                         anomalies.push(build_anomaly(
                             "warning",
                             "payment",
-                            payment
-                                .legacy_payment_id
-                                .as_ref()
-                                .map(|s| s.as_str()),
+                            payment.legacy_payment_id.as_ref().map(|s| s.as_str()),
                             None,
                             "Pago sin clave de tratamiento".to_string(),
                             serde_json::Value::Null,
                         ));
 
                         if let Some(legacy_patient_key) = legacy_patient_key.clone() {
-                            if let Some(patient_temp_id) = legacy_maps
-                                .patient_by_legacy
-                                .get(&legacy_patient_key)
+                            if let Some(patient_temp_id) =
+                                legacy_maps.patient_by_legacy.get(&legacy_patient_key)
                             {
-                                if let Some(patient_index) = legacy_maps
-                                    .patient_index_by_temp
-                                    .get(patient_temp_id)
+                                if let Some(patient_index) =
+                                    legacy_maps.patient_index_by_temp.get(patient_temp_id)
                                 {
                                     patients[*patient_index].orphan_payments.push(payment);
                                 } else {
@@ -446,14 +426,12 @@ pub fn transform_raw_data(
                         .map(|v| normalize_legacy_key(&v));
 
                     if let Some(legacy_patient_key) = legacy_patient_key {
-                        if let Some(patient_temp_id) = legacy_maps
-                            .patient_by_legacy
-                            .get(&legacy_patient_key)
+                        if let Some(patient_temp_id) =
+                            legacy_maps.patient_by_legacy.get(&legacy_patient_key)
                         {
                             odontogram.patient_temp_id = Some(patient_temp_id.clone());
-                            if let Some(patient_index) = legacy_maps
-                                .patient_index_by_temp
-                                .get(patient_temp_id)
+                            if let Some(patient_index) =
+                                legacy_maps.patient_index_by_temp.get(patient_temp_id)
                             {
                                 patients[*patient_index].odontograms.push(odontogram);
                             } else {
@@ -463,10 +441,7 @@ pub fn transform_raw_data(
                             anomalies.push(build_anomaly(
                                 "warning",
                                 "odontogram",
-                                odontogram
-                                    .legacy_record_id
-                                    .as_ref()
-                                    .map(|s| s.as_str()),
+                                odontogram.legacy_record_id.as_ref().map(|s| s.as_str()),
                                 None,
                                 format!(
                                     "Odontograma sin paciente mapeado (clave: {})",
@@ -480,10 +455,7 @@ pub fn transform_raw_data(
                         anomalies.push(build_anomaly(
                             "warning",
                             "odontogram",
-                            odontogram
-                                .legacy_record_id
-                                .as_ref()
-                                .map(|s| s.as_str()),
+                            odontogram.legacy_record_id.as_ref().map(|s| s.as_str()),
                             None,
                             "Odontograma sin clave legacy de paciente".to_string(),
                             serde_json::Value::Null,
@@ -542,7 +514,10 @@ pub fn transform_raw_data(
     }
 
     if let Some(ref cb) = progress_cb {
-        cb(format!("✅ Transformación completada: {} pacientes válidos", patients.len()));
+        cb(format!(
+            "✅ Transformación completada: {} pacientes válidos",
+            patients.len()
+        ));
     }
 
     Ok(TransformationResult {
@@ -577,7 +552,10 @@ fn transform_patient_row(
         let trimmed = value_str.trim();
 
         match key_lower.as_str() {
-            k if k.contains("clavpac") || k.contains("clavepac") || (k == "clave" && trimmed.len() >= 1) => {
+            k if k.contains("clavpac")
+                || k.contains("clavepac")
+                || (k == "clave" && trimmed.len() >= 1) =>
+            {
                 let legacy_key = normalize_legacy_key(trimmed);
                 if !legacy_key.is_empty() {
                     patient.legacy_patient_id = Some(legacy_key.clone());
@@ -605,8 +583,8 @@ fn transform_patient_row(
                 && !k.contains("clave")
                 && !k.contains("tipo")
                 && !k.contains("civil")
-                && !k.contains("estado")
-            => {
+                && !k.contains("estado") =>
+            {
                 let doc = normalize_document(trimmed);
                 if !doc.is_empty() {
                     patient.document_number = Some(doc);
@@ -731,13 +709,19 @@ fn transform_treatment_row(
                     treatment.metadata.legacy_primary_key = Some(legacy);
                 }
             }
-            k if k.contains("clavepac") || k.contains("clavpac") || (k == "clave" && trimmed.len() >= 1) => {
+            k if k.contains("clavepac")
+                || k.contains("clavpac")
+                || (k == "clave" && trimmed.len() >= 1) =>
+            {
                 let legacy = normalize_legacy_key(trimmed);
                 if !legacy.is_empty() {
                     treatment.legacy_patient_id = Some(legacy);
                 }
             }
-            k if k.contains("descripcion") || k.contains("descripcio") || k.contains("description") => {
+            k if k.contains("descripcion")
+                || k.contains("descripcio")
+                || k.contains("description") =>
+            {
                 if !trimmed.is_empty() {
                     treatment.description = Some(trimmed.to_string());
                     // Si no tiene nombre, usar descripción como nombre
@@ -756,14 +740,15 @@ fn transform_treatment_row(
                     treatment.status = TreatmentStatus::from_legacy_value(trimmed);
                 }
             }
-            k if k.contains("precio") || k.contains("costo") || k.contains("price") || k.contains("amount") => {
+            k if k.contains("precio")
+                || k.contains("costo")
+                || k.contains("price")
+                || k.contains("amount") =>
+            {
                 treatment.total_cost = parse_currency(trimmed);
             }
             k if k.contains("honorario") => {
-                treatment.notes = Some(format!(
-                    "Honorarios legacy: {}",
-                    trimmed
-                ));
+                treatment.notes = Some(format!("Honorarios legacy: {}", trimmed));
             }
             k if k.contains("referencia") => {
                 if !trimmed.is_empty() {
@@ -866,7 +851,11 @@ fn transform_payment_row(
             k if k.contains("fecha") || k.contains("date") => {
                 payment.payment_date = parse_legacy_date(trimmed);
             }
-            k if k.contains("monto") || k.contains("importe") || k.contains("amount") || k.contains("pago") => {
+            k if k.contains("monto")
+                || k.contains("importe")
+                || k.contains("amount")
+                || k.contains("pago") =>
+            {
                 payment.amount = parse_currency(trimmed);
             }
             k if k.contains("metodo") || k.contains("forma") || k.contains("method") => {
@@ -1100,9 +1089,7 @@ fn collect_history_documents(
         None => return Ok(()),
     };
 
-    let history_dir = root
-        .join("GALENO~1")
-        .join("Historias Clinicas");
+    let history_dir = root.join("GALENO~1").join("Historias Clinicas");
 
     if !history_dir.exists() {
         return Ok(());
@@ -1122,7 +1109,10 @@ fn collect_history_documents(
         .collect();
 
     if let Some(ref cb) = progress_cb {
-        cb(format!("📁 Procesando {} historias clínicas...", files.len()));
+        cb(format!(
+            "📁 Procesando {} historias clínicas...",
+            files.len()
+        ));
     }
 
     // Procesar archivos en paralelo
@@ -1135,7 +1125,10 @@ fn collect_history_documents(
         .collect();
 
     if let Some(ref cb) = progress_cb {
-        cb(format!("📄 Procesadas {} historias clínicas en paralelo", files.len()));
+        cb(format!(
+            "📄 Procesadas {} historias clínicas en paralelo",
+            files.len()
+        ));
     }
 
     // Aplicar resultados
@@ -1164,11 +1157,11 @@ struct HistoryDocInfo {
 
 fn read_history_document_as_text(path: &Path) -> Result<HistoryDocInfo, String> {
     const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10 MB límite (aumentado)
-    
+
     let metadata = fs::metadata(path)
         .map_err(|e| format!("Error leyendo metadatos de {}: {}", path.display(), e))?;
     let file_size = metadata.len();
-    
+
     // Si el archivo es demasiado grande, no lo leemos
     if file_size > MAX_FILE_SIZE {
         return Err(format!(
@@ -1177,13 +1170,13 @@ fn read_history_document_as_text(path: &Path) -> Result<HistoryDocInfo, String> 
         ));
     }
 
-    let data = fs::read(path)
-        .map_err(|e| format!("Error leyendo archivo {}: {}", path.display(), e))?;
+    let data =
+        fs::read(path).map_err(|e| format!("Error leyendo archivo {}: {}", path.display(), e))?;
 
     let mut hasher = Sha256::new();
     hasher.update(&data);
     let checksum = format!("{:x}", hasher.finalize());
-    
+
     // Extraer texto según el tipo de archivo
     let text_content = extract_text_from_document(path, &data)?;
 
@@ -1226,7 +1219,7 @@ fn extract_plain_text(data: &[u8]) -> Result<String, String> {
     if let Ok(text) = String::from_utf8(data.to_vec()) {
         return Ok(clean_text(&text));
     }
-    
+
     // Intentar Windows-1252 / Latin1
     let decoded = encoding_rs::WINDOWS_1252.decode(data).0;
     Ok(clean_text(&decoded))
@@ -1234,12 +1227,12 @@ fn extract_plain_text(data: &[u8]) -> Result<String, String> {
 
 fn extract_rtf_text(data: &[u8]) -> Result<String, String> {
     let rtf_str = extract_plain_text(data)?;
-    
+
     // RTF básico: eliminar comandos de control
     let mut result = String::new();
     let mut in_control = false;
     let mut brace_level = 0;
-    
+
     for ch in rtf_str.chars() {
         match ch {
             '{' => brace_level += 1,
@@ -1248,13 +1241,16 @@ fn extract_rtf_text(data: &[u8]) -> Result<String, String> {
             ' ' | '\n' | '\r' if in_control => {
                 in_control = false;
             }
-            _ if !in_control && brace_level <= 1 && ch.is_alphanumeric() || ch.is_whitespace() || ".,;:!?()[]\"'".contains(ch) => {
+            _ if !in_control && brace_level <= 1 && ch.is_alphanumeric()
+                || ch.is_whitespace()
+                || ".,;:!?()[]\"'".contains(ch) =>
+            {
                 result.push(ch);
             }
             _ => {}
         }
     }
-    
+
     Ok(clean_text(&result))
 }
 
@@ -1263,30 +1259,32 @@ fn extract_word_text_with_pandoc(data: &[u8]) -> Result<String, String> {
     // Crear archivo temporal para el input
     let temp_input = tempfile::NamedTempFile::new()
         .map_err(|e| format!("Error creando archivo temporal: {}", e))?;
-    
+
     // Escribir datos al archivo temporal
     std::fs::write(&temp_input, data)
         .map_err(|e| format!("Error escribiendo archivo temporal: {}", e))?;
-    
+
     // Ejecutar pandoc para convertir a texto plano
     let output = std::process::Command::new("pandoc")
         .args(&[
-            "-f", "doc",  // formato de entrada (doc para .doc antiguos)
-            "-t", "plain", // formato de salida: texto plano
+            "-f",
+            "doc", // formato de entrada (doc para .doc antiguos)
+            "-t",
+            "plain",       // formato de salida: texto plano
             "--wrap=none", // no wrappear líneas
-            temp_input.path().to_str().unwrap()
+            temp_input.path().to_str().unwrap(),
         ])
         .output()
         .map_err(|e| format!("Error ejecutando pandoc (¿está instalado?): {}", e))?;
-    
+
     if output.status.success() {
         let text = String::from_utf8_lossy(&output.stdout).to_string();
         let cleaned = clean_text(&text);
-        
+
         if cleaned.len() < 10 {
             return Err("Contenido extraído demasiado corto o vacío".to_string());
         }
-        
+
         Ok(cleaned)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1295,23 +1293,32 @@ fn extract_word_text_with_pandoc(data: &[u8]) -> Result<String, String> {
 }
 
 fn clean_text(text: &str) -> String {
-    text
-        .lines()
+    text.lines()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>()
         .join("\n")
         .chars()
-        .filter(|&c| c.is_alphanumeric() || c.is_whitespace() || ".,;:!?()[]\"'-/@#$%&*+=<>{}|~áéíóúñÁÉÍÓÚÑüÜ¿¡".contains(c))
+        .filter(|&c| {
+            c.is_alphanumeric()
+                || c.is_whitespace()
+                || ".,;:!?()[]\"'-/@#$%&*+=<>{}|~áéíóúñÁÉÍÓÚÑüÜ¿¡".contains(c)
+        })
         .collect::<String>()
         .trim()
         .to_string()
 }
 
 fn infer_mime_from_extension(path: &Path) -> Option<String> {
-    match path.extension().and_then(|s| s.to_str()).map(|s| s.to_lowercase()) {
+    match path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase())
+    {
         Some(ext) if ext == "doc" => Some("application/msword".to_string()),
-        Some(ext) if ext == "docx" => Some("application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()),
+        Some(ext) if ext == "docx" => Some(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string(),
+        ),
         Some(ext) if ext == "pdf" => Some("application/pdf".to_string()),
         Some(ext) if ext == "txt" => Some("text/plain".to_string()),
         Some(ext) if ext == "rtf" => Some("application/rtf".to_string()),

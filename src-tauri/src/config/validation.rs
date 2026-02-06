@@ -4,9 +4,19 @@ use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum ValidationError {
-    TypeMismatch { expected: String, got: String },
-    ValueOutOfRange { min: Option<Value>, max: Option<Value>, value: Value },
-    InvalidChoice { value: Value, choices: Vec<Value> },
+    TypeMismatch {
+        expected: String,
+        got: String,
+    },
+    ValueOutOfRange {
+        min: Option<Value>,
+        max: Option<Value>,
+        value: Value,
+    },
+    InvalidChoice {
+        value: Value,
+        choices: Vec<Value>,
+    },
     Other(String),
 }
 
@@ -14,7 +24,11 @@ impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ValidationError::TypeMismatch { expected, got } => {
-                write!(f, "Tipo incorrecto: se esperaba {} y se recibió {}", expected, got)
+                write!(
+                    f,
+                    "Tipo incorrecto: se esperaba {} y se recibió {}",
+                    expected, got
+                )
             }
             ValidationError::ValueOutOfRange { min, max, value } => {
                 write!(f, "Valor fuera de rango: {}.", value)?;

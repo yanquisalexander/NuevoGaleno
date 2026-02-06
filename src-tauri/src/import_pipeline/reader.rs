@@ -24,7 +24,8 @@ pub async fn read_all_tables_with_limit(
     if let Some(ref cb) = progress_cb {
         cb("Listando archivos de la base de datos...".to_string());
     }
-    let files_result: serde_json::Value = importer::list_extracted_files(extracted_dir.to_string()).await?;
+    let files_result: serde_json::Value =
+        importer::list_extracted_files(extracted_dir.to_string()).await?;
 
     let db_files = files_result
         .get("db_files")
@@ -33,7 +34,10 @@ pub async fn read_all_tables_with_limit(
 
     let total_files = db_files.len();
     if let Some(ref cb) = progress_cb {
-        cb(format!("Encontrados {} archivos de base de datos", total_files));
+        cb(format!(
+            "Encontrados {} archivos de base de datos",
+            total_files
+        ));
     }
 
     // Procesar tablas en paralelo usando rayon
@@ -44,14 +48,15 @@ pub async fn read_all_tables_with_limit(
             let path_str = db_file.as_str().ok_or("Ruta de archivo inválida")?;
 
             // Ejecutar la lectura async en un bloque sync
-            tauri::async_runtime::block_on(async {
-                read_single_table(path_str, limit).await
-            })
+            tauri::async_runtime::block_on(async { read_single_table(path_str, limit).await })
         })
         .collect();
 
     if let Some(ref cb) = progress_cb {
-        cb(format!("📖 Procesadas {} tablas en paralelo", results.len()));
+        cb(format!(
+            "📖 Procesadas {} tablas en paralelo",
+            results.len()
+        ));
     }
 
     for result in results {
@@ -214,7 +219,9 @@ pub fn identify_treatments_table(data: &RawParadoxData) -> Option<&RawTable> {
             let name_lower = f.name.to_lowercase();
 
             // Columnas específicas de Tratam.db
-            if name_lower.contains("notrat") || (name_lower.contains("trat") && name_lower.contains("id")) {
+            if name_lower.contains("notrat")
+                || (name_lower.contains("trat") && name_lower.contains("id"))
+            {
                 score += 10;
             }
             if name_lower.contains("descripcio") || name_lower.contains("descripcion") {
@@ -245,7 +252,9 @@ pub fn identify_treatments_table(data: &RawParadoxData) -> Option<&RawTable> {
         // Penalizar si parece tabla de pacientes
         let looks_like_patients = table.fields.iter().any(|f| {
             let n = f.name.to_lowercase();
-            n.contains("clavpac") || n.contains("clavepac") || (n.contains("nombre") && table.fields.len() > 10)
+            n.contains("clavpac")
+                || n.contains("clavepac")
+                || (n.contains("nombre") && table.fields.len() > 10)
         });
         if looks_like_patients {
             score -= 20;
@@ -267,7 +276,7 @@ pub fn identify_payments_table(data: &RawParadoxData) -> Option<&RawTable> {
 
     for table in &data.tables {
         let mut score = 0i32;
-        
+
         let has_payment_fields = table.fields.iter().any(|f| {
             let name_lower = f.name.to_lowercase();
             if name_lower.contains("pago") || name_lower.contains("payment") {
@@ -277,17 +286,19 @@ pub fn identify_payments_table(data: &RawParadoxData) -> Option<&RawTable> {
                 false
             }
         });
-        
+
         let has_key_fields = table.fields.iter().any(|f| {
             let name_lower = f.name.to_lowercase();
-            if name_lower.contains("clave") && (name_lower.contains("pac") || name_lower.contains("tratam")) {
+            if name_lower.contains("clave")
+                && (name_lower.contains("pac") || name_lower.contains("tratam"))
+            {
                 score += 3;
                 true
             } else {
                 false
             }
         });
-        
+
         let _has_date_field = table.fields.iter().any(|f| {
             let name_lower = f.name.to_lowercase();
             if name_lower.contains("fecha") || name_lower.contains("date") {
@@ -297,13 +308,13 @@ pub fn identify_payments_table(data: &RawParadoxData) -> Option<&RawTable> {
                 false
             }
         });
-        
+
         if (has_payment_fields || has_key_fields) && score > best_score {
             best_score = score;
             best = Some(table);
         }
     }
-    
+
     best
 }
 
@@ -314,11 +325,14 @@ pub fn identify_odontograms_table(data: &RawParadoxData) -> Option<&RawTable> {
 
     for table in &data.tables {
         let mut score = 0i32;
-        
+
         for f in &table.fields {
             let name_lower = f.name.to_lowercase();
-            
-            if name_lower.contains("diente") || name_lower.contains("nodiente") || name_lower.contains("tooth") {
+
+            if name_lower.contains("diente")
+                || name_lower.contains("nodiente")
+                || name_lower.contains("tooth")
+            {
                 score += 5;
             }
             if name_lower.contains("clavepac") || name_lower.contains("clavpac") {
@@ -331,13 +345,13 @@ pub fn identify_odontograms_table(data: &RawParadoxData) -> Option<&RawTable> {
                 score += 2;
             }
         }
-        
+
         if score > best_score {
             best_score = score;
             best = Some(table);
         }
     }
-    
+
     if best_score >= 5 {
         best
     } else {

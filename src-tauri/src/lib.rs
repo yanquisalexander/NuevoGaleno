@@ -575,6 +575,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .build(),
+        )
+        .plugin(
+            tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
                 .level_for("reqwest", log::LevelFilter::Info)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)

@@ -68,7 +68,12 @@ pub fn persist_all(
                 "patients",
                 idx + 1,
                 patients.len(),
-                format!("Paciente {} de {}: {}", idx + 1, patients.len(), patient.full_name()),
+                format!(
+                    "Paciente {} de {}: {}",
+                    idx + 1,
+                    patients.len(),
+                    patient.full_name()
+                ),
             );
 
             let patient_id = upsert_patient(&tx, run_id, patient)?;
@@ -326,11 +331,9 @@ pub fn persist_all(
 pub fn check_existing_imports(conn: &Connection) -> Result<bool, String> {
     ensure_schema(conn)?;
     let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM legacy_patient_map",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM legacy_patient_map", [], |row| {
+            row.get(0)
+        })
         .map_err(|e| format!("Error verificando importaciones previas: {}", e))?;
 
     Ok(count > 0)
@@ -991,8 +994,7 @@ fn insert_anomaly(
             anomaly.entity_type,
             anomaly.legacy_reference,
             anomaly.message,
-            serde_json::to_string(&anomaly.details)
-                .unwrap_or_else(|_| "{}".to_string()),
+            serde_json::to_string(&anomaly.details).unwrap_or_else(|_| "{}".to_string()),
         ],
     )
     .map(|_| ())

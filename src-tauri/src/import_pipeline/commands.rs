@@ -46,7 +46,7 @@ pub async fn start_import_session(
     );
 
     let is_preview = preview_only.unwrap_or(false);
-    
+
     // Emitir evento de inicio
     let _ = window.emit("import:progress", serde_json::json!({
         "stage": "reading",
@@ -56,10 +56,13 @@ pub async fn start_import_session(
     // 1. Leer datos raw de Paradox con callback de progreso
     let window_clone = window.clone();
     let progress_callback = Box::new(move |msg: String| {
-        let _ = window_clone.emit("import:progress", serde_json::json!({
-            "stage": "reading",
-            "message": msg
-        }));
+        let _ = window_clone.emit(
+            "import:progress",
+            serde_json::json!({
+                "stage": "reading",
+                "message": msg
+            }),
+        );
     });
 
     let raw_data = if is_preview {
@@ -73,25 +76,28 @@ pub async fn start_import_session(
     }
 
     // Emitir evento de transformación
-    let _ = window.emit("import:progress", serde_json::json!({
-        "stage": "transforming",
-        "message": "Transformando y normalizando datos..."
-    }));
+    let _ = window.emit(
+        "import:progress",
+        serde_json::json!({
+            "stage": "transforming",
+            "message": "Transformando y normalizando datos..."
+        }),
+    );
 
     // 2. Transformar a DTOs con callback de progreso
     let window_clone = window.clone();
     let transform_callback = Box::new(move |msg: String| {
-        let _ = window_clone.emit("import:progress", serde_json::json!({
-            "stage": "transforming",
-            "message": msg
-        }));
+        let _ = window_clone.emit(
+            "import:progress",
+            serde_json::json!({
+                "stage": "transforming",
+                "message": msg
+            }),
+        );
     });
 
-    let transform_result = transformer::transform_raw_data(
-        &raw_data,
-        Some(&extracted_dir),
-        Some(transform_callback),
-    )?;
+    let transform_result =
+        transformer::transform_raw_data(&raw_data, Some(&extracted_dir), Some(transform_callback))?;
 
     if transform_result.patients.is_empty() {
         return Err("No se pudo extraer ningún paciente válido".to_string());
@@ -108,7 +114,7 @@ pub async fn start_import_session(
     let run_id = format!("run_{}", session_id);
 
     let issues_len = transform_result.issues.len();
-    
+
     *state = Some(ImportSessionState {
         session_id: session_id.clone(),
         run_id: run_id.clone(),
@@ -197,7 +203,9 @@ pub fn generate_import_preview() -> Result<serde_json::Value, String> {
 
 /// Paso 4: Confirma y persiste los datos en SQLite
 #[tauri::command]
-pub async fn confirm_and_persist_import(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+pub async fn confirm_and_persist_import(
+    app: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
     let mut state = IMPORT_STATE.lock().unwrap();
     let session = state
         .as_mut()
@@ -220,14 +228,17 @@ pub async fn confirm_and_persist_import(app: tauri::AppHandle) -> Result<serde_j
     let orphan_payments = session.orphan_payments.clone();
     let orphan_odontograms = session.orphan_odontograms.clone();
     let anomalies = session.anomalies.clone();
-    
+
     drop(state); // Release lock before async operation
 
     // Emit initial progress
-    let _ = app.emit("import:progress", serde_json::json!({
-        "stage": "persisting",
-        "message": "Preparando base de datos..."
-    }));
+    let _ = app.emit(
+        "import:progress",
+        serde_json::json!({
+            "stage": "persisting",
+            "message": "Preparando base de datos..."
+        }),
+    );
 
     // Obtener conexión a la base de datos
     let db_path = crate::wizard::db_file_path()?;
@@ -242,19 +253,25 @@ pub async fn confirm_and_persist_import(app: tauri::AppHandle) -> Result<serde_j
         );
     }
 
-    let _ = app.emit("import:progress", serde_json::json!({
-        "stage": "persisting",
-        "message": "Guardando pacientes y tratamientos..."
-    }));
+    let _ = app.emit(
+        "import:progress",
+        serde_json::json!({
+            "stage": "persisting",
+            "message": "Guardando pacientes y tratamientos..."
+        }),
+    );
 
     let mut progress_cb = |p: persister::PersistProgress| {
-        let _ = app.emit("import:progress", serde_json::json!({
-            "stage": "persisting",
-            "substage": p.stage,
-            "current": p.current,
-            "total": p.total,
-            "message": p.message
-        }));
+        let _ = app.emit(
+            "import:progress",
+            serde_json::json!({
+                "stage": "persisting",
+                "substage": p.stage,
+                "current": p.current,
+                "total": p.total,
+                "message": p.message
+            }),
+        );
     };
 
     // Persistir todo
@@ -276,10 +293,13 @@ pub async fn confirm_and_persist_import(app: tauri::AppHandle) -> Result<serde_j
             .unwrap_or_else(|| "Error desconocido".to_string()));
     }
 
-    let _ = app.emit("import:progress", serde_json::json!({
-        "stage": "persisting",
-        "message": "Importación completada exitosamente"
-    }));
+    let _ = app.emit(
+        "import:progress",
+        serde_json::json!({
+            "stage": "persisting",
+            "message": "Importación completada exitosamente"
+        }),
+    );
 
     Ok(serde_json::json!({
         "run_id": run_id,
@@ -387,8 +407,8 @@ pub async fn convert_doc_files_to_txt(
     window: tauri::Window,
     doc_files_paths: Vec<String>,
 ) -> Result<serde_json::Value, String> {
-    use std::path::PathBuf;
     use std::io::{BufRead, BufReader};
+    use std::path::PathBuf;
 
     if doc_files_paths.is_empty() {
         return Err("No se proporcionaron archivos para convertir".to_string());
@@ -397,12 +417,15 @@ pub async fn convert_doc_files_to_txt(
     let total = doc_files_paths.len();
 
     // Emitir evento de inicio
-    let _ = window.emit("doc_conversion:progress", serde_json::json!({
-        "stage": "starting",
-        "current": 0,
-        "total": total,
-        "message": format!("Iniciando conversión de {} archivos .doc...", total)
-    }));
+    let _ = window.emit(
+        "doc_conversion:progress",
+        serde_json::json!({
+            "stage": "starting",
+            "current": 0,
+            "total": total,
+            "message": format!("Iniciando conversión de {} archivos .doc...", total)
+        }),
+    );
 
     // Convertir strings a PathBuf
     let paths: Vec<PathBuf> = doc_files_paths.iter().map(|s| PathBuf::from(s)).collect();
@@ -414,8 +437,7 @@ pub async fn convert_doc_files_to_txt(
 
     // Crear script
     let script = doc_converter::get_conversion_script();
-    std::fs::write(&script_path, script)
-        .map_err(|e| format!("Error creando script: {}", e))?;
+    std::fs::write(&script_path, script).map_err(|e| format!("Error creando script: {}", e))?;
 
     let paths_content = paths
         .iter()
@@ -453,13 +475,16 @@ pub async fn convert_doc_files_to_txt(
                         let current = parts[1].parse::<usize>().unwrap_or(0);
                         let total = parts[2].parse::<usize>().unwrap_or(total);
                         let message = parts[3..].join("|");
-                        
-                        let _ = window.emit("doc_conversion:progress", serde_json::json!({
-                            "stage": "converting",
-                            "current": current,
-                            "total": total,
-                            "message": message
-                        }));
+
+                        let _ = window.emit(
+                            "doc_conversion:progress",
+                            serde_json::json!({
+                                "stage": "converting",
+                                "current": current,
+                                "total": total,
+                                "message": message
+                            }),
+                        );
                     }
                 } else if line.starts_with("COMPLETE|") {
                     // Línea final con resultados
@@ -467,7 +492,7 @@ pub async fn convert_doc_files_to_txt(
                     if parts.len() >= 3 {
                         let success = parts[1].parse::<usize>().unwrap_or(0);
                         let errors_count = parts[2].parse::<usize>().unwrap_or(0);
-                        
+
                         let _ = window.emit("doc_conversion:progress", serde_json::json!({
                             "stage": "complete",
                             "current": total,
@@ -481,7 +506,8 @@ pub async fn convert_doc_files_to_txt(
     }
 
     // Esperar a que termine el proceso
-    let output = child.wait_with_output()
+    let output = child
+        .wait_with_output()
         .map_err(|e| format!("Error esperando PowerShell: {}", e))?;
 
     // Limpiar archivos temporales
@@ -495,12 +521,14 @@ pub async fn convert_doc_files_to_txt(
 
     // Parsear resultado JSON de la última línea
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let json_lines: Vec<&str> = stdout.lines().filter(|l| !l.starts_with("PROGRESS") && !l.starts_with("COMPLETE")).collect();
+    let json_lines: Vec<&str> = stdout
+        .lines()
+        .filter(|l| !l.starts_with("PROGRESS") && !l.starts_with("COMPLETE"))
+        .collect();
     let json_output = json_lines.join("\n");
-    
+
     let result: serde_json::Value = serde_json::from_str(&json_output)
         .map_err(|e| format!("Error parseando resultado: {} - Output: {}", e, json_output))?;
 
     Ok(result)
 }
-

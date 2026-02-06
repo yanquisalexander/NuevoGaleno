@@ -174,7 +174,7 @@ pub fn detect_doc_files(source_root: &str) -> Result<Vec<PathBuf>, String> {
 }
 
 /// Convierte archivos .doc a .txt usando Word COM automation (Windows)
-/// 
+///
 /// Retorna: (convertidos_ok, errores)
 pub fn convert_doc_to_txt(doc_files: &[PathBuf]) -> Result<(usize, Vec<String>), String> {
     if doc_files.is_empty() {
@@ -350,7 +350,8 @@ $result | ConvertTo-Json
         .map_err(|e| format!("Error ejecutando PowerShell: {}", e))?;
 
     // Capturar salida en tiempo real (nota: en esta implementación simplificada esperamos el output completo)
-    let output = child.wait_with_output()
+    let output = child
+        .wait_with_output()
         .map_err(|e| format!("Error esperando PowerShell: {}", e))?;
 
     // Limpiar archivos temporales
@@ -397,7 +398,7 @@ pub fn get_doc_files_info(doc_files: &[PathBuf]) -> DocFilesInfo {
         .filter_map(|p| std::fs::metadata(p).ok())
         .map(|m| m.len())
         .sum();
-    
+
     let total_size_mb = (total_size as f64) / (1024.0 * 1024.0);
 
     let sample_files: Vec<String> = doc_files

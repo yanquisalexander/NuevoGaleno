@@ -123,11 +123,7 @@ fn generate_patient_samples(patients: &[PatientDto], limit: usize) -> Vec<Patien
         .map(|patient| {
             let treatments_count = patient.treatments.len();
             let total_billed: f64 = patient.treatments.iter().map(|t| t.total_cost).sum();
-            let orphan_paid: f64 = patient
-                .orphan_payments
-                .iter()
-                .map(|p| p.amount)
-                .sum();
+            let orphan_paid: f64 = patient.orphan_payments.iter().map(|p| p.amount).sum();
             let total_paid: f64 = patient
                 .treatments
                 .iter()

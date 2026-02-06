@@ -92,7 +92,10 @@ fn validate_patient(patient: &PatientDto) -> Vec<ValidationIssue> {
             "patient",
             &patient.temp_id,
             "first_name",
-            format!("[{}] El nombre es obligatorio (paciente se importará con datos incompletos)", patient_info),
+            format!(
+                "[{}] El nombre es obligatorio (paciente se importará con datos incompletos)",
+                patient_info
+            ),
         ));
     }
 
@@ -101,7 +104,10 @@ fn validate_patient(patient: &PatientDto) -> Vec<ValidationIssue> {
             "patient",
             &patient.temp_id,
             "last_name",
-            format!("[{}] El apellido es obligatorio (paciente se importará con datos incompletos)", patient_info),
+            format!(
+                "[{}] El apellido es obligatorio (paciente se importará con datos incompletos)",
+                patient_info
+            ),
         ));
     }
 

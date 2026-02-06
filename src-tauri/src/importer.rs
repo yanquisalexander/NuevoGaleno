@@ -186,7 +186,7 @@ pub async fn list_extracted_files(dir: String) -> Result<serde_json::Value, Stri
                 } else {
                     docs.push(path.to_string_lossy().to_string());
                 }
-                
+
                 count += 1;
                 if count % chunk_size == 0 {
                     std::thread::yield_now();
@@ -390,14 +390,14 @@ fn parse_field_value<'a>(
 #[tauri::command]
 pub async fn read_table_data(path: String, limit: usize) -> Result<serde_json::Value, String> {
     let path_buf = Path::new(&path).to_path_buf();
-    
+
     let (tx, rx) = mpsc::channel::<(usize, usize)>();
-    
+
     // Thread para emitir progreso
     thread::spawn(move || {
         while let Ok((processed, total)) = rx.recv() {
             let progress = ((processed + 1) as f32 / total as f32 * 100.0) as i32;
-            
+
             if let Some(app) = GLOBAL_APP_HANDLE.lock().unwrap().as_ref() {
                 let _ = app.emit(
                     "table:progress",
@@ -410,7 +410,7 @@ pub async fn read_table_data(path: String, limit: usize) -> Result<serde_json::V
             }
         }
     });
-    
+
     tauri::async_runtime::spawn_blocking(move || {
         let doc = Document::open(&path_buf).map_err(|e| format!("pxlib error: {}", e))?;
         let encoding = detect_encoding(doc.code_page());
@@ -418,10 +418,10 @@ pub async fn read_table_data(path: String, limit: usize) -> Result<serde_json::V
         let chunk_size = 100; // Procesar de 100 en 100
 
         let mut rows = Vec::with_capacity(max_records);
-        
+
         for chunk_start in (0..max_records).step_by(chunk_size) {
             let chunk_end = (chunk_start + chunk_size).min(max_records);
-            
+
             for idx in chunk_start..chunk_end {
                 if let Some(record) = doc.read_record(idx) {
                     let mut row = serde_json::Map::new();
@@ -432,11 +432,11 @@ pub async fn read_table_data(path: String, limit: usize) -> Result<serde_json::V
                     }
                     rows.push(serde_json::Value::Object(row));
                 }
-                
+
                 // Emitir progreso
                 let _ = tx.send((idx, max_records));
             }
-            
+
             // Yield al runtime cada chunk
             std::thread::yield_now();
         }

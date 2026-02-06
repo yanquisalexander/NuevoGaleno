@@ -52,8 +52,9 @@ impl ConfigManager {
             validate_config_value(key, &value, definition)?;
             let serialized = serde_json::to_string(&value)
                 .map_err(|e| ValidationError::Other(format!("Error serializando valor: {}", e)))?;
-            db_config::set_config(key, &serialized)
-                .map_err(|e| ValidationError::Other(format!("Error guardando configuración: {}", e)))?;
+            db_config::set_config(key, &serialized).map_err(|e| {
+                ValidationError::Other(format!("Error guardando configuración: {}", e))
+            })?;
             self.values.insert(key.to_string(), value);
             Ok(())
         } else {
@@ -120,9 +121,7 @@ pub fn set_config_value(key: String, value: Value) -> Result<(), String> {
         .map_err(|_| "Error accediendo al gestor de configuración".to_string())?;
 
     match &mut *guard {
-        Ok(manager) => manager
-            .set_value(&key, value)
-            .map_err(|e| e.to_string()),
+        Ok(manager) => manager.set_value(&key, value).map_err(|e| e.to_string()),
         Err(e) => Err(e.clone()),
     }
 }
