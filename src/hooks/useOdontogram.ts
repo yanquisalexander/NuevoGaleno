@@ -26,8 +26,24 @@ export interface OdontogramSurface {
     treatment_catalog_item_id?: number;
     condition: string;
     notes?: string;
+    is_active: boolean;
+    applied_date: string;
     created_at: string;
     updated_at: string;
+}
+
+export interface SurfaceHistoryEntry {
+    id: number;
+    patient_id: number;
+    tooth_number: string;
+    surface: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    condition: string;
+    notes?: string;
+    action: string; // 'created', 'updated', 'deactivated'
+    applied_date: string;
+    recorded_at: string;
 }
 
 export interface UpdateSurfaceInput {
@@ -38,6 +54,17 @@ export interface UpdateSurfaceInput {
     treatment_catalog_item_id?: number;
     condition: string;
     notes?: string;
+}
+
+export interface AddSurfaceTreatmentInput {
+    patient_id: number;
+    tooth_number: string;
+    surface: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    condition: string;
+    notes?: string;
+    applied_date?: string;
 }
 
 export async function getOdontogramByPatient(patientId: number): Promise<OdontogramEntry[]> {
@@ -65,7 +92,7 @@ export async function getToothHistory(patientId: number, toothNumber: string): P
 }
 
 // ============================================================================
-// Odontogram Surfaces API
+// Odontogram Surfaces API - Soporte para múltiples tratamientos
 // ============================================================================
 
 export async function getOdontogramSurfacesByPatient(patientId: number): Promise<OdontogramSurface[]> {
@@ -76,8 +103,28 @@ export async function getToothSurfaces(patientId: number, toothNumber: string): 
     return invoke('get_tooth_surfaces', { patientId, toothNumber });
 }
 
+export async function getSurfaceTreatments(patientId: number, toothNumber: string, surface: string): Promise<OdontogramSurface[]> {
+    return invoke('get_surface_treatments', { patientId, toothNumber, surface });
+}
+
+export async function addToothSurfaceTreatment(input: AddSurfaceTreatmentInput): Promise<number> {
+    return invoke('add_tooth_surface_treatment', { input });
+}
+
 export async function updateToothSurface(input: UpdateSurfaceInput): Promise<number> {
     return invoke('update_tooth_surface', { input });
+}
+
+export async function deactivateSurfaceTreatment(surfaceId: number): Promise<void> {
+    return invoke('deactivate_surface_treatment', { surfaceId });
+}
+
+export async function getSurfaceHistory(patientId: number, toothNumber: string, surface: string): Promise<SurfaceHistoryEntry[]> {
+    return invoke('get_surface_history', { patientId, toothNumber, surface });
+}
+
+export async function getToothSurfaceHistory(patientId: number, toothNumber: string): Promise<SurfaceHistoryEntry[]> {
+    return invoke('get_tooth_surface_history', { patientId, toothNumber });
 }
 
 export async function deleteToothSurface(patientId: number, toothNumber: string, surface: string): Promise<void> {

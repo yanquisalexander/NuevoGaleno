@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
     OdontogramSurface,
+    SurfaceHistoryEntry,
     getOdontogramSurfacesByPatient,
-    updateToothSurface,
+    getSurfaceTreatments,
+    addToothSurfaceTreatment,
+    deactivateSurfaceTreatment,
+    getSurfaceHistory,
 } from '../../hooks/useOdontogram';
 import {
     TreatmentCatalogEntry,
@@ -12,7 +16,7 @@ import {
 } from '../../hooks/useTreatmentCatalog';
 import { createTreatment } from '../../hooks/useTreatments';
 import { motion, AnimatePresence } from 'motion/react';
-import { Baby, User as UserIcon, Save, X, CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
+import { Baby, User as UserIcon, Save, X, CheckCircle2, Clock, Loader2, XCircle, Eye, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface OdontogramProps {
@@ -39,7 +43,9 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [surfaces, setSurfaces] = useState<OdontogramSurface[]>([]);
     const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
     const [selectedSurface, setSelectedSurface] = useState<Surface | null>(null);
-    const [isPermanent, setIsPermanent] = useState(true);
+    const [surfaceTreatments, setSurfaceTreatments] = useState<OdontogramSurface[]>([]);
+    const [surfaceHistory, setSurfaceHistory] = useState<SurfaceHistoryEntry[]>([]);
+    const [showHistory, setShowHistory] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     // Catálogo de tratamientos
@@ -51,8 +57,6 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [treatmentStatus, setTreatmentStatus] = useState<'Pending' | 'InProgress' | 'Completed' | 'Cancelled'>('Pending');
     const [createTreatmentRecord, setCreateTreatmentRecord] = useState(true);
     const [customCost, setCustomCost] = useState<number>(0);
-
-    const TEETH = isPermanent ? TEETH_FDI_PERMANENT : TEETH_FDI_DECIDUOUS;
 
     useEffect(() => {
         loadData();
@@ -82,6 +86,11 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     useEffect(() => {
         if (selectedTooth && selectedSurface) {
             loadSurfaceData();
+            loadSurfaceTreatments();
+        } else {
+            setSurfaceTreatments([]);
+            setSurfaceHistory([]);
+            setShowHistory(false);
         }
     }, [selectedTooth, selectedSurface]);
 
@@ -114,37 +123,63 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const loadSurfaceData = async () => {
         if (!selectedTooth || !selectedSurface) return;
 
-        const surface = surfaces.find(
-            (s) => s.tooth_number === selectedTooth.toString() && s.surface === selectedSurface
-        );
+        // Resetear formulario
+        setSelectedTreatment(null);
+        setSelectedTreatmentItem(null);
+        setNotes('');
+    };
 
-        if (surface) {
-            setSelectedTreatment(surface.treatment_catalog_id || null);
-            setSelectedTreatmentItem(surface.treatment_catalog_item_id || null);
-            setNotes(surface.notes || '');
-        } else {
-            setSelectedTreatment(null);
-            setSelectedTreatmentItem(null);
-            setNotes('');
+    const loadSurfaceTreatments = async () => {
+        if (!selectedTooth || !selectedSurface) return;
+
+        try {
+            const treatments = await getSurfaceTreatments(
+                patientId,
+                selectedTooth.toString(),
+                selectedSurface
+            );
+            setSurfaceTreatments(treatments);
+        } catch (error) {
+            console.error('Error cargando tratamientos de superficie:', error);
         }
     };
 
-    const getSurfaceData = (toothNumber: number, surface: Surface): OdontogramSurface | null => {
-        return surfaces.find(
-            (s) => s.tooth_number === toothNumber.toString() && s.surface === surface
-        ) || null;
+    const loadSurfaceHistoryData = async () => {
+        if (!selectedTooth || !selectedSurface) return;
+
+        try {
+            const history = await getSurfaceHistory(
+                patientId,
+                selectedTooth.toString(),
+                selectedSurface
+            );
+            setSurfaceHistory(history);
+            setShowHistory(true);
+        } catch (error) {
+            console.error('Error cargando historial:', error);
+            toast.error('Error al cargar el historial');
+        }
+    };
+
+    const getSurfaceData = (toothNumber: number, surface: Surface): OdontogramSurface[] => {
+        return surfaces.filter(
+            (s) => s.tooth_number === toothNumber.toString() && s.surface === surface && s.is_active
+        );
     };
 
     const getSurfaceColor = (toothNumber: number, surface: Surface): string => {
         const surfaceData = getSurfaceData(toothNumber, surface);
-        if (!surfaceData) return '#4b5563';
+        if (surfaceData.length === 0) return '#4b5563'; // Sin tratamiento
 
-        if (surfaceData.treatment_catalog_id) {
-            const treatment = catalog.find((t) => t.id === surfaceData.treatment_catalog_id);
+        // Si hay múltiples tratamientos, usar el más reciente
+        const mostRecent = surfaceData[0];
+
+        if (mostRecent.treatment_catalog_id) {
+            const treatment = catalog.find((t) => t.id === mostRecent.treatment_catalog_id);
             if (treatment?.color) return treatment.color;
 
-            if (surfaceData.treatment_catalog_item_id) {
-                const item = catalogItems.find((i) => i.id === surfaceData.treatment_catalog_item_id);
+            if (mostRecent.treatment_catalog_item_id) {
+                const item = catalogItems.find((i) => i.id === mostRecent.treatment_catalog_item_id);
                 if (item?.color) return item.color;
             }
         }
@@ -158,13 +193,17 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         setSelectedSurface(surface);
     };
 
-    const handleSaveSurface = async () => {
+    const handleAddTreatment = async () => {
         if (!selectedTooth || !selectedSurface) return;
+        if (!selectedTreatment || !selectedTreatmentItem) {
+            toast.error('Seleccione un tratamiento y sub-tratamiento');
+            return;
+        }
 
         try {
-            // Crear tratamiento si se seleccionó uno y está habilitado
+            // Crear tratamiento si está habilitado
             let treatmentId: number | undefined;
-            if (createTreatmentRecord && selectedTreatment && selectedTreatmentItem) {
+            if (createTreatmentRecord) {
                 const treatment = catalog.find((t) => t.id === selectedTreatment);
                 const item = catalogItems.find((i) => i.id === selectedTreatmentItem);
 
@@ -188,57 +227,82 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                 }
             }
 
-            // Actualizar superficie del odontograma
-            await updateToothSurface({
+            // Añadir nuevo tratamiento a la superficie
+            await addToothSurfaceTreatment({
                 patient_id: patientId,
                 tooth_number: selectedTooth.toString(),
                 surface: selectedSurface,
-                treatment_catalog_id: selectedTreatment || undefined,
-                treatment_catalog_item_id: selectedTreatmentItem || undefined,
-                condition: selectedTreatment ? 'treatment' : 'healthy',
+                treatment_catalog_id: selectedTreatment,
+                treatment_catalog_item_id: selectedTreatmentItem,
+                condition: 'treatment',
                 notes: notes || undefined,
             });
 
             await loadData();
-            toast.success('Odontograma actualizado');
+            await loadSurfaceTreatments();
+            toast.success('Tratamiento añadido al odontograma');
 
-            // Reset form
-            setSelectedTooth(null);
-            setSelectedSurface(null);
+            // Reset form but keep surface selected
+            setSelectedTreatment(null);
+            setSelectedTreatmentItem(null);
+            setNotes('');
         } catch (error) {
-            console.error('Error guardando:', error);
-            toast.error('Error al guardar');
+            console.error('Error añadiendo tratamiento:', error);
+            toast.error('Error al añadir tratamiento');
         }
     };
 
+    const handleDeactivateTreatment = async (surfaceId: number) => {
+        try {
+            await deactivateSurfaceTreatment(surfaceId);
+            await loadData();
+            await loadSurfaceTreatments();
+            toast.success('Tratamiento desactivado');
+        } catch (error) {
+            console.error('Error desactivando tratamiento:', error);
+            toast.error('Error al desactivar tratamiento');
+        }
+    };
+
+    const isDeciduousTooth = (toothNumber: number): boolean => {
+        return toothNumber >= 51 && toothNumber <= 85;
+    };
+
     const renderTooth = (toothNumber: number) => {
+        const isDeciduous = isDeciduousTooth(toothNumber);
         const isSelected = selectedTooth === toothNumber;
 
         return (
             <div key={toothNumber} className="relative flex flex-col items-center gap-1">
-                {/* Tooth number label */}
-                <span className="text-[9px] text-white/40 font-mono">{toothNumber}</span>
+                {/* Tooth number label with type indicator */}
+                <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-white/40 font-mono">{toothNumber}</span>
+                    {isDeciduous && (
+                        <Baby className="w-2.5 h-2.5 text-blue-400/60" />
+                    )}
+                </div>
 
                 {/* Tooth visualization with surfaces */}
                 <div
                     className={cn(
                         'relative w-11 h-16 rounded-[3px] transition-all overflow-hidden',
-                        isSelected && 'ring-2 ring-blue-400 ring-offset-2 ring-offset-[#202020] shadow-lg'
+                        isSelected && 'ring-2 ring-blue-400 ring-offset-2 ring-offset-[#202020] shadow-lg',
+                        isDeciduous && 'opacity-90 border border-blue-400/30'
                     )}
                     style={{ backgroundColor: '#2a2a2a' }}
                 >
-                    {/* Oclusal surface (top) - clickeable */}
+                    {/* Palatina/Lingual surface (top) - clickeable */}
                     <motion.button
                         whileHover={{ opacity: 0.8 }}
-                        onClick={(e) => handleSurfaceClick(e, toothNumber, 'oclusal')}
+                        onClick={(e) => handleSurfaceClick(e, toothNumber, 'palatina')}
                         className={cn(
                             'absolute top-0 left-0 right-0 h-1/5 border-b border-black/20 transition-all',
-                            selectedTooth === toothNumber && selectedSurface === 'oclusal' && 'ring-1 ring-white ring-inset'
+                            selectedTooth === toothNumber && selectedSurface === 'palatina' && 'ring-1 ring-white ring-inset'
                         )}
-                        style={{ backgroundColor: getSurfaceColor(toothNumber, 'oclusal') }}
+                        style={{ backgroundColor: getSurfaceColor(toothNumber, 'palatina') }}
                     />
 
-                    {/* Middle row: Mesial | Center | Distal */}
+                    {/* Middle row: Mesial | Oclusal (center) | Distal */}
                     <div className="absolute top-1/5 left-0 right-0 bottom-1/5 flex">
                         {/* Mesial - clickeable */}
                         <motion.button
@@ -250,12 +314,20 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                             )}
                             style={{ backgroundColor: getSurfaceColor(toothNumber, 'mesial') }}
                         />
-                        {/* Center - number display */}
-                        <div className="w-1/3 flex items-center justify-center bg-[#1a1a1a]">
+                        {/* Center - Oclusal (clickeable) */}
+                        <motion.button
+                            whileHover={{ opacity: 0.8 }}
+                            onClick={(e) => handleSurfaceClick(e, toothNumber, 'oclusal')}
+                            className={cn(
+                                'w-1/3 flex items-center justify-center transition-all',
+                                selectedTooth === toothNumber && selectedSurface === 'oclusal' && 'ring-1 ring-white ring-inset'
+                            )}
+                            style={{ backgroundColor: getSurfaceColor(toothNumber, 'oclusal') }}
+                        >
                             <span className="text-[9px] font-semibold text-white/30">
                                 {toothNumber}
                             </span>
-                        </div>
+                        </motion.button>
                         {/* Distal - clickeable */}
                         <motion.button
                             whileHover={{ opacity: 0.8 }}
@@ -268,7 +340,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                         />
                     </div>
 
-                    {/* Vestibular/Palatina surface (bottom) - clickeable */}
+                    {/* Vestibular surface (bottom) - clickeable */}
                     <motion.button
                         whileHover={{ opacity: 0.8 }}
                         onClick={(e) => handleSurfaceClick(e, toothNumber, 'vestibular')}
@@ -293,56 +365,55 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
 
     return (
         <div className="space-y-6">
-            {/* Toggle dentición */}
-            <div className="flex items-center justify-center gap-4 p-4 bg-[#272727] rounded-lg border border-white/5">
-                <button
-                    onClick={() => setIsPermanent(true)}
-                    className={cn(
-                        'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-                        isPermanent
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white/5 text-white/60 hover:bg-white/10'
-                    )}
-                >
-                    <UserIcon className="w-4 h-4" />
-                    Dentición Permanente
-                </button>
-                <button
-                    onClick={() => setIsPermanent(false)}
-                    className={cn(
-                        'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-                        !isPermanent
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white/5 text-white/60 hover:bg-white/10'
-                    )}
-                >
+            {/* Información de dentición mixta */}
+            <div className="flex items-center justify-center gap-6 p-3 bg-[#272727] rounded-lg border border-white/5">
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                    <UserIcon className="w-4 h-4 text-white/50" />
+                    <span>Permanentes (11-48)</span>
+                </div>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-2 text-sm text-blue-400/80">
                     <Baby className="w-4 h-4" />
-                    Dentición Decidua (Niños)
-                </button>
+                    <span>Temporales (51-85)</span>
+                </div>
             </div>
 
-            {/* Odontograma */}
+            {/* Odontograma Mixto Completo */}
             <div className="flex flex-col items-center gap-8 py-6 bg-[#202020] rounded-lg border border-white/5">
-                {/* Arcada Superior */}
-                <div className="w-full px-6">
+                {/* Arcada Superior - Permanentes y Temporales */}
+                <div className="w-full px-6 space-y-4">
                     <div className="text-xs text-white/40 mb-4 text-center uppercase tracking-widest font-semibold">
                         Arcada Superior
                     </div>
+
+                    {/* Dientes permanentes superiores */}
                     <div className="flex flex-wrap justify-center gap-3">
-                        {TEETH.upper.map(renderTooth)}
+                        {TEETH_FDI_PERMANENT.upper.map(renderTooth)}
+                    </div>
+
+                    {/* Dientes temporales superiores - Encima de permanentes */}
+                    <div className="flex flex-wrap justify-center gap-3 pt-2 border-t border-white/5">
+                        {TEETH_FDI_DECIDUOUS.upper.map(renderTooth)}
                     </div>
                 </div>
 
                 {/* Separator */}
                 <div className="w-40 h-px bg-white/10" />
 
-                {/* Arcada Inferior */}
-                <div className="w-full px-6">
+                {/* Arcada Inferior - Permanentes y Temporales */}
+                <div className="w-full px-6 space-y-4">
                     <div className="text-xs text-white/40 mb-4 text-center uppercase tracking-widest font-semibold">
                         Arcada Inferior
                     </div>
+
+                    {/* Dientes temporales inferiores - Encima de permanentes */}
+                    <div className="flex flex-wrap justify-center gap-3 pb-2 border-b border-white/5">
+                        {TEETH_FDI_DECIDUOUS.lower.map(renderTooth)}
+                    </div>
+
+                    {/* Dientes permanentes inferiores */}
                     <div className="flex flex-wrap justify-center gap-3">
-                        {TEETH.lower.map(renderTooth)}
+                        {TEETH_FDI_PERMANENT.lower.map(renderTooth)}
                     </div>
                 </div>
             </div>
@@ -557,11 +628,12 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
 
                         <div className="flex gap-3 pt-4">
                             <button
-                                onClick={handleSaveSurface}
-                                className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors text-sm font-medium"
+                                onClick={handleAddTreatment}
+                                disabled={!selectedTreatment || !selectedTreatmentItem}
+                                className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed rounded-md transition-colors text-sm font-medium"
                             >
                                 <Save className="w-4 h-4" />
-                                Guardar
+                                Añadir Tratamiento
                             </button>
                             <button
                                 onClick={() => {
@@ -573,6 +645,117 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                                 Cancelar
                             </button>
                         </div>
+
+                        {/* Lista de tratamientos activos en la superficie seleccionada */}
+                        {selectedSurface && surfaceTreatments.length > 0 && (
+                            <div className="border-t border-white/5 pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-semibold text-white/90">
+                                        Tratamientos Activos - {selectedSurface}
+                                    </h4>
+                                    <button
+                                        onClick={loadSurfaceHistoryData}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md transition-colors text-xs"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        Ver Historial
+                                    </button>
+                                </div>
+                                <div className="space-y-2">
+                                    {surfaceTreatments.map((treatment) => {
+                                        const catalogEntry = catalog.find((c) => c.id === treatment.treatment_catalog_id);
+                                        const itemEntry = catalogItems.find((i) => i.id === treatment.treatment_catalog_item_id);
+
+                                        return (
+                                            <div
+                                                key={treatment.id}
+                                                className="flex items-center justify-between p-3 bg-white/5 rounded-md border border-white/5 hover:bg-white/10 transition-colors"
+                                            >
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="w-3 h-3 rounded-full"
+                                                            style={{ backgroundColor: catalogEntry?.color || '#4ade80' }}
+                                                        />
+                                                        <span className="text-sm font-medium text-white">
+                                                            {itemEntry?.name || catalogEntry?.name || 'Sin nombre'}
+                                                        </span>
+                                                    </div>
+                                                    {treatment.notes && (
+                                                        <p className="text-xs text-white/50 mt-1 ml-5">{treatment.notes}</p>
+                                                    )}
+                                                    <p className="text-xs text-white/40 mt-1 ml-5">
+                                                        Fecha: {new Date(treatment.applied_date).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeactivateTreatment(treatment.id)}
+                                                    className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
+                                                    title="Desactivar tratamiento"
+                                                >
+                                                    <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Historial de la superficie */}
+                        {showHistory && surfaceHistory.length > 0 && (
+                            <div className="border-t border-white/5 pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-semibold text-white/90">
+                                        Historial - {selectedSurface}
+                                    </h4>
+                                    <button
+                                        onClick={() => setShowHistory(false)}
+                                        className="p-1.5 hover:bg-white/5 rounded-md transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                    {surfaceHistory.map((entry) => {
+                                        const catalogEntry = catalog.find((c) => c.id === entry.treatment_catalog_id);
+                                        const itemEntry = catalogItems.find((i) => i.id === entry.treatment_catalog_item_id);
+
+                                        const actionColors = {
+                                            created: 'text-green-400',
+                                            updated: 'text-blue-400',
+                                            deactivated: 'text-red-400',
+                                        };
+
+                                        return (
+                                            <div
+                                                key={entry.id}
+                                                className="p-3 bg-white/5 rounded-md border border-white/5"
+                                            >
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-xs font-semibold uppercase ${actionColors[entry.action as keyof typeof actionColors] || 'text-white/60'}`}>
+                                                                {entry.action}
+                                                            </span>
+                                                            <span className="text-xs text-white/40">
+                                                                {new Date(entry.recorded_at).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm text-white mt-1">
+                                                            {itemEntry?.name || catalogEntry?.name || entry.condition}
+                                                        </div>
+                                                        {entry.notes && (
+                                                            <p className="text-xs text-white/50 mt-1">{entry.notes}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

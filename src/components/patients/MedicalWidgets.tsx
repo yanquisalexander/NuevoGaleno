@@ -31,8 +31,6 @@ export function MedicalWidgetCard({
         switch (widget.type) {
             case 'allergies-alert':
                 return <AllergiesWidget patient={patient} />;
-            case 'vital-signs':
-                return <VitalSignsWidget />;
             case 'quick-notes':
                 return <QuickNotesWidget patient={patient} />;
             case 'recent-treatments':
@@ -101,34 +99,6 @@ function AllergiesWidget({ patient }: { patient: Patient }) {
     );
 }
 
-// Widget: Signos Vitales
-function VitalSignsWidget() {
-    // Datos de ejemplo - en producción se cargarían de la BD
-    const vitals = [
-        { label: 'Presión', value: '120/80', unit: 'mmHg', status: 'normal' },
-        { label: 'Pulso', value: '72', unit: 'bpm', status: 'normal' },
-        { label: 'Temp.', value: '36.5', unit: '°C', status: 'normal' },
-    ];
-
-    return (
-        <div className="p-4">
-            <div className="flex items-center gap-2 mb-4">
-                <Activity className="w-4 h-4 text-blue-400" />
-                <h3 className="text-sm font-semibold text-white/90">Signos Vitales</h3>
-            </div>
-            <div className="space-y-3">
-                {vitals.map((vital, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                        <span className="text-xs text-white/60">{vital.label}</span>
-                        <span className="text-sm font-medium text-white/90">
-                            {vital.value} <span className="text-white/50">{vital.unit}</span>
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 // Widget: Notas Rápidas
 function QuickNotesWidget({ patient }: { patient: Patient }) {

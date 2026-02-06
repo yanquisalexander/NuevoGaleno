@@ -292,6 +292,44 @@ fn clear_tooth_surfaces(patient_id: i64, tooth_number: String) -> Result<(), Str
     db::odontogram_surfaces::clear_tooth_surfaces(patient_id, &tooth_number)
 }
 
+#[tauri::command]
+fn add_tooth_surface_treatment(
+    input: db::odontogram_surfaces::AddSurfaceTreatmentInput,
+) -> Result<i64, String> {
+    db::odontogram_surfaces::add_tooth_surface_treatment(input)
+}
+
+#[tauri::command]
+fn get_surface_treatments(
+    patient_id: i64,
+    tooth_number: String,
+    surface: String,
+) -> Result<Vec<db::odontogram_surfaces::OdontogramSurface>, String> {
+    db::odontogram_surfaces::get_surface_treatments(patient_id, &tooth_number, &surface)
+}
+
+#[tauri::command]
+fn deactivate_surface_treatment(surface_id: i64) -> Result<(), String> {
+    db::odontogram_surfaces::deactivate_surface_treatment(surface_id)
+}
+
+#[tauri::command]
+fn get_surface_history(
+    patient_id: i64,
+    tooth_number: String,
+    surface: String,
+) -> Result<Vec<db::odontogram_surfaces::SurfaceHistoryEntry>, String> {
+    db::odontogram_surfaces::get_surface_history(patient_id, &tooth_number, &surface)
+}
+
+#[tauri::command]
+fn get_tooth_surface_history(
+    patient_id: i64,
+    tooth_number: String,
+) -> Result<Vec<db::odontogram_surfaces::SurfaceHistoryEntry>, String> {
+    db::odontogram_surfaces::get_tooth_history(patient_id, &tooth_number)
+}
+
 // ===== TREATMENT CATALOG COMMANDS =====
 #[tauri::command]
 fn get_all_treatment_catalog(
@@ -609,6 +647,11 @@ pub fn run() {
             update_tooth_surface,
             delete_tooth_surface,
             clear_tooth_surfaces,
+            add_tooth_surface_treatment,
+            get_surface_treatments,
+            deactivate_surface_treatment,
+            get_surface_history,
+            get_tooth_surface_history,
             // treatment catalog
             get_all_treatment_catalog,
             get_treatment_catalog_by_id,

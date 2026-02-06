@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Shield, KeyRound, LogOut, Check, X, Lock } from 'lucide-react';
+import { User, Shield, KeyRound, LogOut, Check, X, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/hooks/useSession';
@@ -7,85 +7,74 @@ import { useSession } from '@/hooks/useSession';
 export function UserAccountsApp() {
     const { currentUser, setPin, removePin, logout } = useSession();
 
-    // States for PIN management
     const [isSettingPin, setIsSettingPin] = useState(false);
     const [newPin, setNewPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
     const [pinError, setPinError] = useState('');
 
-    const getInitials = (name: string) => {
-        return name
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase()
-            .substring(0, 2);
-    };
-
     const handleSetPin = async () => {
+        setPinError('');
         if (newPin.length < 4) {
-            setPinError('El PIN debe tener al menos 4 dígitos');
+            setPinError('El PIN debe tener al menos 4 dígitos.');
             return;
         }
         if (newPin !== confirmPin) {
-            setPinError('Los PIN no coinciden');
+            setPinError('Los PINs no coinciden.');
             return;
         }
-
         try {
             await setPin(newPin);
-            toast.success('Galeno Hello configurado correctamente');
+            toast.success('PIN configurado correctamente.');
             setIsSettingPin(false);
             setNewPin('');
             setConfirmPin('');
-            setPinError('');
         } catch (error) {
-            toast.error('Error al configurar el PIN');
-            console.error(error);
+            console.error('Error configurando PIN:', error);
+            toast.error('Error al configurar el PIN. Intenta nuevamente.');
         }
     };
 
     const handleRemovePin = async () => {
         try {
-            if (confirm('¿Estás seguro de que quieres quitar el acceso con PIN?')) {
-                await removePin();
-                toast.success('PIN eliminado');
-            }
+            await removePin();
+            toast.success('PIN eliminado correctamente.');
         } catch (error) {
-            toast.error('Error al eliminar el PIN');
+            console.error('Error eliminando PIN:', error);
+            toast.error('Error al eliminar el PIN. Intenta nuevamente.');
         }
     };
 
-    const handleLogout = async () => {
-        await logout();
-        // The session context/app wrapper should handle the redirect/state change
+    const getInitials = (name: string) => {
+        return name.split(' ').map((n) => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
     if (!currentUser) return null;
 
     return (
-        <div className="flex h-full flex-col bg-[#202020] text-white selection:bg-blue-500/30 font-sans">
-            {/* Header / Hero */}
-            <div className="flex-none px-8 py-8 pb-4">
-                <h1 className="text-3xl font-semibold tracking-tight mb-6">Tu Cuenta</h1>
+        <div className="flex h-full flex-col bg-[#1c1c1c] text-[#ffffff] font-sans antialiased selection:bg-[#0067c0]/40">
+            {/* Header / Hero Section */}
+            <div className="flex-none px-9 py-10 pb-6">
+                <h1 className="text-2xl font-semibold leading-tight text-white/95 mb-8">Tu cuenta</h1>
 
-                <div className="flex items-center gap-6 p-6 rounded-xl bg-gradient-to-br from-white/10 to-transparent border border-white/5 relative overflow-hidden">
-                    {/* Background decoration */}
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-
-                    {/* Avatar */}
-                    <div className="relative z-10 w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold shadow-xl shadow-blue-500/20 border-4 border-[#202020]">
-                        {getInitials(currentUser.name || currentUser.username)}
+                <div className="flex items-center gap-6">
+                    {/* User Profile Picture - W11 Style */}
+                    <div className="relative group">
+                        <div className="w-[92px] h-[92px] rounded-full bg-gradient-to-b from-[#0078d4] to-[#005a9e] flex items-center justify-center text-3xl font-semibold shadow-lg">
+                            {getInitials(currentUser.name || currentUser.username)}
+                        </div>
+                        {/* Status Badge */}
+                        <div className="absolute bottom-1 right-1 w-5 h-5 bg-[#1c1c1c] rounded-full flex items-center justify-center">
+                            <div className="w-3 h-3 bg-[#60cdff] rounded-full shadow-[0_0_8px_rgba(96,205,255,0.4)]" />
+                        </div>
                     </div>
 
-                    {/* Info */}
-                    <div className="relative z-10 space-y-1">
-                        <h2 className="text-2xl font-semibold">{currentUser.name}</h2>
-                        <div className="flex items-center gap-2 text-white/60">
-                            <span className="text-sm">@{currentUser.username}</span>
-                            <span>•</span>
-                            <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-white/80 border border-white/10 capitalize">
-                                {currentUser.role === 'admin' ? <Shield className="w-3 h-3 mr-1 text-amber-400" /> : <User className="w-3 h-3 mr-1" />}
+                    <div className="space-y-0.5">
+                        <h2 className="text-xl font-semibold text-white/95 leading-snug">{currentUser.name}</h2>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-white/60">@{currentUser.username}</span>
+                            <span className="text-white/20 text-xs">•</span>
+                            <span className="flex items-center text-xs font-normal text-white/70 bg-white/5 border border-white/10 px-2 py-0.5 rounded-sm capitalize">
+                                {currentUser.role === 'admin' ? <Shield className="w-3 h-3 mr-1.5 text-[#ffb900]" /> : <User className="w-3 h-3 mr-1.5 text-[#60cdff]" />}
                                 {currentUser.role}
                             </span>
                         </div>
@@ -93,175 +82,123 @@ export function UserAccountsApp() {
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto px-8 py-4 custom-scrollbar space-y-6">
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto px-9 py-2 space-y-7 custom-scrollbar pb-10">
 
-                {/* Opciones de Inicio de Sesion */}
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold px-1">Opciones de inicio de sesión</h3>
+                {/* Opciones de Inicio de Sesión - Expander Style */}
+                <section className="space-y-2">
+                    <h3 className="text-[14px] font-semibold text-white/90 ml-1">Opciones de inicio de sesión</h3>
 
-                    <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#272727] shadow-sm">
+                    <div className="bg-[#2d2d2d]/60 border border-white/[0.06] rounded-md overflow-hidden shadow-sm backdrop-blur-xl">
+                        {/* Galeno Hello Card */}
+                        <div className="p-4 flex items-start gap-4 hover:bg-white/[0.04] transition-colors">
+                            <div className="w-5 h-5 mt-1 flex items-center justify-center text-[#60cdff]">
+                                <KeyRound strokeWidth={1.5} />
+                            </div>
 
-                        {/* Galeno Hello (PIN) */}
-                        <div className="p-6">
-                            <div className="flex items-start gap-4">
-                                <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                                    <KeyRound className="h-5 w-5 text-blue-400" />
-                                </div>
-                                <div className="flex-1 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h4 className="text-base font-medium text-white/90">Galeno Hello (PIN)</h4>
-                                            <p className="text-sm text-white/50 mt-1 max-w-lg">
-                                                Inicia sesión de forma rápida y segura utilizando solo un código numérico.
-                                            </p>
-                                        </div>
-
-                                        {!isSettingPin && (
-                                            <div>
-                                                {currentUser.pin ? (
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-sm text-emerald-400 font-medium flex items-center gap-1.5 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20">
-                                                            <Check className="w-3.5 h-3.5" />
-                                                            Configurado
-                                                        </span>
-                                                        <Button
-                                                            variant="outline"
-                                                            className="border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 text-white/70"
-                                                            onClick={handleRemovePin}
-                                                        >
-                                                            Quitar
-                                                        </Button>
-                                                        <Button
-                                                            className="bg-blue-600 hover:bg-blue-500 text-white"
-                                                            onClick={() => { setIsSettingPin(true); setNewPin(''); setConfirmPin(''); }}
-                                                        >
-                                                            Cambiar
-                                                        </Button>
-                                                    </div>
-                                                ) : (
-                                                    <Button
-                                                        className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
-                                                        onClick={() => setIsSettingPin(true)}
-                                                    >
-                                                        Configurar
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        )}
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-medium text-white/95 leading-normal">Galeno Hello (PIN)</h4>
+                                        <p className="text-xs text-white/50 mt-0.5">Inicia sesión de forma rápida y segura utilizando solo un código numérico.</p>
                                     </div>
 
-                                    {/* Inline PIN Setup Form */}
-                                    {isSettingPin && (
-                                        <div className="bg-[#1a1a1a] rounded-lg p-5 border border-white/5 animate-in slide-in-from-top-2 duration-200">
-                                            <div className="space-y-4 max-w-xs">
-                                                <div className="space-y-1.5">
-                                                    <label className="text-xs font-medium text-white/70 ml-1">Nuevo PIN</label>
-                                                    <input
-                                                        type="password"
-                                                        pattern="[0-9]*"
-                                                        inputMode="numeric"
-                                                        maxLength={6}
-                                                        className="w-full h-10 rounded-md bg-[#252525] border border-white/10 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all font-mono text-center tracking-widest text-lg"
-                                                        placeholder="••••"
-                                                        value={newPin}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value.replace(/\D/g, '');
-                                                            if (val.length <= 6) setNewPin(val);
-                                                            if (pinError) setPinError('');
-                                                        }}
-                                                        autoFocus
-                                                    />
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    <label className="text-xs font-medium text-white/70 ml-1">Confirmar PIN</label>
-                                                    <input
-                                                        type="password"
-                                                        pattern="[0-9]*"
-                                                        inputMode="numeric"
-                                                        maxLength={6}
-                                                        className={`w-full h-10 rounded-md bg-[#252525] border border-white/10 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all font-mono text-center tracking-widest text-lg ${confirmPin && newPin !== confirmPin ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500' : ''
-                                                            }`}
-                                                        placeholder="••••"
-                                                        value={confirmPin}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value.replace(/\D/g, '');
-                                                            if (val.length <= 6) setConfirmPin(val);
-                                                        }}
-                                                    />
-                                                </div>
-
-                                                {pinError && (
-                                                    <p className="text-xs text-red-400 font-medium flex items-center gap-1.5">
-                                                        <X className="w-3 h-3" /> {pinError}
-                                                    </p>
-                                                )}
-
-                                                <div className="flex items-center gap-2 pt-2">
-                                                    <Button
-                                                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white"
-                                                        onClick={handleSetPin}
-                                                        disabled={!newPin || !confirmPin}
-                                                    >
-                                                        Guardar PIN
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        className="flex-shrink-0 hover:bg-white/10 text-white/70"
-                                                        onClick={() => { setIsSettingPin(false); setPinError(''); setConfirmPin(''); setNewPin(''); }}
-                                                    >
-                                                        Cancelar
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                    {!isSettingPin && (
+                                        <div className="flex items-center gap-2">
+                                            {currentUser.pin && (
+                                                <span className="text-[11px] text-[#6ccb5f] flex items-center gap-1 bg-[#6ccb5f]/10 px-2 py-0.5 rounded border border-[#6ccb5f]/20 mr-2">
+                                                    <Check className="w-3 h-3" /> Configurado
+                                                </span>
+                                            )}
+                                            <Button
+                                                onClick={() => setIsSettingPin(true)}
+                                                className="h-8 px-4 bg-white/10 hover:bg-white/15 text-white text-[13px] border-b border-white/5 active:scale-[0.98] transition-all"
+                                            >
+                                                {currentUser.pin ? 'Cambiar' : 'Configurar'}
+                                            </Button>
+                                            {currentUser.pin && (
+                                                <Button
+                                                    onClick={handleRemovePin}
+                                                    variant="ghost"
+                                                    className="h-8 px-4 text-[13px] text-white/80 hover:bg-red-500/10 hover:text-red-400"
+                                                >
+                                                    Quitar
+                                                </Button>
+                                            )}
                                         </div>
                                     )}
-
                                 </div>
+
+                                {/* Setup Form - Windows Style Inline Panel */}
+                                {isSettingPin && (
+                                    <div className="mt-5 p-5 bg-[#323232] border border-white/10 rounded-md shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                                        <h5 className="text-[13px] font-medium mb-4 flex items-center gap-2">
+                                            <KeyRound className="w-4 h-4 text-[#60cdff]" />
+                                            Configurar nuevo PIN
+                                        </h5>
+                                        <div className="flex flex-col gap-3 max-w-[280px]">
+                                            <div className="space-y-1">
+                                                <input
+                                                    type="password"
+                                                    placeholder="Nuevo PIN"
+                                                    value={newPin}
+                                                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                    className="w-full h-8 bg-[#1c1c1c] border-b-2 border-white/20 focus:border-[#60cdff] outline-none px-3 text-sm transition-all focus:bg-[#202020]"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <input
+                                                    type="password"
+                                                    placeholder="Confirmar PIN"
+                                                    value={confirmPin}
+                                                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                    className="w-full h-8 bg-[#1c1c1c] border-b-2 border-white/20 focus:border-[#60cdff] outline-none px-3 text-sm transition-all focus:bg-[#202020]"
+                                                />
+                                            </div>
+
+                                            {pinError && <p className="text-[11px] text-[#ff99a4] flex items-center gap-1.5"><X className="w-3 h-3" /> {pinError}</p>}
+
+                                            <div className="flex gap-2 mt-2">
+                                                <Button onClick={() => setIsSettingPin(false)} variant="outline" className="h-8 flex-1 bg-transparent border-white/20 text-white text-xs hover:bg-white/5">
+                                                    Cancelar
+                                                </Button>
+                                                <Button onClick={handleSetPin} className="h-8 flex-1 bg-[#0067c0] hover:bg-[#1975c5] text-white border-b border-black/20 text-xs">
+                                                    Aceptar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
-
                     </div>
-                </div>
+                </section>
 
-                {/* Account Actions */}
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold px-1">Acciones de cuenta</h3>
-
-                    <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#272727] shadow-sm divide-y divide-white/5">
-                        <div
-                            className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 hover:bg-white/[0.02] transition-colors cursor-pointer"
-                            onClick={handleLogout}
+                {/* Acciones de Cuenta - List Style */}
+                <section className="space-y-2">
+                    <h3 className="text-[14px] font-semibold text-white/90 ml-1">Acciones de cuenta</h3>
+                    <div className="bg-[#2d2d2d]/60 border border-white/[0.06] rounded-md overflow-hidden">
+                        <button
+                            onClick={logout}
+                            className="w-full p-4 flex items-center justify-between hover:bg-white/[0.04] transition-all group active:scale-[0.998]"
                         >
-                            <div className="flex items-center gap-4">
-                                <div className="h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
-                                    <LogOut className="h-5 w-5" />
+                            <div className="flex items-center gap-4 text-left">
+                                <div className="w-5 h-5 flex items-center justify-center text-red-400/80">
+                                    <LogOut strokeWidth={1.5} size={20} />
                                 </div>
                                 <div>
-                                    <h4 className="text-base font-medium text-white/90 group-hover:text-red-400 transition-colors">Cerrar Sesión</h4>
-                                    <p className="text-sm text-white/50">
-                                        Finalizar tu sesión actual en este dispositivo.
-                                    </p>
+                                    <h4 className="text-sm font-medium text-white/95 group-hover:text-red-400 transition-colors">Cerrar sesión</h4>
+                                    <p className="text-xs text-white/50">Finalizar tu sesión en este dispositivo.</p>
                                 </div>
                             </div>
-                            <Button
-                                variant="ghost"
-                                className="text-white/60 hover:text-red-400 hover:bg-red-500/10 self-start sm:self-center"
-                            >
-                                <span className="mr-2">Salir ahora</span>
-                                <ArrowIcon />
-                            </Button>
-                        </div>
+                            <ChevronRight className="w-4 h-4 text-white/30 group-hover:text-white/60 transition-colors" />
+                        </button>
                     </div>
-                </div>
-
+                </section>
             </div>
+
+            {/* Minimalist Footer Bar */}
+            <div className="h-1 flex-none bg-gradient-to-r from-transparent via-[#0067c0]/20 to-transparent opacity-50" />
         </div>
     );
 }
-
-const ArrowIcon = () => (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
-        <path d="m9 18 6-6-6-6" />
-    </svg>
-)

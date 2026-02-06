@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 5;
+const CURRENT_SCHEMA_VERSION: i32 = 6;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -18,9 +18,11 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
 
     // Obtener versión actual
     let current_version: i32 = conn
-        .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+            [],
+            |row| row.get(0),
+        )
         .unwrap_or(0);
 
     // Aplicar migraciones pendientes
@@ -51,6 +53,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 5 {
         migrate_v5(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (5)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 6 {
+        migrate_v6(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (6)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -241,25 +249,28 @@ fn migrate_v1(conn: &Connection) -> Result<(), String> {
 /// Migración v2: Columnas del sistema de importación
 fn migrate_v2(conn: &Connection) -> Result<(), String> {
     // Helper para agregar columnas si no existen
-    let add_column_if_not_exists = |conn: &Connection, table: &str, column: &str, definition: &str| -> Result<(), String> {
-        let check_query = format!("PRAGMA table_info({})", table);
-        let mut stmt = conn.prepare(&check_query)
-            .map_err(|e| format!("Error preparando pragma: {}", e))?;
-        
-        let columns: Result<Vec<String>, _> = stmt
-            .query_map([], |row| row.get::<_, String>(1))
-            .map_err(|e| format!("Error ejecutando pragma: {}", e))?
-            .collect();
-        
-        let columns = columns.map_err(|e| format!("Error leyendo columnas: {}", e))?;
-        
-        if !columns.contains(&column.to_string()) {
-            let alter_query = format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, definition);
-            conn.execute(&alter_query, [])
-                .map_err(|e| format!("Error agregando columna {}: {}", column, e))?;
-        }
-        Ok(())
-    };
+    let add_column_if_not_exists =
+        |conn: &Connection, table: &str, column: &str, definition: &str| -> Result<(), String> {
+            let check_query = format!("PRAGMA table_info({})", table);
+            let mut stmt = conn
+                .prepare(&check_query)
+                .map_err(|e| format!("Error preparando pragma: {}", e))?;
+
+            let columns: Result<Vec<String>, _> = stmt
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(|e| format!("Error ejecutando pragma: {}", e))?
+                .collect();
+
+            let columns = columns.map_err(|e| format!("Error leyendo columnas: {}", e))?;
+
+            if !columns.contains(&column.to_string()) {
+                let alter_query =
+                    format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, definition);
+                conn.execute(&alter_query, [])
+                    .map_err(|e| format!("Error agregando columna {}: {}", column, e))?;
+            }
+            Ok(())
+        };
 
     // Agregar columnas del importer a patients
     add_column_if_not_exists(conn, "patients", "legacy_patient_id", "TEXT")?;
@@ -328,9 +339,15 @@ fn migrate_v2(conn: &Connection) -> Result<(), String> {
 fn migrate_v3(conn: &Connection) -> Result<(), String> {
     // SQLite soporta RENAME COLUMN desde la versión 3.25.0
     // Intentamos renombrar, si falla es que ya existen o no se puede
-    
-    let _ = conn.execute("ALTER TABLE treatments RENAME COLUMN started_date TO start_date", []);
-    let _ = conn.execute("ALTER TABLE treatments RENAME COLUMN completed_date TO completion_date", []);
+
+    let _ = conn.execute(
+        "ALTER TABLE treatments RENAME COLUMN started_date TO start_date",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE treatments RENAME COLUMN completed_date TO completion_date",
+        [],
+    );
 
     Ok(())
 }
@@ -338,7 +355,7 @@ fn migrate_v3(conn: &Connection) -> Result<(), String> {
 /// Migración v4: Agregar tabla de templates
 fn migrate_v4(conn: &Connection) -> Result<(), String> {
     use crate::db::templates;
-    
+
     templates::init_templates_table(conn)
         .map_err(|e| format!("Error creando tabla templates: {}", e))?;
 
@@ -430,4 +447,97 @@ fn migrate_v5(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v5 err: {}", e))
+}
+
+/// Migración v6: Múltiples tratamientos por superficie dental con historial
+fn migrate_v6(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Eliminar restricción UNIQUE de odontogram_surfaces para permitir múltiples tratamientos
+        -- SQLite no permite eliminar constraints directamente, así que recreamos la tabla
+        
+        -- 1. Crear tabla temporal con los datos actuales
+        CREATE TABLE IF NOT EXISTS odontogram_surfaces_backup (
+            id INTEGER PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            tooth_number TEXT NOT NULL,
+            surface TEXT NOT NULL,
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            condition TEXT NOT NULL DEFAULT 'healthy',
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- 2. Copiar datos existentes
+        INSERT OR IGNORE INTO odontogram_surfaces_backup 
+        SELECT id, patient_id, tooth_number, surface, treatment_catalog_id, 
+               treatment_catalog_item_id, condition, notes, created_at, updated_at
+        FROM odontogram_surfaces;
+
+        -- 3. Eliminar tabla original
+        DROP TABLE IF EXISTS odontogram_surfaces;
+
+        -- 4. Crear nueva tabla sin la restricción UNIQUE
+        CREATE TABLE odontogram_surfaces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            tooth_number TEXT NOT NULL,
+            surface TEXT NOT NULL, 
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            condition TEXT NOT NULL DEFAULT 'healthy',
+            notes TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            applied_date TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_item_id) REFERENCES treatment_catalog_items(id) ON DELETE SET NULL
+        );
+
+        -- 5. Restaurar datos desde backup
+        INSERT INTO odontogram_surfaces (id, patient_id, tooth_number, surface, treatment_catalog_id, 
+                                         treatment_catalog_item_id, condition, notes, created_at, updated_at)
+        SELECT id, patient_id, tooth_number, surface, treatment_catalog_id, 
+               treatment_catalog_item_id, condition, notes, created_at, updated_at
+        FROM odontogram_surfaces_backup;
+
+        -- 6. Eliminar backup
+        DROP TABLE odontogram_surfaces_backup;
+
+        -- 7. Recrear índices
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_patient ON odontogram_surfaces(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_tooth ON odontogram_surfaces(tooth_number);
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_treatment ON odontogram_surfaces(treatment_catalog_id);
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_active ON odontogram_surfaces(is_active);
+        CREATE INDEX IF NOT EXISTS idx_odonto_surfaces_composite ON odontogram_surfaces(patient_id, tooth_number, surface);
+
+        -- Tabla de historial para auditoría y cambios
+        CREATE TABLE IF NOT EXISTS odontogram_surface_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            tooth_number TEXT NOT NULL,
+            surface TEXT NOT NULL,
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            condition TEXT NOT NULL,
+            notes TEXT,
+            action TEXT NOT NULL, -- 'created', 'updated', 'deactivated'
+            applied_date TEXT NOT NULL,
+            recorded_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_item_id) REFERENCES treatment_catalog_items(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_surface_history_patient ON odontogram_surface_history(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_surface_history_tooth ON odontogram_surface_history(tooth_number);
+        CREATE INDEX IF NOT EXISTS idx_surface_history_composite ON odontogram_surface_history(patient_id, tooth_number, surface);
+        CREATE INDEX IF NOT EXISTS idx_surface_history_date ON odontogram_surface_history(applied_date);
+        "#,
+    )
+    .map_err(|e| format!("migration v6 err: {}", e))
 }
