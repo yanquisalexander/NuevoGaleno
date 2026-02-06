@@ -120,6 +120,34 @@ const response = await client.login(username, password);
 
 ## Seguridad
 
+### JWT Secret
+
+El sistema utiliza el **system password** como secret para firmar los JWT tokens. Esto proporciona:
+
+- ✅ **Secret único por instalación** - Cada sistema tiene su propio secret
+- ✅ **Configurable por el usuario** - Se establece durante el first-run wizard
+- ✅ **Sin hardcoding** - No hay secretos en el código fuente
+- ✅ **Alta entropía** - El system password es un hash SHA-256
+
+**Ventajas:**
+1. Cada instalación de Nuevo Galeno tiene su propio JWT secret único
+2. Si cambias el system password, automáticamente cambias el JWT secret
+3. Los tokens generados en una instalación no son válidos en otra
+4. No necesitas configuración adicional
+
+**Consideración importante:**
+Si cambias el system password, todos los JWT tokens existentes se invalidan automáticamente, requiriendo que los usuarios remotos hagan login nuevamente.
+
+### Fallback Secret
+
+Si por alguna razón el system password no está configurado (nunca debería ocurrir en instalaciones normales), el sistema usa un secret por defecto como fallback:
+
+```rust
+const FALLBACK_JWT_SECRET: &str = "NUEVO_GALENO_DEFAULT_SECRET_CHANGE_SYSTEM_PASSWORD";
+```
+
+Este fallback solo se usa durante desarrollo o en casos excepcionales.
+
 ### ¿Por qué PIN no está disponible en modo remoto?
 
 Los PINs son convenientes pero menos seguros que passwords:
@@ -132,36 +160,31 @@ Por estas razones, **PIN solo funciona en modo local** donde el acceso físico a
 
 ### Mejores Prácticas
 
-**Para Desarrollo:**
-```rust
-// src-tauri/src/services/auth.rs
-const JWT_SECRET: &str = "NUEVO_GALENO_JWT_SECRET_CHANGE_IN_PRODUCTION";
-```
+**Sistema de Producción:**
+1. ✅ **Establecer un system password fuerte** durante el wizard inicial
+2. ✅ **Usar HTTPS** siempre para conexiones remotas
+3. ✅ **Cambiar system password periódicamente** (invalida tokens existentes)
+4. ✅ **Mantener secret el system password** - no compartirlo
+5. ⚠️ **Recordar**: Cambiar system password invalida todos los JWT tokens activos
 
-**Para Producción:**
-1. Cambiar `JWT_SECRET` a un valor aleatorio largo
-2. Usar variables de entorno:
-   ```bash
-   export GALENO_JWT_SECRET="your-very-long-random-secret-here"
-   ```
-3. **Siempre usar HTTPS** para transmisión de passwords y tokens
-4. Considerar reducir el tiempo de expiración de tokens
-5. Implementar rotación de tokens (refresh tokens)
+**NO es necesario:**
+- ❌ Configurar JWT secret manualmente (usa system password automáticamente)
+- ❌ Variables de entorno adicionales
+- ❌ Compilar con secrets especiales
 
-### Configuración del Secret
+### Rotación de Tokens
 
-Para cambiar el JWT secret en producción:
+Cuando cambias el system password:
+1. Todos los JWT tokens actuales se invalidan
+2. Los usuarios remotos deben hacer login nuevamente
+3. Se generarán nuevos tokens con el nuevo secret
+4. Esto es útil para "desconectar a todos" en caso de seguridad comprometida
 
-1. Editar `src-tauri/src/services/auth.rs`:
-   ```rust
-   const JWT_SECRET: &str = env!("GALENO_JWT_SECRET");
-   ```
+### Configuración del Secret (Ya no necesario)
 
-2. Al compilar, proveer la variable:
-   ```bash
-   export GALENO_JWT_SECRET="your-secret-here"
-   cargo build --release
-   ```
+~~Para cambiar el JWT secret en producción~~
+
+**Ya no es necesario configurar el JWT secret manualmente.** El sistema usa automáticamente el system password configurado en el wizard inicial.
 
 ## Implementación en el Cliente
 
@@ -212,11 +235,24 @@ Orden de verificación:
 
 ### "Token inválido"
 
-- El token puede haber expirado (24 horas)
-- El JWT secret cambió en el servidor
+**Causas posibles:**
+- El token expiró (24 horas de validez)
+- El **system password cambió** en el servidor (invalida todos los tokens)
 - El token está malformado
+- Se está conectando a un servidor diferente
 
 **Solución**: Hacer login nuevamente
+
+### "System password no configurado"
+
+Esto solo debería ocurrir si:
+- El wizard inicial no se completó correctamente
+- La base de datos se corrompió
+
+**Solución**: 
+1. Completar el wizard inicial
+2. Configurar un system password
+3. Reintentar login remoto
 
 ### "PIN no disponible en modo remoto"
 
