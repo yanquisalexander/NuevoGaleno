@@ -1,15 +1,3 @@
-minimizeOnClose:
-  type: boolean
-  default: true
-  description: Minimizá la ventana principal cuando el usuario cierra la app.
-  ui_section: General
-
-enableDesktopNotifications:
-  type: boolean
-  default: true
-  description: Mostrar notificaciones de escritorio para eventos críticos.
-  ui_section: General
-
 showAccountSelector:
   type: boolean
   default: true
@@ -28,12 +16,5 @@ enforceSystemPasswordForImports:
   type: boolean
   default: false
   description: Requiere contraseña del sistema al ejecutar importaciones masivas.
-  ui_section: Sistema
-  admin_only: true
-
-enableVerboseLogging:
-  type: boolean
-  default: false
-  description: Generar logs detallados para auditoría.
   ui_section: Sistema
   admin_only: true
