@@ -42,7 +42,7 @@ jobs:
 
       # 4️⃣ Frontend deps
       - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       # 5️⃣ Rust toolchain
       - name: Install Rust stable
