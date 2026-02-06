@@ -16,6 +16,7 @@ import AppointmentsApp from './Appointments';
 import { GalenoUpdateApp } from './GalenoUpdate';
 import { TreatmentCatalogApp } from './TreatmentCatalog';
 import { MiGalenoApp } from './MiGaleno';
+import { NodeConfigApp } from './NodeConfig';
 import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
@@ -31,6 +32,7 @@ export { GalenoUpdateApp } from './GalenoUpdate';
 export { UserAccountsApp } from './UserAccounts';
 export { TreatmentCatalogApp } from './TreatmentCatalog';
 export { MiGalenoApp } from './MiGaleno';
+export { NodeConfigApp } from './NodeConfig';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -164,5 +166,14 @@ export const APP_DEFINITIONS = [
         defaultSize: { width: 960, height: 600 },
         component: MiGalenoApp,
         requiresAdmin: true,
+    },
+    {
+        id: 'node-config',
+        name: 'Configuración Multi-Nodo',
+        icon: '🌐',
+        allowMultipleInstances: false,
+        defaultSize: { width: 800, height: 600 },
+        component: NodeConfigApp,
+        showOnDesktop: false,
     },
 ];

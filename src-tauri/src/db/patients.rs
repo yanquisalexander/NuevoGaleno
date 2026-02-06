@@ -50,6 +50,22 @@ pub struct UpdatePatientInput {
     pub medical_notes: Option<String>,
 }
 
+impl UpdatePatientInput {
+    /// Check if at least one field is set for update
+    pub fn has_any_field(&self) -> bool {
+        self.first_name.is_some()
+            || self.last_name.is_some()
+            || self.document_number.is_some()
+            || self.phone.is_some()
+            || self.email.is_some()
+            || self.birth_date.is_some()
+            || self.gender.is_some()
+            || self.blood_type.is_some()
+            || self.allergies.is_some()
+            || self.medical_notes.is_some()
+    }
+}
+
 pub fn create_patient(input: CreatePatientInput) -> Result<i64, String> {
     let conn = get_connection()?;
     let now = Utc::now().to_rfc3339();

@@ -1,11 +1,14 @@
 // Modular Tauri commands: wizard (db/config) and importer (gln handling)
+mod api;
 mod config;
 mod db;
 mod global;
 mod import_pipeline;
 mod importer;
 mod licensing;
+mod node;
 mod pxlib;
+mod services;
 mod session;
 mod wizard;
 
@@ -18,42 +21,51 @@ fn greet(name: &str) -> String {
 }
 
 // ===== PATIENTS COMMANDS =====
+// These commands are Tauri adapters that call the domain service layer
+
 #[tauri::command]
 fn get_patients(
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<Vec<db::patients::Patient>, String> {
-    db::patients::get_patients(limit, offset)
+    let service = services::patients::PatientService::new();
+    service.get_all(limit, offset).map_err(|e| e.into())
 }
 
 #[tauri::command]
 fn get_patient_by_id(id: i64) -> Result<Option<db::patients::Patient>, String> {
-    db::patients::get_patient_by_id(id)
+    let service = services::patients::PatientService::new();
+    service.get_by_id(id).map_err(|e| e.into())
 }
 
 #[tauri::command]
 fn create_patient(input: db::patients::CreatePatientInput) -> Result<i64, String> {
-    db::patients::create_patient(input)
+    let service = services::patients::PatientService::new();
+    service.create(input).map_err(|e| e.into())
 }
 
 #[tauri::command]
 fn update_patient(id: i64, input: db::patients::UpdatePatientInput) -> Result<(), String> {
-    db::patients::update_patient(id, input)
+    let service = services::patients::PatientService::new();
+    service.update(id, input).map_err(|e| e.into())
 }
 
 #[tauri::command]
 fn delete_patient(id: i64) -> Result<(), String> {
-    db::patients::delete_patient(id)
+    let service = services::patients::PatientService::new();
+    service.delete(id).map_err(|e| e.into())
 }
 
 #[tauri::command]
 fn search_patients(query: String) -> Result<Vec<db::patients::Patient>, String> {
-    db::patients::search_patients(&query)
+    let service = services::patients::PatientService::new();
+    service.search(&query).map_err(|e| e.into())
 }
 
 #[tauri::command]
 fn get_patients_count() -> Result<i64, String> {
-    db::patients::get_patients_count()
+    let service = services::patients::PatientService::new();
+    service.get_count().map_err(|e| e.into())
 }
 
 // ===== TREATMENTS COMMANDS =====
@@ -561,6 +573,32 @@ fn start_trial(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ===== NODE CONFIGURATION COMMANDS =====
+#[tauri::command]
+fn get_node_config() -> Result<node::NodeConfig, String> {
+    node::config::load_node_config()
+}
+
+#[tauri::command]
+fn set_node_config(config: node::NodeConfig) -> Result<(), String> {
+    node::config::save_node_config(&config)
+}
+
+#[tauri::command]
+async fn start_api_server(config: node::HostConfig) -> Result<(), String> {
+    api::server::start_api_server(config).await
+}
+
+#[tauri::command]
+async fn stop_api_server() -> Result<(), String> {
+    api::server::stop_api_server().await
+}
+
+#[tauri::command]
+async fn is_api_server_running() -> Result<bool, String> {
+    Ok(api::server::is_api_server_running().await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let logs_dir = db::path::get_app_data_dir()
@@ -732,6 +770,12 @@ pub fn run() {
             get_license_status,
             start_trial,
             get_lemon_squeezy_config,
+            // node configuration
+            get_node_config,
+            set_node_config,
+            start_api_server,
+            stop_api_server,
+            is_api_server_running,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

@@ -1,4 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
+// Patient hooks - Now uses the unified Galeno client
+// Automatically works with both local and remote backends
+
+import { useGalenoClient } from './useGalenoClient';
 
 export interface Patient {
     id: number;
@@ -43,30 +46,63 @@ export interface UpdatePatientInput {
     medical_notes?: string;
 }
 
+// Hook for patient operations
+export function usePatients() {
+    const client = useGalenoClient();
+
+    return {
+        getPatients: (limit?: number, offset?: number) => client.getPatients(limit, offset),
+        getPatientById: (id: number) => client.getPatientById(id),
+        createPatient: (input: CreatePatientInput) => client.createPatient(input),
+        updatePatient: (id: number, input: UpdatePatientInput) => client.updatePatient(id, input),
+        deletePatient: (id: number) => client.deletePatient(id),
+        searchPatients: (query: string) => client.searchPatients(query),
+        getPatientsCount: () => client.getPatientsCount(),
+    };
+}
+
+// Legacy exports for backward compatibility
+// ⚠️ DEPRECATED: These functions use a default local client and do not respond to node configuration changes.
+// For new code, use the usePatients() hook which respects the active node context.
+// These are kept for backward compatibility only.
+
+import { createGalenoClient } from '../lib/galeno-client';
+
+// Create a default client (local mode)
+const defaultClient = createGalenoClient({ mode: 'local', nodeName: 'default' });
+
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function getPatients(limit?: number, offset?: number): Promise<Patient[]> {
-    return invoke('get_patients', { limit, offset });
+    return defaultClient.getPatients(limit, offset);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function getPatientById(id: number): Promise<Patient | null> {
-    return invoke('get_patient_by_id', { id });
+    return defaultClient.getPatientById(id);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function createPatient(input: CreatePatientInput): Promise<number> {
-    return invoke('create_patient', { input });
+    return defaultClient.createPatient(input);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function updatePatient(id: number, input: UpdatePatientInput): Promise<void> {
-    return invoke('update_patient', { id, input });
+    return defaultClient.updatePatient(id, input);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function deletePatient(id: number): Promise<void> {
-    return invoke('delete_patient', { id });
+    return defaultClient.deletePatient(id);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function searchPatients(query: string): Promise<Patient[]> {
-    return invoke('search_patients', { query });
+    return defaultClient.searchPatients(query);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function getPatientsCount(): Promise<number> {
-    return invoke('get_patients_count');
+    return defaultClient.getPatientsCount();
 }
+
