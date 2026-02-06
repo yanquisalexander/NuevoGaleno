@@ -216,6 +216,19 @@ function NodeStatusIndicator() {
 
 ## Security Considerations
 
+### Authentication Methods
+
+**Local Mode:**
+- Password authentication with SHA-256 hashing
+- Optional PIN authentication (4-6 digits, numeric only)
+- Session stored in memory (Rust global state)
+
+**Remote Mode:**
+- JWT-based authentication (JSON Web Tokens)
+- Token expiration: 24 hours
+- Tokens are stateless and self-contained
+- **PIN authentication NOT supported** in remote mode (security consideration)
+
 ### API Token Security
 
 1. **Never hardcode tokens**: Use environment variables or secure storage
@@ -329,13 +342,93 @@ function NodeStatusIndicator() {
 
 ## API Reference
 
+### Authentication Endpoints
+
+#### POST /api/auth/login
+
+Authenticate a user and receive a JWT token.
+
+**Request Body:**
+```json
+{
+  "username": "doctor1",
+  "password": "mypassword"
+}
+```
+
+**Response (200):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "username": "doctor1",
+    "name": "Dr. John Doe",
+    "role": "doctor",
+    "active": true
+  }
+}
+```
+
+**Error (401):**
+```json
+{
+  "error": "Authentication failed",
+  "message": "Usuario no encontrado"
+}
+```
+
+**Notes:**
+- Password is sent in plain text over HTTPS (use HTTPS in production!)
+- JWT token is valid for 24 hours
+- Token must be used in subsequent requests
+
+#### GET /api/auth/verify
+
+Verify a JWT token is valid.
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Response (200):**
+```json
+{
+  "valid": true,
+  "user": {
+    "id": 1,
+    "username": "doctor1",
+    "name": "Dr. John Doe",
+    "role": "doctor",
+    "active": true
+  }
+}
+```
+
+**Response (401) - Invalid token:**
+```json
+{
+  "valid": false,
+  "user": null
+}
+```
+
 ### Authentication
 
-All endpoints require Bearer token authentication:
+All endpoints (except `/api/auth/login` and `/api/health`) require authentication. Two methods are supported:
 
+**Method 1: Static API Token (Host-to-Host)**
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <api-token>
 ```
+Use the token configured in the host's node configuration.
+
+**Method 2: JWT Token (User Authentication)**
+```
+Authorization: Bearer <jwt-token>
+```
+Use the JWT token received from `/api/auth/login`.
 
 ### Patients Endpoints
 

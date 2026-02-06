@@ -2,6 +2,7 @@
 // This layer contains all business logic and is independent of Tauri and HTTP adapters
 // Both tauri::command and HTTP routes should call these services
 
+pub mod auth;
 pub mod patients;
 
 use std::sync::Arc;

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSession } from '@/hooks/useSession';
 import { useNode } from '@/contexts/NodeContext';
+import { useGalenoClient } from '@/hooks/useGalenoClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -53,7 +54,8 @@ const Clock = () => {
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
     const { login, loginWithPin } = useSession();
-    const { setTemporaryRemoteConnection } = useNode();
+    const { setTemporaryRemoteConnection, activeContext } = useNode();
+    const client = useGalenoClient();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -121,11 +123,12 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         setLoading(true);
         try {
             let user: UserData;
-            if (isPinMode) {
+            // PIN solo funciona en modo local
+            if (isPinMode && activeContext?.mode !== 'remote') {
                 user = await loginWithPin(username, password) as UserData;
                 localStorage.setItem('lastLoginMode', 'pin');
             } else {
-                user = await login(username, password) as UserData;
+                user = await login(username, password, client) as UserData;
                 localStorage.setItem('lastLoginMode', 'password');
             }
             onLogin(user);
@@ -403,7 +406,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                                 </Button>
 
                                 <div className="flex flex-col gap-2 pt-4">
-                                    {selectedUser?.pin && (
+                                    {selectedUser?.pin && activeContext?.mode !== 'remote' && (
                                         <button
                                             type="button"
                                             onClick={() => { setIsPinMode(!isPinMode); setPassword(''); }}
@@ -411,6 +414,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                                         >
                                             {isPinMode ? 'Usar contraseña' : 'Usar PIN de acceso'}
                                         </button>
+                                    )}
+                                    {activeContext?.mode === 'remote' && selectedUser?.pin && (
+                                        <div className="text-[10px] text-white/30 text-center py-1">
+                                            PIN no disponible en modo remoto
+                                        </div>
                                     )}
                                     <button
                                         type="button"

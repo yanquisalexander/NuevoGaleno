@@ -50,9 +50,38 @@ export interface UpdatePatientInput {
   medical_notes?: string;
 }
 
+export interface LoginResponse {
+  token?: string;  // JWT token (only for remote)
+  user: {
+    id: number;
+    username: string;
+    name: string;
+    role: string;
+    pin?: string;
+    active: boolean;
+  };
+}
+
+export interface VerifyResponse {
+  valid: boolean;
+  user?: {
+    id: number;
+    username: string;
+    name: string;
+    role: string;
+    active: boolean;
+  };
+}
+
 // ===== CLIENT INTERFACE =====
 
 export interface GalenoClient {
+  // Authentication (PIN only for local)
+  login(username: string, password: string): Promise<LoginResponse>;
+  loginWithPin?(username: string, pin: string): Promise<LoginResponse>;
+  verifySession(): Promise<boolean>;
+  logout(): Promise<void>;
+
   // Patients
   getPatients(limit?: number, offset?: number): Promise<Patient[]>;
   getPatientById(id: number): Promise<Patient | null>;
@@ -66,6 +95,40 @@ export interface GalenoClient {
 // ===== LOCAL ADAPTER (Tauri invoke) =====
 
 export class LocalGalenoClient implements GalenoClient {
+  // Authentication
+  async login(username: string, password: string): Promise<LoginResponse> {
+    const pwBuffer = new TextEncoder().encode(password);
+    const hashBuf = await crypto.subtle.digest('SHA-256', pwBuffer);
+    const hashHex = Array.from(new Uint8Array(hashBuf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    const user = await invoke<any>('login_user', {
+      username,
+      passwordHash: hashHex,
+    });
+
+    return { user };
+  }
+
+  async loginWithPin(username: string, pin: string): Promise<LoginResponse> {
+    const user = await invoke<any>('login_with_pin', { username, pin });
+    return { user };
+  }
+
+  async verifySession(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('verify_session');
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async logout(): Promise<void> {
+    await invoke('logout_user');
+  }
+
+  // Patients
   async getPatients(limit?: number, offset?: number): Promise<Patient[]> {
     return await invoke<Patient[]>('get_patients', { limit, offset });
   }
@@ -100,6 +163,7 @@ export class LocalGalenoClient implements GalenoClient {
 export class RemoteGalenoClient implements GalenoClient {
   private baseUrl: string;
   private authToken: string;
+  private jwtToken?: string; // JWT token after login
 
   constructor(baseUrl: string, authToken: string) {
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -112,9 +176,11 @@ export class RemoteGalenoClient implements GalenoClient {
     body?: any
   ): Promise<T> {
     const url = `${this.baseUrl}/api${path}`;
+    // Use JWT token if available, otherwise use static API token
+    const token = this.jwtToken || this.authToken;
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.authToken}`,
+      'Authorization': `Bearer ${token}`,
     };
 
     const response = await fetch(url, {
@@ -179,6 +245,39 @@ export class RemoteGalenoClient implements GalenoClient {
   async getPatientsCount(): Promise<number> {
     const result = await this.request<{ count: number }>('GET', '/patients/count');
     return result.count;
+  }
+
+  // Authentication (remote uses JWT, no PIN support)
+  async login(username: string, password: string): Promise<LoginResponse> {
+    const response = await this.request<LoginResponse>('POST', '/auth/login', {
+      username,
+      password,
+    });
+
+    // Store JWT token for future requests
+    if (response.token) {
+      this.jwtToken = response.token;
+    }
+
+    return response;
+  }
+
+  async verifySession(): Promise<boolean> {
+    if (!this.jwtToken) {
+      return false;
+    }
+
+    try {
+      const response = await this.request<VerifyResponse>('GET', '/auth/verify');
+      return response.valid;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async logout(): Promise<void> {
+    // Clear JWT token
+    this.jwtToken = undefined;
   }
 }
 

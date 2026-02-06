@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+
 interface User {
     id: number;
     username: string;
@@ -13,14 +14,14 @@ interface SessionContextType {
     isLoading: boolean;
     isLocked: boolean;
     sessionDuration: number | null;
-    login: (username: string, password: string) => Promise<User>;
+    login: (username: string, password: string, client: any) => Promise<User>;
     loginWithPin: (username: string, pin: string) => Promise<User>;
     lockScreen: () => void;
     unlock: (password: string, isPin: boolean) => Promise<void>;
-    logout: () => Promise<void>;
+    logout: (client: any) => Promise<void>;
     setPin: (pin: string) => Promise<void>;
     removePin: () => Promise<void>;
-    verifySession: () => Promise<boolean>;
+    verifySession: (client: any) => Promise<boolean>;
     exitApp: () => Promise<void>;
     refreshSession: () => Promise<void>;
 }
@@ -67,17 +68,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return () => clearInterval(interval);
     }, [loadSessionDuration]);
 
-    const login = async (username: string, password: string): Promise<User> => {
-        const pwBuffer = new TextEncoder().encode(password);
-        const hashBuf = await crypto.subtle.digest('SHA-256', pwBuffer);
-        const hashHex = Array.from(new Uint8Array(hashBuf))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('');
-
-        const user = await invoke<User>('login_user', {
-            username,
-            passwordHash: hashHex,
-        });
+    const login = async (username: string, password: string, client: any): Promise<User> => {
+        const response = await client.login(username, password);
+        const user = response.user;
 
         setCurrentUser(user);
         setIsLocked(false);
@@ -86,6 +79,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
 
     const loginWithPin = async (username: string, pin: string): Promise<User> => {
+        // PIN solo funciona en modo local
         const user = await invoke<User>('login_with_pin', {
             username,
             pin,
@@ -128,8 +122,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const logout = async () => {
-        await invoke('logout_user');
+    const logout = async (client: any) => {
+        await client.logout();
         // Emitir evento para que WindowManager cierre todas las ventanas
         window.dispatchEvent(new CustomEvent('session:logout'));
         setCurrentUser(null);
@@ -151,9 +145,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(updatedUser);
     };
 
-    const verifySession = async (): Promise<boolean> => {
+    const verifySession = async (client: any): Promise<boolean> => {
         try {
-            return await invoke<boolean>('verify_session');
+            return await client.verifySession();
         } catch (error) {
             return false;
         }

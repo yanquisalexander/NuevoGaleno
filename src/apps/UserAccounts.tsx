@@ -3,9 +3,11 @@ import { User, Shield, KeyRound, LogOut, Check, X, ChevronRight } from 'lucide-r
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/hooks/useSession';
+import { useGalenoClient } from '@/hooks/useGalenoClient';
 
 export function UserAccountsApp() {
     const { currentUser, setPin, removePin, logout } = useSession();
+    const client = useGalenoClient();
 
     const [isSettingPin, setIsSettingPin] = useState(false);
     const [newPin, setNewPin] = useState('');
@@ -179,7 +181,7 @@ export function UserAccountsApp() {
                     <h3 className="text-[14px] font-semibold text-white/90 ml-1">Acciones de cuenta</h3>
                     <div className="bg-[#2d2d2d]/60 border border-white/[0.06] rounded-md overflow-hidden">
                         <button
-                            onClick={logout}
+                            onClick={() => logout(client)}
                             className="w-full p-4 flex items-center justify-between hover:bg-white/[0.04] transition-all group active:scale-[0.998]"
                         >
                             <div className="flex items-center gap-4 text-left">

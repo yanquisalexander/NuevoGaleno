@@ -10,6 +10,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::db::patients::{CreatePatientInput, Patient, UpdatePatientInput};
+use crate::services::auth::{AuthService, LoginRequest};
 use crate::services::patients::PatientService;
 
 /// Health check endpoint
@@ -35,6 +36,96 @@ pub struct PaginationQuery {
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
     pub q: String,
+}
+
+// ===== AUTH ROUTES =====
+
+/// POST /api/auth/login - Authenticate and get JWT token
+pub async fn login(Json(req): Json<LoginRequest>) -> impl IntoResponse {
+    let service = AuthService::new();
+    match service.login(req.username, req.password) {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+        Err(e) => (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "Authentication failed",
+                "message": e
+            })),
+        )
+            .into_response(),
+    }
+}
+
+/// Response for token verification
+#[derive(Serialize)]
+pub struct VerifyResponse {
+    pub valid: bool,
+    pub user: Option<crate::db::users::User>,
+}
+
+/// GET /api/auth/verify - Verify JWT token (requires Authorization header)
+pub async fn verify_token(
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    // Extract token from Authorization header
+    let token = match headers.get("Authorization") {
+        Some(value) => match value.to_str() {
+            Ok(header) => {
+                if header.starts_with("Bearer ") {
+                    &header[7..]
+                } else {
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        Json(VerifyResponse {
+                            valid: false,
+                            user: None,
+                        }),
+                    )
+                        .into_response();
+                }
+            }
+            Err(_) => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(VerifyResponse {
+                        valid: false,
+                        user: None,
+                    }),
+                )
+                    .into_response();
+            }
+        },
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(VerifyResponse {
+                    valid: false,
+                    user: None,
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let service = AuthService::new();
+    match service.verify_token(token) {
+        Ok(user) => (
+            StatusCode::OK,
+            Json(VerifyResponse {
+                valid: true,
+                user: Some(user),
+            }),
+        )
+            .into_response(),
+        Err(_) => (
+            StatusCode::UNAUTHORIZED,
+            Json(VerifyResponse {
+                valid: false,
+                user: None,
+            }),
+        )
+            .into_response(),
+    }
 }
 
 // ===== PATIENT ROUTES =====
@@ -133,6 +224,10 @@ pub async fn get_patients_count() -> impl IntoResponse {
 pub fn patient_routes() -> Router {
     Router::new()
         .route("/health", axum::routing::get(health_check))
+        // Auth routes (no authentication required for login)
+        .route("/auth/login", axum::routing::post(login))
+        .route("/auth/verify", axum::routing::get(verify_token))
+        // Patient routes (authentication required via middleware)
         .route("/patients", axum::routing::get(get_patients))
         .route("/patients", axum::routing::post(create_patient))
         .route("/patients/search", axum::routing::get(search_patients))
