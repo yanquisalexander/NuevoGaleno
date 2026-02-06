@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Treatment, getTreatmentsByPatient, createTreatment, updateTreatment } from '../../hooks/useTreatments';
+import { Treatment, getTreatmentsByPatient, createTreatment, updateTreatment, updateTreatmentStatus } from '../../hooks/useTreatments';
 import { TreatmentForm } from './TreatmentForm';
+import { AddGeneralTreatmentDialog } from './AddGeneralTreatmentDialog';
 import { Stethoscope, DollarSign, Calendar, Plus, Edit } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
 
 interface TreatmentListProps {
@@ -10,9 +12,33 @@ interface TreatmentListProps {
     onSelectTreatment?: (treatment: Treatment) => void;
 }
 
+// Componente StatusSelect fuera para evitar recreaciones
+const StatusSelect = ({ current, onChange }: { current: string, onChange: (s: string) => void }) => (
+    <Select value={current} onValueChange={onChange}>
+        <SelectTrigger className="text-xs bg-white/5 border-white/10 rounded-md h-8 w-[140px] text-white/80">
+            <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="bg-[#1e1e1e] border-white/10">
+            <SelectItem value="Pending" className="text-yellow-500 focus:bg-yellow-500/10 focus:text-yellow-400">
+                Por Hacer
+            </SelectItem>
+            <SelectItem value="InProgress" className="text-blue-500 focus:bg-blue-500/10 focus:text-blue-400">
+                En Proceso
+            </SelectItem>
+            <SelectItem value="Completed" className="text-green-500 focus:bg-green-500/10 focus:text-green-400">
+                Terminado
+            </SelectItem>
+            <SelectItem value="Cancelled" className="text-red-500 focus:bg-red-500/10 focus:text-red-400">
+                Cancelado
+            </SelectItem>
+        </SelectContent>
+    </Select>
+);
+
 export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListProps) {
     const [treatments, setTreatments] = useState<Treatment[]>([]);
     const [isLoading, setIsLoading] = useState(true); const [showForm, setShowForm] = useState(false);
+    const [showCatalogDialog, setShowCatalogDialog] = useState(false);
     const [selectedTreatment, setSelectedTreatment] = useState<Treatment | null>(null);
     useEffect(() => {
         loadTreatments();
@@ -55,34 +81,21 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
         }
     };
 
-    const StatusSelect = ({ current, onChange }: { current: string, onChange: (s: any) => void }) => (
-        <select
-            value={current}
-            onChange={(e) => onChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs bg-white/5 border border-white/10 rounded-md py-1 pl-2 pr-8 focus:ring-2 focus:ring-blue-500/20 focus:outline-none appearance-none cursor-pointer hover:bg-white/10 transition-colors text-white/80"
-            style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: 'right 0.25rem center',
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: '1.25em 1.25em',
-            }}
-        >
-            <option value="Pending" className="bg-[#1e1e1e] text-yellow-500">Por Hacer</option>
-            <option value="InProgress" className="bg-[#1e1e1e] text-blue-500">En Proceso</option>
-            <option value="Completed" className="bg-[#1e1e1e] text-green-500">Terminado</option>
-            <option value="Cancelled" className="bg-[#1e1e1e] text-red-500">Cancelado</option>
-        </select>
-    );
-
     const handleQuickStatusChange = async (treatment: Treatment, newStatus: string) => {
+        console.log('Cambiando estado de', treatment.id, 'a', newStatus);
         try {
-            setTreatments(prev => prev.map(t => t.id === treatment.id ? { ...t, status: newStatus as any } : t));
-            await updateTreatment(treatment.id, { ...treatment, status: newStatus as any });
+            // Actualización optimista en la UI
+            setTreatments(prev => prev.map(t =>
+                t.id === treatment.id ? { ...t, status: newStatus as any } : t
+            ));
+
+            // Llamada al backend
+            await updateTreatmentStatus(treatment.id, newStatus);
             toast.success('Estado actualizado');
         } catch (error) {
-            console.error('Error updating status:', error);
+            console.error('Error actualizando estado:', error);
             toast.error('Error al actualizar estado');
+            // Revertir cambio optimista
             loadTreatments();
         }
     };
@@ -105,7 +118,7 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
                     <p className="text-base font-medium mb-2 text-white/80">No hay tratamientos registrados</p>
                     <p className="text-sm mb-6 text-white/50 max-w-sm text-center">Comienza registrando un nuevo tratamiento para este paciente para llevar un seguimiento detallado.</p>
                     <button
-                        onClick={() => setShowForm(true)}
+                        onClick={() => setShowCatalogDialog(true)}
                         className="flex items-center gap-2 px-6 py-2.5 bg-[#0067c0] hover:bg-[#0074d9] active:bg-[#005a9e] text-white rounded-lg font-medium shadow-lg shadow-blue-500/20 transition-all border border-white/10"
                     >
                         <Plus className="w-4 h-4" />
@@ -134,7 +147,7 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
                     </div>
                 </div>
                 <button
-                    onClick={() => setShowForm(true)}
+                    onClick={() => setShowCatalogDialog(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-[#0067c0] hover:bg-[#0074d9] active:bg-[#005a9e] text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/10 transition-all border border-white/10 hover:scale-[1.02] active:scale-[0.98]"
                 >
                     <Plus className="w-4 h-4" />
@@ -172,10 +185,13 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
                                     </div>
 
                                     {/* Inline Status Changer */}
-                                    <div className="flex items-center gap-3 mt-3">
+                                    <div className="flex items-center gap-3 mt-3" onClick={(e) => e.stopPropagation()}>
                                         <StatusSelect
                                             current={treatment.status}
-                                            onChange={(val) => handleQuickStatusChange(treatment, val)}
+                                            onChange={(val) => {
+                                                console.log('🔵 onChange disparado:', val);
+                                                handleQuickStatusChange(treatment, val);
+                                            }}
                                         />
                                         <div className="h-4 w-px bg-white/10"></div>
                                         {treatment.completion_date && (
@@ -253,6 +269,16 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
                     }}
                 />
             )}
+
+            {/* Diálogo de Catálogo */}
+            <AddGeneralTreatmentDialog
+                isOpen={showCatalogDialog}
+                onClose={() => setShowCatalogDialog(false)}
+                patientId={patientId}
+                onSuccess={() => {
+                    loadTreatments();
+                }}
+            />
         </div>
     );
 }

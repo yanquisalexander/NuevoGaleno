@@ -16,6 +16,7 @@ import AppointmentsApp from './Appointments';
 import { GalenoUpdateApp } from './GalenoUpdate';
 import { TreatmentCatalogApp } from './TreatmentCatalog';
 import { MiGalenoApp } from './MiGaleno';
+import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -54,6 +55,7 @@ export const APP_DEFINITIONS = [
         id: 'patients',
         name: 'Pacientes',
         icon: '👥',
+        iconComponent: PeopleListColor,
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: PatientsApp,
@@ -88,6 +90,7 @@ export const APP_DEFINITIONS = [
         id: 'treatment-catalog',
         name: 'Catálogo de Tratamientos',
         icon: '📋',
+        iconComponent: DocumentFolderColor,
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: TreatmentCatalogApp,
@@ -96,6 +99,7 @@ export const APP_DEFINITIONS = [
         id: 'appointments',
         name: 'Agenda de Citas',
         icon: '📅',
+        iconComponent: CalendarColor,
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: AppointmentsApp,
@@ -104,6 +108,7 @@ export const APP_DEFINITIONS = [
         id: 'settings',
         name: 'Configuración',
         icon: '⚙️',
+        iconComponent: SettingsColor,
         allowMultipleInstances: false,
         defaultSize: { width: 900, height: 650 },
         component: ConfigurationApp,

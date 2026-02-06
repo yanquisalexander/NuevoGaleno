@@ -23,6 +23,7 @@ import { TreatmentPayments } from '../components/payments/TreatmentPayments';
 import { BalanceCard } from '../components/payments/BalanceCard';
 import { OdontogramAdvanced } from '../components/odontogram/OdontogramAdvanced';
 import { MedicalView } from '../components/patients/MedicalView';
+import { AddGeneralTreatmentDialog } from '../components/treatments/AddGeneralTreatmentDialog';
 import { useAppMenuBar } from '../hooks/useAppMenuBar';
 import { useMedicalView } from '../hooks/useMedicalView';
 import type { WindowId } from '../types/window-manager';
@@ -33,6 +34,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
     const [patient, setPatient] = useState<Patient | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram'>('info');
+    const [showAddTreatmentDialog, setShowAddTreatmentDialog] = useState(false);
     const patientId = data?.patientId;
 
     // Hook para la vista médica personalizada
@@ -186,8 +188,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                             type: 'item',
                             shortcut: '⌘T',
                             action: () => {
-                                setActiveTab('treatments');
-                                toast.info('Crear nuevo tratamiento');
+                                setShowAddTreatmentDialog(true);
                             },
                         },
                         {
@@ -490,6 +491,19 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                     )}
                 </motion.div>
             </div>
+
+            {/* Diálogo de Agregar Tratamiento */}
+            {patientId && (
+                <AddGeneralTreatmentDialog
+                    isOpen={showAddTreatmentDialog}
+                    onClose={() => setShowAddTreatmentDialog(false)}
+                    patientId={patientId}
+                    onSuccess={() => {
+                        loadPatient();
+                        setActiveTab('treatments');
+                    }}
+                />
+            )}
         </div>
     );
 }

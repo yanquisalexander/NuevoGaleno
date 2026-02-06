@@ -1,5 +1,7 @@
 // Types for the Window Manager System
 
+import React from "react";
+
 export type WindowId = string;
 
 export interface WindowState {
@@ -19,6 +21,7 @@ export interface WindowState {
 export interface AppDefinition {
     id: string;
     name: string;
+    iconComponent?: React.ComponentType<any>;
     icon: string;
     allowMultipleInstances: boolean;
     defaultSize?: { width: number; height: number };

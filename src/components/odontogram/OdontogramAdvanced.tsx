@@ -18,6 +18,7 @@ import { createTreatment } from '../../hooks/useTreatments';
 import { motion, AnimatePresence } from 'motion/react';
 import { Baby, User as UserIcon, Save, X, CheckCircle2, Clock, Loader2, XCircle, Eye, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { IndependentTreatments } from './IndependentTreatments';
 
 interface OdontogramProps {
     patientId: number;
@@ -827,6 +828,9 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Tratamientos Generales / Independientes */}
+            <IndependentTreatments patientId={patientId} onRefresh={loadData} />
         </div>
     );
 }

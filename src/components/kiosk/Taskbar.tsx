@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RotateCw, RotateCcwIcon, RefreshCcwIcon } from 'lucide-react';
+import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RefreshCcwIcon } from 'lucide-react';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useSession } from '@/hooks/useSession';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useShell } from '@/contexts/ShellContext';
 import { LicenseStatusIndicator } from "../LicenseStatusIndicator";
 import { Clock } from './Clock';
+
 
 interface SystemInfo {
     batteryLevel: number;
@@ -36,6 +37,8 @@ export function Taskbar() {
         isCharging: false,
         batteryAvailable: false
     });
+
+
 
     // Batería
     useEffect(() => {
@@ -132,7 +135,11 @@ export function Taskbar() {
                                         className={`relative h-10 w-10 flex items-center justify-center rounded-[4px] transition-colors ${window.isFocused && !window.isMinimized ? 'bg-white/10' : 'hover:bg-white/10'
                                             }`}
                                     >
-                                        <span className="text-2xl">{app.icon}</span>
+                                        {
+                                            app.iconComponent
+                                                ? <app.iconComponent fontSize={24} />
+                                                : <span className="text-2xl">{app.icon}</span>
+                                        }
 
                                         {/* Indicador inferior (Pill) */}
                                         <motion.div
@@ -196,20 +203,41 @@ export function Taskbar() {
                         )}
                     </motion.button>
 
-                    <LicenseStatusIndicator />
-
-
-                    <motion.button
+                    {/* System Tray - Agrupa WiFi, Volume, Battery, License */}
+                    <motion.div
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                         className="flex items-center gap-2 px-2 h-10 rounded-[4px] transition-colors"
                     >
-                        <Wifi className="w-4 h-4 text-white/90" />
-                        <Volume2 className="w-4 h-4 text-white/90" />
+
+                        {/* License Status como parte del system tray */}
+                        <div className="flex items-center">
+                            <LicenseStatusIndicator />
+                        </div>
+
+                        {/* Separador sutil */}
+                        <div className="w-px h-4 bg-white/10 mx-0.5" />
+
+                        <button
+
+                            className="p-1 rounded transition-colors"
+                        >
+                            <Wifi className="w-4 h-4 text-white/90" />
+                        </button>
+
+                        <button
+
+                            className="p-1  rounded transition-colors"
+                        >
+                            <Volume2 className="w-4 h-4 text-white/90" />
+                        </button>
+
                         <div className="flex items-center gap-1">
                             {systemInfo.isCharging ? <BatteryCharging className="w-4 h-4 text-green-400" /> : <Battery className="w-4 h-4 text-white/90" />}
                             <span className="text-[11px] text-white/90 font-medium">{systemInfo.batteryLevel}%</span>
                         </div>
-                    </motion.button>
+
+
+                    </motion.div>
 
                     <Clock
                         showCalendar={showCalendar}
@@ -261,8 +289,12 @@ export function Taskbar() {
                                                 onClick={() => { openWindow(app.id); setShowStartMenu(false); }}
                                                 className="flex flex-col items-center gap-2 group"
                                             >
-                                                <div className="w-10 h-10 flex items-center justify-center text-3xl transition-transform">
-                                                    {app.icon}
+                                                <div className="w-10 h-10 flex items-center justify-center transition-transform">
+                                                    {
+                                                        app.iconComponent
+                                                            ? <app.iconComponent fontSize={32} />
+                                                            : <span className="text-3xl">{app.icon}</span>
+                                                    }
                                                 </div>
                                                 <span className="text-[11px] text-white/90 text-center line-clamp-1 w-16">{app.name}</span>
                                             </motion.button>
@@ -309,6 +341,8 @@ export function Taskbar() {
                 </AnimatePresence>,
                 document.body
             )}
+
+
         </>
     );
 }

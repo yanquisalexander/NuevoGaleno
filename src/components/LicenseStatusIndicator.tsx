@@ -6,7 +6,6 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -19,7 +18,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Key, RefreshCw, Shield, ShieldCheck, ShieldAlert, ShieldX, Laptop2, LogOut, Clock } from 'lucide-react';
+import { Key, RefreshCw, ShieldAlert, Laptop2, LogOut, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LicenseActivationDialog } from './LicenseActivationDialog';
 import { FluentCertificate } from "@/icons/FluentCertificate";
@@ -92,19 +91,18 @@ export function LicenseStatusIndicator() {
                         variant="ghost"
                         size="icon"
                         className={cn(
-                            "h-10 w-10 rounded-[4px] relative transition-colors duration-200",
-                            "hover:bg-white/10 text-white/90 hover:text-white"
+                            "h-8 w-8 rounded-[4px] relative transition-colors duration-200",
+                            "hover:bg-transparent text-white/90 hover:text-white p-0"
                         )}
                         title={status.label}
                     >
                         {/* 1. El Icono Base (Neutro y limpio) */}
-                        <StatusIcon className="w-5 h-5" />
+                        <StatusIcon className="w-4 h-4" />
 
                         {/* 2. El "Dot" de Estado (Estático y nítido) */}
-                        {/* Usamos un borde del color del fondo para crear un espacio negativo alrededor del punto */}
                         <span className={cn(
-                            "absolute bottom-2 right-2 translate-x-[3px] translate-y-[3px]",
-                            "h-2.5 w-2.5 rounded-full border-[2px] border-[#1c1c1c]",
+                            "absolute bottom-1 right-1 translate-x-[2px] translate-y-[2px]",
+                            "h-1.5 w-1.5 rounded-full border border-[#1c1c1c]",
                             status.dotColor
                         )} />
                     </Button>

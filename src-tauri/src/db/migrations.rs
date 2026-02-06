@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 6;
+const CURRENT_SCHEMA_VERSION: i32 = 7;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -59,6 +59,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 6 {
         migrate_v6(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (6)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 7 {
+        migrate_v7(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (7)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -540,4 +546,23 @@ fn migrate_v6(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v6 err: {}", e))
+}
+
+/// Migración v7: Tratamientos independientes con íconos
+fn migrate_v7(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Agregar campos para mostrar tratamientos de forma independiente y con íconos
+        ALTER TABLE treatment_catalog ADD COLUMN show_independently INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE treatment_catalog ADD COLUMN icon TEXT;
+        ALTER TABLE treatment_catalog_items ADD COLUMN icon TEXT;
+
+        CREATE INDEX IF NOT EXISTS idx_treatment_catalog_independent ON treatment_catalog(show_independently);
+
+        -- Actualizar algunos tratamientos comunes para mostrarlos independientemente
+        UPDATE treatment_catalog SET show_independently = 1, icon = '🦷' WHERE name = 'Ortodoncia' OR category = 'Ortodoncia';
+        UPDATE treatment_catalog SET show_independently = 1, icon = '👄' WHERE name = 'Prótesis' OR category = 'Prótesis';
+        "#,
+    )
+    .map_err(|e| format!("migration v7 err: {}", e))
 }

@@ -12,6 +12,8 @@ pub struct TreatmentCatalogEntry {
     pub default_cost: f64,
     pub category: Option<String>,
     pub color: Option<String>,
+    pub icon: Option<String>,
+    pub show_independently: bool,
     pub is_active: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -25,6 +27,7 @@ pub struct TreatmentCatalogItem {
     pub description: Option<String>,
     pub default_cost: f64,
     pub color: Option<String>,
+    pub icon: Option<String>,
     pub is_active: bool,
     pub display_order: i32,
     pub created_at: String,
@@ -38,6 +41,8 @@ pub struct CreateTreatmentCatalogInput {
     pub default_cost: f64,
     pub category: Option<String>,
     pub color: Option<String>,
+    pub icon: Option<String>,
+    pub show_independently: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +53,8 @@ pub struct UpdateTreatmentCatalogInput {
     pub default_cost: f64,
     pub category: Option<String>,
     pub color: Option<String>,
+    pub icon: Option<String>,
+    pub show_independently: bool,
     pub is_active: bool,
 }
 
@@ -58,6 +65,7 @@ pub struct CreateTreatmentCatalogItemInput {
     pub description: Option<String>,
     pub default_cost: f64,
     pub color: Option<String>,
+    pub icon: Option<String>,
     pub display_order: i32,
 }
 
@@ -68,6 +76,7 @@ pub struct UpdateTreatmentCatalogItemInput {
     pub description: Option<String>,
     pub default_cost: f64,
     pub color: Option<String>,
+    pub icon: Option<String>,
     pub is_active: bool,
     pub display_order: i32,
 }
@@ -81,7 +90,7 @@ pub fn get_all_treatment_catalog() -> Result<Vec<TreatmentCatalogEntry>, String>
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, description, default_cost, category, color, is_active, created_at, updated_at
+            "SELECT id, name, description, default_cost, category, color, icon, show_independently, is_active, created_at, updated_at
              FROM treatment_catalog
              WHERE is_active = 1
              ORDER BY category, name",
@@ -97,9 +106,11 @@ pub fn get_all_treatment_catalog() -> Result<Vec<TreatmentCatalogEntry>, String>
                 default_cost: row.get(3)?,
                 category: row.get(4)?,
                 color: row.get(5)?,
-                is_active: row.get::<_, i32>(6)? == 1,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+                icon: row.get(6)?,
+                show_independently: row.get::<_, i32>(7)? == 1,
+                is_active: row.get::<_, i32>(8)? == 1,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -114,7 +125,7 @@ pub fn get_treatment_catalog_by_id(id: i64) -> Result<Option<TreatmentCatalogEnt
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, description, default_cost, category, color, is_active, created_at, updated_at
+            "SELECT id, name, description, default_cost, category, color, icon, show_independently, is_active, created_at, updated_at
              FROM treatment_catalog
              WHERE id = ?1",
         )
@@ -128,9 +139,11 @@ pub fn get_treatment_catalog_by_id(id: i64) -> Result<Option<TreatmentCatalogEnt
             default_cost: row.get(3)?,
             category: row.get(4)?,
             color: row.get(5)?,
-            is_active: row.get::<_, i32>(6)? == 1,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
+            icon: row.get(6)?,
+            show_independently: row.get::<_, i32>(7)? == 1,
+            is_active: row.get::<_, i32>(8)? == 1,
+            created_at: row.get(9)?,
+            updated_at: row.get(10)?,
         })
     });
 
@@ -146,14 +159,16 @@ pub fn create_treatment_catalog(input: CreateTreatmentCatalogInput) -> Result<i6
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO treatment_catalog (name, description, default_cost, category, color, is_active, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)",
+        "INSERT INTO treatment_catalog (name, description, default_cost, category, color, icon, show_independently, is_active, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9)",
         params![
             input.name,
             input.description,
             input.default_cost,
             input.category,
             input.color,
+            input.icon,
+            if input.show_independently { 1 } else { 0 },
             &now,
             &now,
         ],
@@ -169,14 +184,16 @@ pub fn update_treatment_catalog(input: UpdateTreatmentCatalogInput) -> Result<()
 
     conn.execute(
         "UPDATE treatment_catalog
-         SET name = ?1, description = ?2, default_cost = ?3, category = ?4, color = ?5, is_active = ?6, updated_at = ?7
-         WHERE id = ?8",
+         SET name = ?1, description = ?2, default_cost = ?3, category = ?4, color = ?5, icon = ?6, show_independently = ?7, is_active = ?8, updated_at = ?9
+         WHERE id = ?10",
         params![
             input.name,
             input.description,
             input.default_cost,
             input.category,
             input.color,
+            input.icon,
+            if input.show_independently { 1 } else { 0 },
             if input.is_active { 1 } else { 0 },
             &now,
             input.id,
@@ -212,7 +229,7 @@ pub fn get_treatment_catalog_items(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_catalog_id, name, description, default_cost, color, is_active, display_order, created_at, updated_at
+            "SELECT id, treatment_catalog_id, name, description, default_cost, color, icon, is_active, display_order, created_at, updated_at
              FROM treatment_catalog_items
              WHERE treatment_catalog_id = ?1 AND is_active = 1
              ORDER BY display_order, name",
@@ -228,10 +245,11 @@ pub fn get_treatment_catalog_items(
                 description: row.get(3)?,
                 default_cost: row.get(4)?,
                 color: row.get(5)?,
-                is_active: row.get::<_, i32>(6)? == 1,
-                display_order: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
+                icon: row.get(6)?,
+                is_active: row.get::<_, i32>(7)? == 1,
+                display_order: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -248,14 +266,15 @@ pub fn create_treatment_catalog_item(
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO treatment_catalog_items (treatment_catalog_id, name, description, default_cost, color, is_active, display_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?8)",
+        "INSERT INTO treatment_catalog_items (treatment_catalog_id, name, description, default_cost, color, icon, is_active, display_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9)",
         params![
             input.treatment_catalog_id,
             input.name,
             input.description,
             input.default_cost,
             input.color,
+            input.icon,
             input.display_order,
             &now,
             &now,
@@ -272,13 +291,14 @@ pub fn update_treatment_catalog_item(input: UpdateTreatmentCatalogItemInput) -> 
 
     conn.execute(
         "UPDATE treatment_catalog_items
-         SET name = ?1, description = ?2, default_cost = ?3, color = ?4, is_active = ?5, display_order = ?6, updated_at = ?7
-         WHERE id = ?8",
+         SET name = ?1, description = ?2, default_cost = ?3, color = ?4, icon = ?5, is_active = ?6, display_order = ?7, updated_at = ?8
+         WHERE id = ?9",
         params![
             input.name,
             input.description,
             input.default_cost,
             input.color,
+            input.icon,
             if input.is_active { 1 } else { 0 },
             input.display_order,
             &now,
@@ -309,7 +329,7 @@ pub fn get_treatment_catalog_item_by_id(id: i64) -> Result<Option<TreatmentCatal
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_catalog_id, name, description, default_cost, color, is_active, display_order, created_at, updated_at
+            "SELECT id, treatment_catalog_id, name, description, default_cost, color, icon, is_active, display_order, created_at, updated_at
              FROM treatment_catalog_items
              WHERE id = ?1",
         )
@@ -323,10 +343,11 @@ pub fn get_treatment_catalog_item_by_id(id: i64) -> Result<Option<TreatmentCatal
             description: row.get(3)?,
             default_cost: row.get(4)?,
             color: row.get(5)?,
-            is_active: row.get::<_, i32>(6)? == 1,
-            display_order: row.get(7)?,
-            created_at: row.get(8)?,
-            updated_at: row.get(9)?,
+            icon: row.get(6)?,
+            is_active: row.get::<_, i32>(7)? == 1,
+            display_order: row.get(8)?,
+            created_at: row.get(9)?,
+            updated_at: row.get(10)?,
         })
     });
 

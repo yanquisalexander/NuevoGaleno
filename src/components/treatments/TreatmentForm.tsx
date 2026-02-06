@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface TreatmentFormProps {
     treatment?: Treatment;
@@ -138,16 +139,25 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
                                 <label className="block text-sm font-medium text-white/80 mb-2">
                                     Estado
                                 </label>
-                                <select
-                                    value={formData.status}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none h-11"
-                                >
-                                    <option value="Pending" className="bg-[#1e1e1e]">Por Hacer</option>
-                                    <option value="InProgress" className="bg-[#1e1e1e]">En Tratamiento</option>
-                                    <option value="Completed" className="bg-[#1e1e1e]">Terminado</option>
-                                    <option value="Cancelled" className="bg-[#1e1e1e]">Cancelado</option>
-                                </select>
+                                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as any })}>
+                                    <SelectTrigger className="w-full bg-white/5 border-white/10 rounded-lg h-11 text-white">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#1e1e1e] border-white/10">
+                                        <SelectItem value="Pending" className="text-yellow-500 focus:bg-yellow-500/10 focus:text-yellow-400">
+                                            Por Hacer
+                                        </SelectItem>
+                                        <SelectItem value="InProgress" className="text-blue-500 focus:bg-blue-500/10 focus:text-blue-400">
+                                            En Tratamiento
+                                        </SelectItem>
+                                        <SelectItem value="Completed" className="text-green-500 focus:bg-green-500/10 focus:text-green-400">
+                                            Terminado
+                                        </SelectItem>
+                                        <SelectItem value="Cancelled" className="text-red-500 focus:bg-red-500/10 focus:text-red-400">
+                                            Cancelado
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div>

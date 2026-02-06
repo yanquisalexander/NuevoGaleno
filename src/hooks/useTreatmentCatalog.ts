@@ -7,6 +7,8 @@ export interface TreatmentCatalogEntry {
     default_cost: number;
     category?: string;
     color?: string;
+    icon?: string;
+    show_independently: boolean;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -19,6 +21,7 @@ export interface TreatmentCatalogItem {
     description?: string;
     default_cost: number;
     color?: string;
+    icon?: string;
     is_active: boolean;
     display_order: number;
     created_at: string;
@@ -31,6 +34,8 @@ export interface CreateTreatmentCatalogInput {
     default_cost: number;
     category?: string;
     color?: string;
+    icon?: string;
+    show_independently: boolean;
 }
 
 export interface UpdateTreatmentCatalogInput {
@@ -40,6 +45,8 @@ export interface UpdateTreatmentCatalogInput {
     default_cost: number;
     category?: string;
     color?: string;
+    icon?: string;
+    show_independently: boolean;
     is_active: boolean;
 }
 
@@ -49,6 +56,7 @@ export interface CreateTreatmentCatalogItemInput {
     description?: string;
     default_cost: number;
     color?: string;
+    icon?: string;
     display_order: number;
 }
 
@@ -58,6 +66,7 @@ export interface UpdateTreatmentCatalogItemInput {
     description?: string;
     default_cost: number;
     color?: string;
+    icon?: string;
     is_active: boolean;
     display_order: number;
 }

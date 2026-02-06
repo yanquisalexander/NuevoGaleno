@@ -224,7 +224,13 @@ export function Desktop({ layout = 'windows' }: DesktopProps) {
                                 : 'hover:bg-white/10 hover:border-white/10'}
                         `}
                     >
-                        <span className="text-4xl drop-shadow-lg">{app.icon}</span>
+                        <div className="drop-shadow-lg">
+                            {
+                                app.iconComponent
+                                    ? <app.iconComponent fontSize={40} />
+                                    : <span className="text-4xl">{app.icon}</span>
+                            }
+                        </div>
                         <span className={`
                             text-[11px] text-white text-center leading-tight line-clamp-2 px-1
                             drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]
