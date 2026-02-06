@@ -21,6 +21,7 @@ pub struct OdontogramToothTreatment {
     pub applied_date: String,
     pub created_at: String,
     pub updated_at: String,
+    pub treatment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +33,7 @@ pub struct AddToothTreatmentInput {
     pub condition: String,
     pub notes: Option<String>,
     pub applied_date: Option<String>,
+    pub treatment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +60,7 @@ pub fn get_tooth_treatments(
     let mut stmt = conn
         .prepare(
             "SELECT id, patient_id, tooth_number, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_tooth_treatments
              WHERE patient_id = ?1 AND tooth_number = ?2 AND is_active = 1
              ORDER BY applied_date DESC",
@@ -79,6 +81,7 @@ pub fn get_tooth_treatments(
                 applied_date: row.get(8)?,
                 created_at: row.get(9)?,
                 updated_at: row.get(10)?,
+                treatment_id: row.get(11)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -97,7 +100,7 @@ pub fn get_tooth_treatments_by_patient(
     let mut stmt = conn
         .prepare(
             "SELECT id, patient_id, tooth_number, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_tooth_treatments
              WHERE patient_id = ?1 AND is_active = 1
              ORDER BY tooth_number, applied_date DESC",
@@ -118,6 +121,7 @@ pub fn get_tooth_treatments_by_patient(
                 applied_date: row.get(8)?,
                 created_at: row.get(9)?,
                 updated_at: row.get(10)?,
+                treatment_id: row.get(11)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -137,8 +141,8 @@ pub fn add_tooth_treatment(input: AddToothTreatmentInput) -> Result<i64, String>
     conn.execute(
         "INSERT INTO odontogram_tooth_treatments (patient_id, tooth_number, treatment_catalog_id, 
                                                    treatment_catalog_item_id, condition, notes, 
-                                                   is_active, applied_date, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9)",
+                                                   is_active, applied_date, created_at, updated_at, treatment_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9, ?10)",
         params![
             input.patient_id,
             input.tooth_number,
@@ -149,6 +153,7 @@ pub fn add_tooth_treatment(input: AddToothTreatmentInput) -> Result<i64, String>
             &applied_date,
             &now,
             &now,
+            input.treatment_id,
         ],
     )
     .map_err(|e| format!("Error insertando tratamiento: {}", e))?;
@@ -186,7 +191,7 @@ pub fn deactivate_tooth_treatment(treatment_id: i64) -> Result<(), String> {
     let treatment: Option<OdontogramToothTreatment> = conn
         .query_row(
             "SELECT id, patient_id, tooth_number, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_tooth_treatments WHERE id = ?1",
             params![treatment_id],
             |row| {
@@ -202,6 +207,7 @@ pub fn deactivate_tooth_treatment(treatment_id: i64) -> Result<(), String> {
                     applied_date: row.get(8)?,
                     created_at: row.get(9)?,
                     updated_at: row.get(10)?,
+                    treatment_id: row.get(11)?,
                 })
             },
         )
@@ -295,6 +301,7 @@ pub struct OdontogramBridge {
     pub applied_date: String,
     pub created_at: String,
     pub updated_at: String,
+    pub treatment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -307,6 +314,7 @@ pub struct AddBridgeInput {
     pub treatment_catalog_item_id: Option<i64>,
     pub notes: Option<String>,
     pub applied_date: Option<String>,
+    pub treatment_id: Option<i64>,
 }
 
 /// Obtener todos los puentes activos de un paciente
@@ -316,7 +324,7 @@ pub fn get_bridges_by_patient(patient_id: i64) -> Result<Vec<OdontogramBridge>, 
     let mut stmt = conn
         .prepare(
             "SELECT id, patient_id, bridge_name, tooth_start, tooth_end, treatment_catalog_id, 
-                    treatment_catalog_item_id, notes, is_active, applied_date, created_at, updated_at
+                    treatment_catalog_item_id, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_bridges
              WHERE patient_id = ?1 AND is_active = 1
              ORDER BY applied_date DESC",
@@ -338,6 +346,7 @@ pub fn get_bridges_by_patient(patient_id: i64) -> Result<Vec<OdontogramBridge>, 
                 applied_date: row.get(9)?,
                 created_at: row.get(10)?,
                 updated_at: row.get(11)?,
+                treatment_id: row.get(12)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -356,8 +365,8 @@ pub fn add_bridge(input: AddBridgeInput) -> Result<i64, String> {
     conn.execute(
         "INSERT INTO odontogram_bridges (patient_id, bridge_name, tooth_start, tooth_end, 
                                          treatment_catalog_id, treatment_catalog_item_id, notes, 
-                                         is_active, applied_date, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9, ?10)",
+                                         is_active, applied_date, created_at, updated_at, treatment_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9, ?10, ?11)",
         params![
             input.patient_id,
             input.bridge_name,
@@ -369,6 +378,7 @@ pub fn add_bridge(input: AddBridgeInput) -> Result<i64, String> {
             &applied_date,
             &now,
             &now,
+            input.treatment_id,
         ],
     )
     .map_err(|e| format!("Error insertando puente: {}", e))?;

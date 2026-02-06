@@ -9,6 +9,7 @@ import {
     getSurfaceHistory,
     OdontogramToothTreatment,
     getToothTreatmentsByPatient,
+    getToothTreatments,
     addToothTreatment,
     deactivateToothTreatment,
     OdontogramBridge,
@@ -45,7 +46,7 @@ const TEETH_FDI_DECIDUOUS = {
 };
 
 // Caras del diente (palatina para superiores, lingual para inferiores)
-const TOOTH_SURFACES = ['mesial', 'distal', 'vestibular', 'palatina', 'lingual', 'oclusal'] as const;
+const TOOTH_SURFACES = ['whole_tooth', 'mesial', 'distal', 'vestibular', 'palatina', 'lingual', 'oclusal'] as const;
 type Surface = typeof TOOTH_SURFACES[number];
 
 // Determinar si un diente es superior o inferior
@@ -69,6 +70,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [surfaceTreatments, setSurfaceTreatments] = useState<OdontogramSurface[]>([]);
     const [surfaceHistory, setSurfaceHistory] = useState<SurfaceHistoryEntry[]>([]);
     const [showHistory, setShowHistory] = useState(false);
+    const [toothLevelTreatments, setToothLevelTreatments] = useState<OdontogramToothTreatment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Tratamientos a nivel de diente completo y puentes
@@ -84,6 +86,23 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [treatmentStatus, setTreatmentStatus] = useState<'Pending' | 'InProgress' | 'Completed' | 'Cancelled'>('Pending');
     const [createTreatmentRecord, setCreateTreatmentRecord] = useState(true);
     const [customCost, setCustomCost] = useState<number>(0);
+
+    // Estados para puentes dentales
+    const [showBridgeDialog, setShowBridgeDialog] = useState(false);
+    const [bridgeName, setBridgeName] = useState('');
+    const [bridgeStart, setBridgeStart] = useState('');
+    const [bridgeEnd, setBridgeEnd] = useState('');
+    const [bridgeTreatment, setBridgeTreatment] = useState<number | null>(null);
+    const [bridgeNotes, setBridgeNotes] = useState('');
+
+    // Estados para diálogo de confirmación de eliminación
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<{
+        type: 'surface' | 'tooth' | 'bridge';
+        id: number;
+        treatmentId?: number;
+        name?: string;
+    } | null>(null);
 
     useEffect(() => {
         loadData();
@@ -113,9 +132,14 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     useEffect(() => {
         if (selectedTooth && selectedSurface) {
             loadSurfaceData();
-            loadSurfaceTreatments();
+            if (selectedSurface === 'whole_tooth') {
+                loadToothLevelTreatments();
+            } else {
+                loadSurfaceTreatments();
+            }
         } else {
             setSurfaceTreatments([]);
+            setToothLevelTreatments([]);
             setSurfaceHistory([]);
             setShowHistory(false);
         }
@@ -172,6 +196,20 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
             setSurfaceTreatments(treatments);
         } catch (error) {
             console.error('Error cargando tratamientos de superficie:', error);
+        }
+    };
+
+    const loadToothLevelTreatments = async () => {
+        if (!selectedTooth) return;
+
+        try {
+            const treatments = await getToothTreatments(
+                patientId,
+                selectedTooth.toString()
+            );
+            setToothLevelTreatments(treatments);
+        } catch (error) {
+            console.error('Error cargando tratamientos de diente completo:', error);
         }
     };
 
@@ -266,8 +304,13 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
 
     const handleAddTreatment = async () => {
         if (!selectedTooth || !selectedSurface) return;
-        if (!selectedTreatment || !selectedTreatmentItem) {
-            toast.error('Seleccione un tratamiento y sub-tratamiento');
+        if (!selectedTreatment) {
+            toast.error('Seleccione un tratamiento');
+            return;
+        }
+        // Solo requerir sub-tratamiento si hay items disponibles
+        if (catalogItems.length > 0 && !selectedTreatmentItem) {
+            toast.error('Seleccione un sub-tratamiento');
             return;
         }
 
@@ -276,16 +319,19 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
             let treatmentId: number | undefined;
             if (createTreatmentRecord) {
                 const treatment = catalog.find((t) => t.id === selectedTreatment);
-                const item = catalogItems.find((i) => i.id === selectedTreatmentItem);
+                const item = selectedTreatmentItem ? catalogItems.find((i) => i.id === selectedTreatmentItem) : null;
 
-                if (treatment && item) {
+                if (treatment) {
+                    const treatmentName = item ? `${treatment.name} - ${item.name}` : treatment.name;
+                    const treatmentCost = customCost > 0 ? customCost : (item?.default_cost || treatment.default_cost);
+
                     treatmentId = await createTreatment({
                         patient_id: patientId,
-                        name: `${treatment.name} - ${item.name}`,
+                        name: treatmentName,
                         tooth_number: selectedTooth.toString(),
-                        sector: selectedSurface,
-                        total_cost: customCost > 0 ? customCost : item.default_cost,
-                        notes: notes || `${treatment.name} en superficie ${selectedSurface}`,
+                        sector: selectedSurface === 'whole_tooth' ? 'Diente completo' : selectedSurface,
+                        total_cost: treatmentCost,
+                        notes: notes || `${treatment.name} ${selectedSurface === 'whole_tooth' ? 'en diente completo' : `en superficie ${selectedSurface}`}`,
                     });
 
                     // Actualizar estado si no es pending
@@ -298,19 +344,35 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                 }
             }
 
-            // Añadir nuevo tratamiento a la superficie
-            await addToothSurfaceTreatment({
-                patient_id: patientId,
-                tooth_number: selectedTooth.toString(),
-                surface: selectedSurface,
-                treatment_catalog_id: selectedTreatment,
-                treatment_catalog_item_id: selectedTreatmentItem,
-                condition: 'treatment',
-                notes: notes || undefined,
-            });
+            // Añadir tratamiento según el tipo seleccionado
+            if (selectedSurface === 'whole_tooth') {
+                // Tratamiento a nivel de diente completo
+                await addToothTreatment({
+                    patient_id: patientId,
+                    tooth_number: selectedTooth.toString(),
+                    treatment_catalog_id: selectedTreatment,
+                    treatment_catalog_item_id: selectedTreatmentItem || undefined,
+                    condition: 'treatment',
+                    notes: notes || undefined,
+                    treatment_id: treatmentId,
+                });
+            } else {
+                // Tratamiento a nivel de superficie
+                await addToothSurfaceTreatment({
+                    patient_id: patientId,
+                    tooth_number: selectedTooth.toString(),
+                    surface: selectedSurface,
+                    treatment_catalog_id: selectedTreatment,
+                    treatment_catalog_item_id: selectedTreatmentItem || undefined,
+                    condition: 'treatment',
+                    notes: notes || undefined,
+                    treatment_id: treatmentId,
+                });
+            }
 
             await loadData();
             await loadSurfaceTreatments();
+            await loadToothLevelTreatments();
             toast.success('Tratamiento añadido al odontograma');
 
             // Reset form but keep surface selected
@@ -324,19 +386,141 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     };
 
     const handleDeactivateTreatment = async (surfaceId: number) => {
+        const treatment = surfaceTreatments.find(t => t.id === surfaceId);
+        const catalogEntry = catalog.find((c) => c.id === treatment?.treatment_catalog_id);
+        const itemEntry = catalogItems.find((i) => i.id === treatment?.treatment_catalog_item_id);
+        const treatmentName = itemEntry?.name || catalogEntry?.name || 'Sin nombre';
+
+        setDeleteTarget({
+            type: 'surface',
+            id: surfaceId,
+            treatmentId: treatment?.treatment_id,
+            name: treatmentName,
+        });
+        setShowDeleteDialog(true);
+    };
+
+    const handleDeactivateToothTreatment = async (toothTreatmentId: number) => {
+        const treatment = toothLevelTreatments.find(t => t.id === toothTreatmentId);
+        const catalogEntry = catalog.find((c) => c.id === treatment?.treatment_catalog_id);
+        const itemEntry = catalogItems.find((i) => i.id === treatment?.treatment_catalog_item_id);
+        const treatmentName = itemEntry?.name || catalogEntry?.name || 'Sin nombre';
+
+        setDeleteTarget({
+            type: 'tooth',
+            id: toothTreatmentId,
+            treatmentId: treatment?.treatment_id,
+            name: treatmentName,
+        });
+        setShowDeleteDialog(true);
+    };
+
+    const confirmDelete = async (alsoDeleteTreatment: boolean) => {
+        if (!deleteTarget) return;
+
         try {
-            await deactivateSurfaceTreatment(surfaceId);
+            // Eliminar del odontograma
+            if (deleteTarget.type === 'surface') {
+                await deactivateSurfaceTreatment(deleteTarget.id);
+                await loadSurfaceTreatments();
+            } else if (deleteTarget.type === 'tooth') {
+                await deactivateToothTreatment(deleteTarget.id);
+                await loadToothLevelTreatments();
+            } else if (deleteTarget.type === 'bridge') {
+                await deactivateBridge(deleteTarget.id);
+            }
+
+            // Eliminar el registro de tratamiento si el usuario lo confirmó
+            if (alsoDeleteTreatment && deleteTarget.treatmentId) {
+                const { deleteTreatment } = await import('../../hooks/useTreatments');
+                await deleteTreatment(deleteTarget.treatmentId);
+            }
+
             await loadData();
-            await loadSurfaceTreatments();
-            toast.success('Tratamiento desactivado');
+            toast.success(alsoDeleteTreatment
+                ? 'Tratamiento eliminado del odontograma y de registros'
+                : 'Tratamiento eliminado del odontograma'
+            );
         } catch (error) {
-            console.error('Error desactivando tratamiento:', error);
-            toast.error('Error al desactivar tratamiento');
+            console.error('Error eliminando tratamiento:', error);
+            toast.error('Error al eliminar tratamiento');
+        } finally {
+            setShowDeleteDialog(false);
+            setDeleteTarget(null);
         }
     };
 
     const isDeciduousTooth = (toothNumber: number): boolean => {
         return toothNumber >= 51 && toothNumber <= 85;
+    };
+
+    const handleCreateBridge = async () => {
+        if (!bridgeName || !bridgeStart || !bridgeEnd) {
+            toast.error('Complete todos los campos requeridos');
+            return;
+        }
+
+        try {
+            // Crear tratamiento si está habilitado y hay un tratamiento seleccionado
+            let treatmentId: number | undefined;
+            if (createTreatmentRecord && bridgeTreatment) {
+                const treatment = catalog.find((t) => t.id === bridgeTreatment);
+
+                if (treatment) {
+                    treatmentId = await createTreatment({
+                        patient_id: patientId,
+                        name: `${treatment.name} - ${bridgeName}`,
+                        tooth_number: `${bridgeStart}-${bridgeEnd}`,
+                        sector: 'Puente dental',
+                        total_cost: treatment.default_cost,
+                        notes: bridgeNotes || `Puente dental: ${bridgeName} (piezas ${bridgeStart} a ${bridgeEnd})`,
+                    });
+
+                    // Actualizar estado si no es pending
+                    if (treatmentStatus !== 'Pending') {
+                        const { updateTreatmentStatus } = await import('../../hooks/useTreatments');
+                        await updateTreatmentStatus(treatmentId, treatmentStatus);
+                    }
+
+                    toast.success('Registro de tratamiento creado');
+                }
+            }
+
+            await addBridge({
+                patient_id: patientId,
+                bridge_name: bridgeName,
+                tooth_start: bridgeStart,
+                tooth_end: bridgeEnd,
+                treatment_catalog_id: bridgeTreatment || undefined,
+                notes: bridgeNotes || undefined,
+                treatment_id: treatmentId,
+            });
+
+            await loadData();
+            toast.success('Puente dental creado');
+
+            // Reset form
+            setShowBridgeDialog(false);
+            setBridgeName('');
+            setBridgeStart('');
+            setBridgeEnd('');
+            setBridgeTreatment(null);
+            setBridgeNotes('');
+        } catch (error) {
+            console.error('Error creando puente:', error);
+            toast.error('Error al crear el puente');
+        }
+    };
+
+    const handleDeleteBridge = async (bridgeId: number) => {
+        const bridge = bridges.find(b => b.id === bridgeId);
+        setDeleteTarget({
+            type: 'bridge',
+            id: bridgeId,
+            treatmentId: bridge?.treatment_id,
+            name: bridge?.bridge_name || 'Puente',
+        });
+        setShowDeleteDialog(true);
     };
 
     const renderTooth = (toothNumber: number) => {
@@ -574,11 +758,17 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                                 </h3>
                                 {selectedSurface && (
                                     <p className="text-sm text-white/60 mt-1">
-                                        Superficie: <span className="capitalize font-medium text-white/80">{selectedSurface}</span>
-                                        {(selectedSurface === 'palatina' || selectedSurface === 'lingual') && (
-                                            <span className="ml-2 text-xs text-white/40">
-                                                ({selectedSurface === 'palatina' ? 'Superior - Paladar' : 'Inferior - Lengua'})
-                                            </span>
+                                        {selectedSurface === 'whole_tooth' ? (
+                                            <span className="font-medium text-white/80">🦷 Diente Completo</span>
+                                        ) : (
+                                            <>
+                                                Superficie: <span className="capitalize font-medium text-white/80">{selectedSurface}</span>
+                                                {(selectedSurface === 'palatina' || selectedSurface === 'lingual') && (
+                                                    <span className="ml-2 text-xs text-white/40">
+                                                        ({selectedSurface === 'palatina' ? 'Superior - Paladar' : 'Inferior - Lengua'})
+                                                    </span>
+                                                )}
+                                            </>
                                         )}
                                     </p>
                                 )}
@@ -601,20 +791,28 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                                     Superficie Dental
                                 </label>
                                 <div className="grid grid-cols-2 gap-2">
-                                    {TOOTH_SURFACES.map((surface) => (
-                                        <button
-                                            key={surface}
-                                            onClick={() => setSelectedSurface(surface)}
-                                            className={cn(
-                                                'px-4 py-2 rounded-md text-sm font-medium transition-all capitalize',
-                                                selectedSurface === surface
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-white/5 text-white/70 hover:bg-white/10'
-                                            )}
-                                        >
-                                            {surface}
-                                        </button>
-                                    ))}
+                                    {TOOTH_SURFACES.map((surface) => {
+                                        const getSurfaceLabel = (s: Surface): string => {
+                                            if (s === 'whole_tooth') return '🦷 Diente Completo';
+                                            return s.charAt(0).toUpperCase() + s.slice(1);
+                                        };
+
+                                        return (
+                                            <button
+                                                key={surface}
+                                                onClick={() => setSelectedSurface(surface)}
+                                                className={cn(
+                                                    'px-4 py-2 rounded-md text-sm font-medium transition-all',
+                                                    surface === 'whole_tooth' && 'col-span-2 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30',
+                                                    selectedSurface === surface
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-white/5 text-white/70 hover:bg-white/10'
+                                                )}
+                                            >
+                                                {getSurfaceLabel(surface)}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -781,7 +979,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                         <div className="flex gap-3 pt-4">
                             <button
                                 onClick={handleAddTreatment}
-                                disabled={!selectedTreatment || !selectedTreatmentItem}
+                                disabled={!selectedTreatment || (catalogItems.length > 0 && !selectedTreatmentItem)}
                                 className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed rounded-md transition-colors text-sm font-medium"
                             >
                                 <Save className="w-4 h-4" />
@@ -799,7 +997,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                         </div>
 
                         {/* Lista de tratamientos activos en la superficie seleccionada */}
-                        {selectedSurface && surfaceTreatments.length > 0 && (
+                        {selectedSurface && selectedSurface !== 'whole_tooth' && surfaceTreatments.length > 0 && (
                             <div className="border-t border-white/5 pt-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <h4 className="text-sm font-semibold text-white/90">
@@ -844,6 +1042,62 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                                                     onClick={() => handleDeactivateTreatment(treatment.id)}
                                                     className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
                                                     title="Desactivar tratamiento"
+                                                >
+                                                    <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Lista de tratamientos activos en el diente completo */}
+                        {selectedSurface === 'whole_tooth' && toothLevelTreatments.length > 0 && (
+                            <div className="border-t border-white/5 pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-semibold text-white/90">
+                                        Tratamientos Activos - Diente Completo
+                                    </h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {toothLevelTreatments.map((treatment) => {
+                                        const catalogEntry = catalog.find((c) => c.id === treatment.treatment_catalog_id);
+                                        const itemEntry = catalogItems.find((i) => i.id === treatment.treatment_catalog_item_id);
+
+                                        return (
+                                            <div
+                                                key={treatment.id}
+                                                className="flex items-center justify-between p-3 bg-white/5 rounded-md border border-white/5 hover:bg-white/10 transition-colors"
+                                            >
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="w-3 h-3 rounded-full"
+                                                            style={{ backgroundColor: catalogEntry?.color || '#4ade80' }}
+                                                        />
+                                                        <span className="text-sm font-medium text-white">
+                                                            {itemEntry?.name || catalogEntry?.name || 'Sin nombre'}
+                                                        </span>
+                                                        {catalogEntry?.visual_effect && (
+                                                            <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded">
+                                                                {catalogEntry.visual_effect === 'absent' && '❌ Ausente'}
+                                                                {catalogEntry.visual_effect === 'darken' && '🔲 Oscurecido'}
+                                                                {catalogEntry.visual_effect === 'implant' && '🦾 Implante'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {treatment.notes && (
+                                                        <p className="text-xs text-white/50 mt-1 ml-5">{treatment.notes}</p>
+                                                    )}
+                                                    <p className="text-xs text-white/40 mt-1 ml-5">
+                                                        Fecha: {new Date(treatment.applied_date).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeactivateToothTreatment(treatment.id)}
+                                                    className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
+                                                    title="Quitar tratamiento de diente completo"
                                                 >
                                                     <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
                                                 </button>
@@ -908,6 +1162,277 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                                 </div>
                             </div>
                         )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Puentes Dentales */}
+            <div className="bg-[#272727] border border-white/5 rounded-lg p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-lg font-semibold text-white/95">Puentes Dentales</h3>
+                        <p className="text-sm text-white/50 mt-1">Prótesis fijas que conectan múltiples piezas</p>
+                    </div>
+                    <button
+                        onClick={() => setShowBridgeDialog(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <Save className="w-4 h-4" />
+                        Nuevo Puente
+                    </button>
+                </div>
+
+                {bridges.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {bridges.map((bridge) => {
+                            const treatment = catalog.find((t) => t.id === bridge.treatment_catalog_id);
+                            return (
+                                <div
+                                    key={bridge.id}
+                                    className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/15 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-lg">🌉</div>
+                                                <h4 className="font-semibold text-white">{bridge.bridge_name}</h4>
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-2 text-sm text-white/70">
+                                                <span className="px-2 py-1 bg-amber-500/20 rounded text-amber-300 font-mono">
+                                                    {bridge.tooth_start}
+                                                </span>
+                                                <span className="text-white/40">→</span>
+                                                <span className="px-2 py-1 bg-amber-500/20 rounded text-amber-300 font-mono">
+                                                    {bridge.tooth_end}
+                                                </span>
+                                            </div>
+                                            {treatment && (
+                                                <p className="text-xs text-white/50 mt-2">{treatment.name}</p>
+                                            )}
+                                            {bridge.notes && (
+                                                <p className="text-xs text-white/40 mt-1 italic">{bridge.notes}</p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => handleDeleteBridge(bridge.id)}
+                                            className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
+                                            title="Eliminar puente"
+                                        >
+                                            <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-8 text-white/40 text-sm">
+                        No hay puentes dentales registrados
+                    </div>
+                )}
+            </div>
+
+            {/* Diálogo para crear puente */}
+            <AnimatePresence>
+                {showBridgeDialog && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                        onClick={() => setShowBridgeDialog(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-md bg-[#1e1e1e] rounded-xl shadow-2xl border border-white/10 overflow-hidden"
+                        >
+                            <div className="flex items-center justify-between p-6 border-b border-white/10 bg-gradient-to-r from-amber-500/10 to-orange-500/10">
+                                <h2 className="text-xl font-semibold text-white">Crear Puente Dental</h2>
+                                <button
+                                    onClick={() => setShowBridgeDialog(false)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-white/80 mb-2">
+                                        Nombre del Puente *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={bridgeName}
+                                        onChange={(e) => setBridgeName(e.target.value)}
+                                        placeholder="Ej: Puente anterior superior"
+                                        className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-white/80 mb-2">
+                                            Pieza Inicial *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={bridgeStart}
+                                            onChange={(e) => setBridgeStart(e.target.value)}
+                                            placeholder="Ej: 11"
+                                            className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-white/80 mb-2">
+                                            Pieza Final *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={bridgeEnd}
+                                            onChange={(e) => setBridgeEnd(e.target.value)}
+                                            placeholder="Ej: 14"
+                                            className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-white/80 mb-2">
+                                        Tratamiento Asociado (Opcional)
+                                    </label>
+                                    <select
+                                        value={bridgeTreatment || ''}
+                                        onChange={(e) => setBridgeTreatment(e.target.value ? parseInt(e.target.value) : null)}
+                                        className="w-full bg-white/5 border border-white/10 text-white focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
+                                    >
+                                        <option value="">Sin tratamiento</option>
+                                        {catalog.filter(t => t.is_bridge_component).map((treatment) => (
+                                            <option key={treatment.id} value={treatment.id}>
+                                                {treatment.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-white/80 mb-2">
+                                        Notas
+                                    </label>
+                                    <textarea
+                                        value={bridgeNotes}
+                                        onChange={(e) => setBridgeNotes(e.target.value)}
+                                        placeholder="Detalles adicionales..."
+                                        rows={3}
+                                        className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg px-3 py-2 resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10 bg-white/5">
+                                <button
+                                    onClick={() => setShowBridgeDialog(false)}
+                                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleCreateBridge}
+                                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    Crear Puente
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Diálogo de Confirmación de Eliminación */}
+            <AnimatePresence>
+                {showDeleteDialog && deleteTarget && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+                        onClick={() => {
+                            setShowDeleteDialog(false);
+                            setDeleteTarget(null);
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl max-w-md w-full p-6"
+                        >
+                            <div className="flex items-start gap-4 mb-6">
+                                <div className="p-3 bg-red-500/10 rounded-lg">
+                                    <Trash2 className="w-6 h-6 text-red-400" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-lg font-semibold text-white mb-2">
+                                        Eliminar {deleteTarget.type === 'bridge' ? 'Puente' : 'Tratamiento'}
+                                    </h3>
+                                    <p className="text-sm text-white/70">
+                                        {deleteTarget.name}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 mb-6">
+                                <p className="text-sm text-white/80">
+                                    ¿Deseas eliminar este {deleteTarget.type === 'bridge' ? 'puente' : 'tratamiento'} del odontograma?
+                                </p>
+
+                                {deleteTarget.treatmentId && (
+                                    <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                                        <p className="text-sm text-amber-200/90 font-medium mb-2">
+                                            Este {deleteTarget.type === 'bridge' ? 'puente' : 'tratamiento'} tiene un registro asociado
+                                        </p>
+                                        <p className="text-xs text-white/60">
+                                            También puedes eliminar el registro de tratamiento del sistema.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    onClick={() => confirmDelete(false)}
+                                    className="w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium"
+                                >
+                                    Solo del Odontograma
+                                </button>
+
+                                {deleteTarget.treatmentId && (
+                                    <button
+                                        onClick={() => confirmDelete(true)}
+                                        className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                        Del Odontograma y Registros
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setShowDeleteDialog(false);
+                                        setDeleteTarget(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg transition-colors text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

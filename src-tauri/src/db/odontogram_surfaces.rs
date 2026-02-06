@@ -18,6 +18,7 @@ pub struct OdontogramSurface {
     pub applied_date: String,
     pub created_at: String,
     pub updated_at: String,
+    pub treatment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +57,7 @@ pub struct AddSurfaceTreatmentInput {
     pub condition: String,
     pub notes: Option<String>,
     pub applied_date: Option<String>,
+    pub treatment_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,7 +75,7 @@ pub fn get_odontogram_surfaces_by_patient(
     let mut stmt = conn
         .prepare(
             "SELECT id, patient_id, tooth_number, surface, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_surfaces
              WHERE patient_id = ?1 AND is_active = 1
              ORDER BY tooth_number, surface, applied_date DESC",
@@ -95,6 +97,7 @@ pub fn get_odontogram_surfaces_by_patient(
                 applied_date: row.get(9)?,
                 created_at: row.get(10)?,
                 updated_at: row.get(11)?,
+                treatment_id: row.get(12)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -114,7 +117,7 @@ pub fn get_tooth_surfaces(
     let mut stmt = conn
         .prepare(
             "SELECT id, patient_id, tooth_number, surface, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_surfaces
              WHERE patient_id = ?1 AND tooth_number = ?2
              ORDER BY surface, is_active DESC, applied_date DESC",
@@ -136,6 +139,7 @@ pub fn get_tooth_surfaces(
                 applied_date: row.get(9)?,
                 created_at: row.get(10)?,
                 updated_at: row.get(11)?,
+                treatment_id: row.get(12)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -156,7 +160,7 @@ pub fn get_surface_treatments(
     let mut stmt = conn
         .prepare(
             "SELECT id, patient_id, tooth_number, surface, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_surfaces
              WHERE patient_id = ?1 AND tooth_number = ?2 AND surface = ?3 AND is_active = 1
              ORDER BY applied_date DESC",
@@ -178,6 +182,7 @@ pub fn get_surface_treatments(
                 applied_date: row.get(9)?,
                 created_at: row.get(10)?,
                 updated_at: row.get(11)?,
+                treatment_id: row.get(12)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -197,8 +202,8 @@ pub fn add_tooth_surface_treatment(input: AddSurfaceTreatmentInput) -> Result<i6
     conn.execute(
         "INSERT INTO odontogram_surfaces 
          (patient_id, tooth_number, surface, treatment_catalog_id, treatment_catalog_item_id, 
-          condition, notes, is_active, applied_date, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9, ?10)",
+          condition, notes, is_active, applied_date, created_at, updated_at, treatment_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9, ?10, ?11)",
         params![
             input.patient_id,
             &input.tooth_number,
@@ -210,6 +215,7 @@ pub fn add_tooth_surface_treatment(input: AddSurfaceTreatmentInput) -> Result<i6
             &applied_date,
             &now,
             &now,
+            input.treatment_id,
         ],
     )
     .map_err(|e| format!("Error insertando tratamiento de superficie: {}", e))?;
@@ -251,6 +257,7 @@ pub fn update_tooth_surface(input: UpdateSurfaceInput) -> Result<i64, String> {
         condition: input.condition,
         notes: input.notes,
         applied_date: None,
+        treatment_id: None,
     })
 }
 
@@ -263,7 +270,7 @@ pub fn deactivate_surface_treatment(surface_id: i64) -> Result<(), String> {
     let surface: OdontogramSurface = conn
         .query_row(
             "SELECT id, patient_id, tooth_number, surface, treatment_catalog_id, treatment_catalog_item_id, 
-                    condition, notes, is_active, applied_date, created_at, updated_at
+                    condition, notes, is_active, applied_date, created_at, updated_at, treatment_id
              FROM odontogram_surfaces WHERE id = ?1",
             params![surface_id],
             |row| {
@@ -280,6 +287,7 @@ pub fn deactivate_surface_treatment(surface_id: i64) -> Result<(), String> {
                     applied_date: row.get(9)?,
                     created_at: row.get(10)?,
                     updated_at: row.get(11)?,
+                    treatment_id: row.get(12)?,
                 })
             },
         )

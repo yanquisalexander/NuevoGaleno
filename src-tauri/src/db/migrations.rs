@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 8;
+const CURRENT_SCHEMA_VERSION: i32 = 9;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -71,6 +71,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 8 {
         migrate_v8(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (8)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 9 {
+        migrate_v9(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (9)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -668,3 +674,22 @@ fn migrate_v8(conn: &Connection) -> Result<(), String> {
     .map_err(|e| format!("migration v8 err: {}", e))
 }
 
+/// Migración v9: Agregar campo treatment_id para vincular con la tabla de tratamientos
+fn migrate_v9(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Agregar campo treatment_id a odontogram_surfaces
+        ALTER TABLE odontogram_surfaces ADD COLUMN treatment_id INTEGER DEFAULT NULL;
+        CREATE INDEX IF NOT EXISTS idx_odontogram_surfaces_treatment ON odontogram_surfaces(treatment_id);
+
+        -- Agregar campo treatment_id a odontogram_tooth_treatments
+        ALTER TABLE odontogram_tooth_treatments ADD COLUMN treatment_id INTEGER DEFAULT NULL;
+        CREATE INDEX IF NOT EXISTS idx_odontogram_tooth_treatments_treatment ON odontogram_tooth_treatments(treatment_id);
+
+        -- Agregar campo treatment_id a odontogram_bridges
+        ALTER TABLE odontogram_bridges ADD COLUMN treatment_id INTEGER DEFAULT NULL;
+        CREATE INDEX IF NOT EXISTS idx_odontogram_bridges_treatment ON odontogram_bridges(treatment_id);
+        "#,
+    )
+    .map_err(|e| format!("migration v9 err: {}", e))
+}

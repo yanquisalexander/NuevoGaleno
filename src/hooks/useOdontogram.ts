@@ -30,6 +30,7 @@ export interface OdontogramSurface {
     applied_date: string;
     created_at: string;
     updated_at: string;
+    treatment_id?: number;
 }
 
 export interface SurfaceHistoryEntry {
@@ -65,6 +66,7 @@ export interface AddSurfaceTreatmentInput {
     condition: string;
     notes?: string;
     applied_date?: string;
+    treatment_id?: number;
 }
 
 export async function getOdontogramByPatient(patientId: number): Promise<OdontogramEntry[]> {
@@ -151,6 +153,7 @@ export interface OdontogramToothTreatment {
     applied_date: string;
     created_at: string;
     updated_at: string;
+    treatment_id?: number;
 }
 
 export interface AddToothTreatmentInput {
@@ -161,6 +164,7 @@ export interface AddToothTreatmentInput {
     condition: string;
     notes?: string;
     applied_date?: string;
+    treatment_id?: number;
 }
 
 export interface ToothTreatmentHistoryEntry {
@@ -213,6 +217,7 @@ export interface OdontogramBridge {
     applied_date: string;
     created_at: string;
     updated_at: string;
+    treatment_id?: number;
 }
 
 export interface AddBridgeInput {
@@ -224,6 +229,7 @@ export interface AddBridgeInput {
     treatment_catalog_item_id?: number;
     notes?: string;
     applied_date?: string;
+    treatment_id?: number;
 }
 
 export async function getBridgesByPatient(patientId: number): Promise<OdontogramBridge[]> {
