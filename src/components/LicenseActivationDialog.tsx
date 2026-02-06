@@ -26,7 +26,6 @@ export function LicenseActivationDialog({ open, onOpenChange }: LicenseActivatio
     // El botón de trial solo se oculta si alguna vez se usó el trial
     const hasTrialHistory = licenseStatus?.trial_used ?? false;
 
-    console.log('LicenseActivationDialog render, isTrial:', isTrial, 'licenseStatus:', licenseStatus, 'hasTrialHistory:', hasTrialHistory);
 
     const handleActivate = async () => {
         if (!licenseKey.trim() || !customerEmail.trim()) {

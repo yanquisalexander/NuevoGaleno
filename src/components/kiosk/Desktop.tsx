@@ -4,6 +4,7 @@ import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { DesktopContextMenu } from './DesktopContextMenu';
 import { playSound, UI_SOUNDS } from "@/consts/Sounds";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 interface ChromecastImage {
     url: string;
@@ -16,7 +17,24 @@ interface DesktopProps {
     layout?: string;
 }
 
-const CHROMECAST_API = 'https://corsproxy.io/?url=https://chromecastbg.alexmeub.com/images.v9.json';
+const CHROMECAST_API = 'https://chromecastbg.alexmeub.com/images.v9.json';
+const FETCH_TIMEOUT = 10000; // 10 segundos
+const FALLBACK_WALLPAPER = 'https://images.unsplash.com/photo-1620121692029-d088224ddc74';
+
+// Helper para fetch con timeout usando Tauri fetch (evita CORS)
+const fetchWithTimeout = async (url: string, timeout: number = FETCH_TIMEOUT) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await tauriFetch(url, { signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+};
 
 export function Desktop({ layout = 'windows' }: DesktopProps) {
     const { apps, openWindow } = useWindowManager();
@@ -88,6 +106,7 @@ export function Desktop({ layout = 'windows' }: DesktopProps) {
         const img = new Image();
         img.src = nextUrl;
         img.onload = () => {
+            console.log('[Desktop] Wallpaper loaded:', nextData.location);
             setCurrentWallpaper((prev) => {
                 setPrevWallpaper(prev);
                 return nextUrl;
@@ -100,9 +119,10 @@ export function Desktop({ layout = 'windows' }: DesktopProps) {
                 isChangingRef.current = false;
             }, 1600);
         };
-        img.onerror = () => {
-            console.warn("Error cargando imagen, intentando otra...");
+        img.onerror = (err) => {
+            console.error('[Desktop] Error loading wallpaper image:', nextUrl, err);
             isChangingRef.current = false;
+            // Intentar otra imagen
             changeWallpaper(list);
         };
     }, []);
@@ -115,18 +135,28 @@ export function Desktop({ layout = 'windows' }: DesktopProps) {
     useEffect(() => {
         let isMounted = true;
 
-        fetch(CHROMECAST_API)
-            .then(res => res.json())
+        console.log('[Desktop] Fetching wallpapers from:', CHROMECAST_API);
+
+        fetchWithTimeout(CHROMECAST_API)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+                return res.json();
+            })
             .then((data: ChromecastImage[]) => {
                 if (isMounted) {
+                    console.log('[Desktop] Loaded', data.length, 'wallpapers');
                     setWallpapers(data);
                     changeWallpaper(data);
                 }
             })
-            .catch(() => {
+            .catch((error) => {
+                console.error('[Desktop] Failed to load wallpapers:', error);
                 if (isMounted) {
                     // Fondo de emergencia si la API falla
-                    setCurrentWallpaper('https://images.unsplash.com/photo-1620121692029-d088224ddc74');
+                    console.warn('[Desktop] Using fallback wallpaper');
+                    setCurrentWallpaper(FALLBACK_WALLPAPER);
                 }
             });
 

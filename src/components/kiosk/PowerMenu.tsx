@@ -32,7 +32,8 @@ export function PowerMenu({ isOpen, onClose, onSuspend, onShutdown, onRestart }:
                     <motion.div
                         initial={{ opacity: 0, backdropFilter: 'grayscale(0%) ' }}
                         animate={{ opacity: 1, backdropFilter: 'grayscale(100%) ' }}
-                        exit={{ opacity: 0, backdropFilter: 'grayscale(0%)', animationDuration: '0.3s' }}
+                        /* Permitir clicks */
+                        exit={{ opacity: 0, backdropFilter: 'grayscale(0%)', pointerEvents: 'none', animationDuration: '0.3s' }}
                         transition={{ duration: 2 }}
                         className="fixed inset-0 z-[100] bg-black/40"
                         onClick={onClose}

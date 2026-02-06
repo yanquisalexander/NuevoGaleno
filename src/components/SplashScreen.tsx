@@ -13,7 +13,7 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
                 if (oldProgress >= 100) {
                     clearInterval(timer);
                     setStatusText("Listo");
-                    setTimeout(() => setIsExiting(true), 400); 
+                    setTimeout(() => setIsExiting(true), 400);
                     setTimeout(onComplete, 1200); // Dar tiempo a la animación de salida
                     return 100;
                 }
@@ -42,13 +42,13 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
         >
             {/* Contenedor central limpio */}
             <div className="flex flex-col items-center gap-8 w-[360px]">
-                
+
                 {/* 1. Icono Minimalista (Sin fondo, estilo Windows Start) */}
                 <div className="relative group">
                     <div className="absolute inset-0 bg-[#60cdff] blur-[40px] opacity-20 rounded-full animate-pulse" />
-                    <Sparkles 
-                        className="w-16 h-16 text-white drop-shadow-[0_0_15px_rgba(96,205,255,0.3)] transition-transform duration-700" 
-                        strokeWidth={1.5} 
+                    <Sparkles
+                        className="w-16 h-16 text-white drop-shadow-[0_0_15px_rgba(96,205,255,0.3)] transition-transform duration-700"
+                        strokeWidth={1.5}
                     />
                 </div>
 
@@ -81,7 +81,7 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
                 <span className="text-[10px] text-white tracking-widest uppercase font-semibold">
                     Alexitoo.Dev
                 </span>
-               
+
             </div>
         </div>
     );

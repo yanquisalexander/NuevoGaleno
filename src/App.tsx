@@ -25,6 +25,7 @@ import { PowerMenu } from "./components/kiosk/PowerMenu";
 import { useAutoUpdate } from '@/hooks/useAutoUpdate';
 import { LicenseWatermark } from '@/components/LicenseWatermark';
 import { useLicense } from '@/hooks/useLicense';
+import { ShutdownScreen } from "./components/kiosk/ShutdownScreen";
 
 interface User {
   id: number;
@@ -37,6 +38,7 @@ function KioskContent() {
   const [openCommandPalette, setOpenCommandPalette] = useState(false);
   const [currentStep, setCurrentStep] = useState<'splash' | 'setup' | 'login' | 'desktop'>('splash');
   const [isInitialLock, setIsInitialLock] = useState(false);
+  const [isShuttingDown, setIsShuttingDown] = useState(false);
   const { currentUser, exitApp, isLocked, unlock, isLoading: sessionLoading } = useSession();
   const { registerApp, openWindow } = useWindowManager();
   const { addNotification } = useNotifications();
@@ -72,10 +74,17 @@ function KioskContent() {
 
   const handleShutdown = async () => {
     setShowPowerMenu(false);
+    setIsShuttingDown(true);
+    // La pantalla de cierre llamará a exitApp cuando complete
+  };
+
+  const completeShutdown = async () => {
     try {
       await exitApp();
     } catch (error) {
       console.error('Error saliendo:', error);
+      // Si falla, ocultar la pantalla de cierre
+      setIsShuttingDown(false);
     }
   };
 
@@ -288,6 +297,13 @@ function KioskContent() {
               }}
             />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SHUTDOWN SCREEN (máxima prioridad z-index) */}
+      <AnimatePresence>
+        {isShuttingDown && (
+          <ShutdownScreen onComplete={completeShutdown} />
         )}
       </AnimatePresence>
     </>
