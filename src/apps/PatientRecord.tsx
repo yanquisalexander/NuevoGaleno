@@ -11,7 +11,9 @@ import {
     AlertCircle,
     StickyNote,
     Phone,
-    Fingerprint
+    Fingerprint,
+    Stethoscope,
+    LayoutGrid
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Patient, getPatientById } from '../hooks/usePatients';
@@ -20,7 +22,9 @@ import { TreatmentList } from '../components/treatments/TreatmentList';
 import { TreatmentPayments } from '../components/payments/TreatmentPayments';
 import { BalanceCard } from '../components/payments/BalanceCard';
 import { OdontogramAdvanced } from '../components/odontogram/OdontogramAdvanced';
+import { MedicalView } from '../components/patients/MedicalView';
 import { useAppMenuBar } from '../hooks/useAppMenuBar';
+import { useMedicalView } from '../hooks/useMedicalView';
 import type { WindowId } from '../types/window-manager';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -30,6 +34,19 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram'>('info');
     const patientId = data?.patientId;
+
+    // Hook para la vista médica personalizada
+    const {
+        preferences: medicalViewPrefs,
+        isEditMode,
+        setIsEditMode,
+        toggleMedicalView,
+        addWidget,
+        removeWidget,
+        updateWidget,
+        saveLayout,
+        resetToDefault,
+    } = useMedicalView();
 
     // Configurar el MenuBar de la aplicación
     useAppMenuBar({
@@ -104,34 +121,58 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                     label: 'Ver',
                     items: [
                         {
+                            id: 'toggle-medical-view',
+                            label: medicalViewPrefs.enabled ? 'Vista Normal' : 'Vista Médica',
+                            type: 'item',
+                            shortcut: '⌘M',
+                            action: () => {
+                                toggleMedicalView();
+                                toast.success(
+                                    medicalViewPrefs.enabled
+                                        ? 'Modo normal activado'
+                                        : 'Vista médica activada'
+                                );
+                            },
+                        },
+                        {
+                            id: 'sep-view',
+                            label: '',
+                            type: 'separator',
+                        },
+                        {
                             id: 'view-info',
                             label: 'Información General',
                             type: 'item',
                             action: () => setActiveTab('info'),
+                            disabled: medicalViewPrefs.enabled,
                         },
                         {
                             id: 'view-history',
                             label: 'Historial Médico',
                             type: 'item',
                             action: () => setActiveTab('history'),
+                            disabled: medicalViewPrefs.enabled,
                         },
                         {
                             id: 'view-treatments',
                             label: 'Tratamientos',
                             type: 'item',
                             action: () => setActiveTab('treatments'),
+                            disabled: medicalViewPrefs.enabled,
                         },
                         {
                             id: 'view-payments',
                             label: 'Pagos',
                             type: 'item',
                             action: () => setActiveTab('payments'),
+                            disabled: medicalViewPrefs.enabled,
                         },
                         {
                             id: 'view-odontogram',
                             label: 'Odontograma',
                             type: 'item',
                             action: () => setActiveTab('odontogram'),
+                            disabled: medicalViewPrefs.enabled,
                         },
                     ],
                 },
@@ -163,7 +204,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                 },
             ],
         },
-        deps: [patient],
+        deps: [patient, medicalViewPrefs.enabled],
     });
 
     useEffect(() => {
@@ -219,6 +260,77 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
         { id: 'odontogram', label: 'Odontograma', icon: Smile },
     ];
 
+    // Si la vista médica está habilitada, mostrar solo esa vista
+    if (medicalViewPrefs.enabled) {
+        return (
+            <div className="h-full flex flex-col bg-[#202020] text-white font-sans selection:bg-blue-500/30">
+                {/* Header: Estilo Acrylic/Glass */}
+                <div className="relative z-10 bg-[#202020]/80 backdrop-blur-md border-b border-white/5 px-8 py-6">
+                    <div className="flex items-center gap-5">
+                        {/* Avatar Placeholder */}
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-xl font-bold border-2 border-[#333] shadow-lg">
+                            {patient.first_name[0]}{patient.last_name[0]}
+                        </div>
+
+                        <div className="space-y-1 flex-1">
+                            <h1 className="text-2xl font-bold tracking-tight">
+                                {patient.first_name} {patient.last_name}
+                            </h1>
+                            <div className="flex items-center gap-3 text-xs text-white/60">
+                                {patient.document_number && (
+                                    <span className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                                        <Fingerprint className="w-3 h-3" />
+                                        {patient.document_number}
+                                    </span>
+                                )}
+                                {patient.phone && (
+                                    <span className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
+                                        <Phone className="w-3 h-3" />
+                                        {patient.phone}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Indicador y Toggle de Vista Médica */}
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 rounded-lg border border-blue-500/30">
+                                <Stethoscope className="w-4 h-4 text-blue-400" />
+                                <span className="text-sm text-blue-300 font-medium">Vista Médica</span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    toggleMedicalView();
+                                    toast.success('Modo normal activado');
+                                }}
+                                className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors flex items-center gap-2 group"
+                                title="Cambiar a vista normal (⌘M)"
+                            >
+                                <LayoutGrid className="w-4 h-4 text-white/60 group-hover:text-white" />
+                                <span className="text-sm text-white/60 group-hover:text-white">Vista Normal</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Vista Médica Personalizada */}
+                <div className="flex-1 overflow-hidden">
+                    <MedicalView
+                        patient={patient}
+                        widgets={medicalViewPrefs.layout.widgets}
+                        isEditMode={isEditMode}
+                        onEditModeToggle={() => setIsEditMode(!isEditMode)}
+                        onAddWidget={addWidget}
+                        onRemoveWidget={removeWidget}
+                        onUpdateWidget={updateWidget}
+                        onSaveLayout={saveLayout}
+                        onResetLayout={resetToDefault}
+                    />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full flex flex-col bg-[#202020] text-white font-sans selection:bg-blue-500/30">
 
@@ -230,7 +342,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                         {patient.first_name[0]}{patient.last_name[0]}
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1 flex-1">
                         <h1 className="text-2xl font-bold tracking-tight">
                             {patient.first_name} {patient.last_name}
                         </h1>
@@ -249,6 +361,19 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                             )}
                         </div>
                     </div>
+
+                    {/* Botón Toggle Vista Médica */}
+                    <button
+                        onClick={() => {
+                            toggleMedicalView();
+                            toast.success('Vista médica activada');
+                        }}
+                        className="px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg border border-blue-500/30 transition-colors flex items-center gap-2 group"
+                        title="Cambiar a vista médica (⌘M)"
+                    >
+                        <Stethoscope className="w-4 h-4 text-blue-400" />
+                        <span className="text-sm text-blue-300 font-medium">Vista Médica</span>
+                    </button>
                 </div>
 
                 {/* Tabs de Navegación (Pivot Style) */}
