@@ -563,10 +563,27 @@ fn start_trial(app: tauri::AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let logs_dir = db::path::get_app_data_dir()
+        .expect("No se pudo obtener el directorio de datos de la aplicación")
+        .join("logs");
+
+    let log_file_name = format!(
+        "nuevogaleno_{}",
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+    );
+
     tauri::Builder::default()
         .plugin(
-            tauri_plugin_log::Builder::default()
-                .level(log::LevelFilter::Debug)
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .level_for("reqwest", log::LevelFilter::Info)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Folder {
+                        path: std::path::PathBuf::from(logs_dir),
+                        file_name: Some(log_file_name),
+                    },
+                ))
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())

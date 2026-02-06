@@ -35,9 +35,23 @@ const TEETH_FDI_DECIDUOUS = {
     lower: [85, 84, 83, 82, 81, 71, 72, 73, 74, 75],
 };
 
-// Caras del diente
-const TOOTH_SURFACES = ['mesial', 'distal', 'vestibular', 'palatina', 'oclusal'] as const;
+// Caras del diente (palatina para superiores, lingual para inferiores)
+const TOOTH_SURFACES = ['mesial', 'distal', 'vestibular', 'palatina', 'lingual', 'oclusal'] as const;
 type Surface = typeof TOOTH_SURFACES[number];
+
+// Determinar si un diente es superior o inferior
+const isUpperTooth = (toothNumber: number): boolean => {
+    return (toothNumber >= 11 && toothNumber <= 28) || (toothNumber >= 51 && toothNumber <= 65);
+};
+
+// Determinar si un diente está en el lado derecho del paciente (cuadrantes 1 y 4)
+const isRightSideTooth = (toothNumber: number): boolean => {
+    return (toothNumber >= 11 && toothNumber <= 18) || // Cuadrante 1
+        (toothNumber >= 41 && toothNumber <= 48) || // Cuadrante 4
+        (toothNumber >= 51 && toothNumber <= 55) || // Temporal superior derecho
+        (toothNumber >= 81 && toothNumber <= 85);   // Temporal inferior derecho
+};
+
 
 export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [surfaces, setSurfaces] = useState<OdontogramSurface[]>([]);
@@ -291,65 +305,89 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                     )}
                     style={{ backgroundColor: '#2a2a2a' }}
                 >
-                    {/* Palatina/Lingual surface (top) - clickeable */}
-                    <motion.button
-                        whileHover={{ opacity: 0.8 }}
-                        onClick={(e) => handleSurfaceClick(e, toothNumber, 'palatina')}
-                        className={cn(
-                            'absolute top-0 left-0 right-0 h-1/5 border-b border-black/20 transition-all',
-                            selectedTooth === toothNumber && selectedSurface === 'palatina' && 'ring-1 ring-white ring-inset'
-                        )}
-                        style={{ backgroundColor: getSurfaceColor(toothNumber, 'palatina') }}
-                    />
+                    {/* Top surface - Vestibular (superiores) o Lingual (inferiores) */}
+                    {(() => {
+                        const isUpper = isUpperTooth(toothNumber);
+                        const topSurface: Surface = isUpper ? 'vestibular' : 'lingual';
+                        return (
+                            <motion.button
+                                whileHover={{ opacity: 0.8 }}
+                                onClick={(e) => handleSurfaceClick(e, toothNumber, topSurface)}
+                                className={cn(
+                                    'absolute top-0 left-0 right-0 h-1/5 border-b border-black/20 transition-all',
+                                    selectedTooth === toothNumber && selectedSurface === topSurface && 'ring-1 ring-white ring-inset'
+                                )}
+                                style={{ backgroundColor: getSurfaceColor(toothNumber, topSurface) }}
+                            />
+                        );
+                    })()}
 
-                    {/* Middle row: Mesial | Oclusal (center) | Distal */}
+                    {/* Middle row: Orden correcto de superficies según cuadrante */}
                     <div className="absolute top-1/5 left-0 right-0 bottom-1/5 flex">
-                        {/* Mesial - clickeable */}
-                        <motion.button
-                            whileHover={{ opacity: 0.8 }}
-                            onClick={(e) => handleSurfaceClick(e, toothNumber, 'mesial')}
-                            className={cn(
-                                'w-1/3 border-r border-black/20 transition-all',
-                                selectedTooth === toothNumber && selectedSurface === 'mesial' && 'ring-1 ring-white ring-inset'
-                            )}
-                            style={{ backgroundColor: getSurfaceColor(toothNumber, 'mesial') }}
-                        />
-                        {/* Center - Oclusal (clickeable) */}
-                        <motion.button
-                            whileHover={{ opacity: 0.8 }}
-                            onClick={(e) => handleSurfaceClick(e, toothNumber, 'oclusal')}
-                            className={cn(
-                                'w-1/3 flex items-center justify-center transition-all',
-                                selectedTooth === toothNumber && selectedSurface === 'oclusal' && 'ring-1 ring-white ring-inset'
-                            )}
-                            style={{ backgroundColor: getSurfaceColor(toothNumber, 'oclusal') }}
-                        >
-                            <span className="text-[9px] font-semibold text-white/30">
-                                {toothNumber}
-                            </span>
-                        </motion.button>
-                        {/* Distal - clickeable */}
-                        <motion.button
-                            whileHover={{ opacity: 0.8 }}
-                            onClick={(e) => handleSurfaceClick(e, toothNumber, 'distal')}
-                            className={cn(
-                                'w-1/3 border-l border-black/20 transition-all',
-                                selectedTooth === toothNumber && selectedSurface === 'distal' && 'ring-1 ring-white ring-inset'
-                            )}
-                            style={{ backgroundColor: getSurfaceColor(toothNumber, 'distal') }}
-                        />
+                        {(() => {
+                            const isRightSide = isRightSideTooth(toothNumber);
+                            // Para dientes del lado derecho: Distal (izq) | Oclusal | Mesial (der)
+                            // Para dientes del lado izquierdo: Mesial (izq) | Oclusal | Distal (der)
+                            const leftSurface: Surface = isRightSide ? 'distal' : 'mesial';
+                            const rightSurface: Surface = isRightSide ? 'mesial' : 'distal';
+
+                            return (
+                                <>
+                                    {/* Superficie izquierda en pantalla */}
+                                    <motion.button
+                                        whileHover={{ opacity: 0.8 }}
+                                        onClick={(e) => handleSurfaceClick(e, toothNumber, leftSurface)}
+                                        className={cn(
+                                            'w-1/3 border-r border-black/20 transition-all',
+                                            selectedTooth === toothNumber && selectedSurface === leftSurface && 'ring-1 ring-white ring-inset'
+                                        )}
+                                        style={{ backgroundColor: getSurfaceColor(toothNumber, leftSurface) }}
+                                    />
+                                    {/* Center - Oclusal (clickeable) */}
+                                    <motion.button
+                                        whileHover={{ opacity: 0.8 }}
+                                        onClick={(e) => handleSurfaceClick(e, toothNumber, 'oclusal')}
+                                        className={cn(
+                                            'w-1/3 flex items-center justify-center transition-all',
+                                            selectedTooth === toothNumber && selectedSurface === 'oclusal' && 'ring-1 ring-white ring-inset'
+                                        )}
+                                        style={{ backgroundColor: getSurfaceColor(toothNumber, 'oclusal') }}
+                                    >
+                                        <span className="text-[9px] font-semibold text-white/30">
+                                            {toothNumber}
+                                        </span>
+                                    </motion.button>
+                                    {/* Superficie derecha en pantalla */}
+                                    <motion.button
+                                        whileHover={{ opacity: 0.8 }}
+                                        onClick={(e) => handleSurfaceClick(e, toothNumber, rightSurface)}
+                                        className={cn(
+                                            'w-1/3 border-l border-black/20 transition-all',
+                                            selectedTooth === toothNumber && selectedSurface === rightSurface && 'ring-1 ring-white ring-inset'
+                                        )}
+                                        style={{ backgroundColor: getSurfaceColor(toothNumber, rightSurface) }}
+                                    />
+                                </>
+                            );
+                        })()}
                     </div>
 
-                    {/* Vestibular surface (bottom) - clickeable */}
-                    <motion.button
-                        whileHover={{ opacity: 0.8 }}
-                        onClick={(e) => handleSurfaceClick(e, toothNumber, 'vestibular')}
-                        className={cn(
-                            'absolute bottom-0 left-0 right-0 h-1/5 border-t border-black/20 transition-all',
-                            selectedTooth === toothNumber && selectedSurface === 'vestibular' && 'ring-1 ring-white ring-inset'
-                        )}
-                        style={{ backgroundColor: getSurfaceColor(toothNumber, 'vestibular') }}
-                    />
+                    {/* Bottom surface - Palatina (superiores) o Vestibular (inferiores) */}
+                    {(() => {
+                        const isUpper = isUpperTooth(toothNumber);
+                        const bottomSurface: Surface = isUpper ? 'palatina' : 'vestibular';
+                        return (
+                            <motion.button
+                                whileHover={{ opacity: 0.8 }}
+                                onClick={(e) => handleSurfaceClick(e, toothNumber, bottomSurface)}
+                                className={cn(
+                                    'absolute bottom-0 left-0 right-0 h-1/5 border-t border-black/20 transition-all',
+                                    selectedTooth === toothNumber && selectedSurface === bottomSurface && 'ring-1 ring-white ring-inset'
+                                )}
+                                style={{ backgroundColor: getSurfaceColor(toothNumber, bottomSurface) }}
+                            />
+                        );
+                    })()}
                 </div>
             </div>
         );
@@ -365,16 +403,34 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
 
     return (
         <div className="space-y-6">
-            {/* Información de dentición mixta */}
-            <div className="flex items-center justify-center gap-6 p-3 bg-[#272727] rounded-lg border border-white/5">
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                    <UserIcon className="w-4 h-4 text-white/50" />
-                    <span>Permanentes (11-48)</span>
+            {/* Información de dentición mixta y orientación */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-center gap-6 p-3 bg-[#272727] rounded-lg border border-white/5">
+                    <div className="flex items-center gap-2 text-sm text-white/70">
+                        <UserIcon className="w-4 h-4 text-white/50" />
+                        <span>Permanentes (11-48)</span>
+                    </div>
+                    <div className="w-px h-4 bg-white/10" />
+                    <div className="flex items-center gap-2 text-sm text-blue-400/80">
+                        <Baby className="w-4 h-4" />
+                        <span>Temporales (51-85)</span>
+                    </div>
                 </div>
-                <div className="w-px h-4 bg-white/10" />
-                <div className="flex items-center gap-2 text-sm text-blue-400/80">
-                    <Baby className="w-4 h-4" />
-                    <span>Temporales (51-85)</span>
+
+                {/* Indicadores de orientación desde la perspectiva del odontólogo */}
+                <div className="flex items-center justify-between px-8 text-xs text-white/40">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-400/50" />
+                        <span>Derecha del Paciente</span>
+                    </div>
+                    <div className="text-center">
+                        <div className="font-semibold text-white/50">Vista del Odontólogo</div>
+                        <div className="text-[10px] mt-0.5">Palatina (sup.) / Lingual (inf.)</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span>Izquierda del Paciente</span>
+                        <div className="w-2 h-2 rounded-full bg-blue-400/50" />
+                    </div>
                 </div>
             </div>
 
@@ -428,9 +484,21 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                         className="bg-[#272727] border border-white/5 rounded-lg p-6 space-y-6"
                     >
                         <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                            <h3 className="text-lg font-semibold">
-                                Pieza Dental {selectedTooth}
-                            </h3>
+                            <div>
+                                <h3 className="text-lg font-semibold">
+                                    Pieza Dental {selectedTooth}
+                                </h3>
+                                {selectedSurface && (
+                                    <p className="text-sm text-white/60 mt-1">
+                                        Superficie: <span className="capitalize font-medium text-white/80">{selectedSurface}</span>
+                                        {(selectedSurface === 'palatina' || selectedSurface === 'lingual') && (
+                                            <span className="ml-2 text-xs text-white/40">
+                                                ({selectedSurface === 'palatina' ? 'Superior - Paladar' : 'Inferior - Lengua'})
+                                            </span>
+                                        )}
+                                    </p>
+                                )}
+                            </div>
                             <button
                                 onClick={() => {
                                     setSelectedTooth(null);

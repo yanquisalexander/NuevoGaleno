@@ -6,6 +6,11 @@ interface OdontogramProps {
     patientId: number;
 }
 
+// Notación FDI: vista desde la perspectiva del odontólogo
+// Cuadrante 1 (11-18): Superior derecho del PACIENTE (aparece a la izquierda en pantalla)
+// Cuadrante 2 (21-28): Superior izquierdo del PACIENTE (aparece a la derecha en pantalla)
+// Cuadrante 4 (41-48): Inferior derecho del PACIENTE (aparece a la izquierda en pantalla)
+// Cuadrante 3 (31-38): Inferior izquierdo del PACIENTE (aparece a la derecha en pantalla)
 const TEETH_FDI = {
     upper: [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28],
     lower: [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]
