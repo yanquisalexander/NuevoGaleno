@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSession } from '@/hooks/useSession';
+import { useNode } from '@/contexts/NodeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -13,7 +14,8 @@ import {
     Battery,
     ChevronLeft,
     Command,
-    UserCircle
+    Globe,
+    Laptop
 } from 'lucide-react';
 
 interface UserData {
@@ -51,14 +53,18 @@ const Clock = () => {
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
     const { login, loginWithPin } = useSession();
+    const { setTemporaryRemoteConnection } = useNode();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<UserData[]>([]);
     const [isPinMode, setIsPinMode] = useState(false);
-    const [viewState, setViewState] = useState<'selection' | 'password'>('selection');
+    const [viewState, setViewState] = useState<'selection' | 'password' | 'remote-config'>('selection');
     const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+    const [remoteUrl, setRemoteUrl] = useState('');
+    const [remoteToken, setRemoteToken] = useState('');
+    const [testingConnection, setTestingConnection] = useState(false);
 
     useEffect(() => {
         const savedMode = localStorage.getItem('lastLoginMode');
@@ -104,6 +110,9 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         setViewState('selection');
         setPassword('');
         setSelectedUser(null);
+        setRemoteUrl('');
+        setRemoteToken('');
+        setShowPassword(false);
     };
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -197,15 +206,136 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                                 </button>
                             ))}
 
-                            <button
-                                onClick={() => { setUsername(''); setViewState('password'); }}
-                                className="group flex flex-col items-center w-40"
-                            >
-                                <div className="w-32 h-32 rounded-3xl mb-4 border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 group-hover:border-white/40 group-hover:text-white/60 group-hover:bg-white/5 transition-all duration-500">
-                                    <UserCircle size={48} strokeWidth={1} />
+                            <div className="flex flex-col gap-4 w-40">
+                                <button
+                                    onClick={() => { setUsername(''); setViewState('password'); }}
+                                    className="group flex flex-col items-center"
+                                >
+                                    <div className="w-32 h-32 rounded-3xl mb-4 border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 group-hover:border-white/40 group-hover:text-white/60 group-hover:bg-white/5 transition-all duration-500">
+                                        <Laptop size={48} strokeWidth={1} />
+                                    </div>
+                                    <span className="text-sm text-white/40 font-medium group-hover:text-white/60 transition-colors">Usuario local</span>
+                                </button>
+
+                                <button
+                                    onClick={() => { setViewState('remote-config'); }}
+                                    className="group flex flex-col items-center"
+                                >
+                                    <div className="w-32 h-32 rounded-3xl mb-4 border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 group-hover:border-blue-400/40 group-hover:text-blue-400/60 group-hover:bg-blue-500/5 transition-all duration-500">
+                                        <Globe size={48} strokeWidth={1} />
+                                    </div>
+                                    <span className="text-sm text-white/40 font-medium group-hover:text-blue-400/60 transition-colors">Servidor remoto</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {viewState === 'remote-config' && (
+                    <div className="animate-in slide-in-from-bottom-10 fade-in duration-500 flex flex-col items-center w-full max-w-md">
+                        <div className="w-full p-8 rounded-[40px] bg-black/40 backdrop-blur-[60px] border border-white/[0.12] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] flex flex-col items-center">
+
+                            <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-4xl font-light mb-6 shadow-2xl border border-white/10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20">
+                                <Globe size={40} className="text-blue-400" />
+                            </div>
+
+                            <h2 className="text-2xl font-light text-white mb-1">
+                                Conectar a Servidor
+                            </h2>
+                            <p className="text-white/40 text-xs mb-8 tracking-wider uppercase font-medium">
+                                Ingresa los datos del servidor remoto
+                            </p>
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!remoteUrl || !remoteToken) return;
+
+                                setTestingConnection(true);
+                                try {
+                                    const result = await invoke<any>('test_remote_connection', {
+                                        remoteUrl,
+                                        authToken: remoteToken
+                                    });
+
+                                    toast.success('Conexión exitosa', {
+                                        description: `Conectado a: ${result.service || 'Nuevo Galeno'}`,
+                                        className: 'bg-black/80 backdrop-blur-xl text-white border-white/10'
+                                    });
+
+                                    // Establecer conexión temporal
+                                    setTemporaryRemoteConnection(remoteUrl, remoteToken, result.service || 'Servidor Remoto');
+
+                                    // Ir a pantalla de password
+                                    setUsername('');
+                                    setSelectedUser(null);
+                                    setViewState('password');
+
+                                } catch (err: any) {
+                                    toast.error('Error de conexión', {
+                                        description: err || 'No se pudo conectar al servidor',
+                                        className: 'bg-black/80 backdrop-blur-xl text-white border-white/10'
+                                    });
+                                } finally {
+                                    setTestingConnection(false);
+                                }
+                            }} className="w-full space-y-4">
+
+                                <div className="space-y-2">
+                                    <label className="text-xs text-white/60 uppercase tracking-wider">URL del Servidor</label>
+                                    <Input
+                                        type="text"
+                                        value={remoteUrl}
+                                        onChange={(e) => setRemoteUrl(e.target.value)}
+                                        placeholder="http://192.168.1.100:3000"
+                                        className="h-12 bg-white/[0.06] border-white/[0.08] focus:bg-white/[0.1] focus:border-blue-500/50 rounded-2xl text-center text-white placeholder:text-white/20 transition-all"
+                                    />
                                 </div>
-                                <span className="text-sm text-white/40 font-medium group-hover:text-white/60 transition-colors">Otro usuario</span>
-                            </button>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs text-white/60 uppercase tracking-wider">Token de Autenticación</label>
+                                    <div className="relative">
+                                        <Input
+                                            type={showPassword ? "text" : "password"}
+                                            value={remoteToken}
+                                            onChange={(e) => setRemoteToken(e.target.value)}
+                                            placeholder="Token del servidor"
+                                            className="h-12 bg-white/[0.06] border-white/[0.08] focus:bg-white/[0.1] focus:border-blue-500/50 rounded-2xl text-center text-white placeholder:text-white/20 transition-all"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/60 transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    disabled={testingConnection || !remoteUrl || !remoteToken}
+                                    className="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl shadow-blue-600/20 active:scale-95 transition-all font-semibold mt-4"
+                                >
+                                    {testingConnection ? (
+                                        <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <><Globe size={20} className="mr-2" /> Conectar</>
+                                    )}
+                                </Button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setViewState('selection');
+                                        setRemoteUrl('');
+                                        setRemoteToken('');
+                                        setShowPassword(false);
+                                    }}
+                                    className="flex items-center justify-center gap-1 text-[11px] text-white/30 hover:text-white/60 transition-colors py-2 w-full"
+                                >
+                                    <ChevronLeft size={12} /> VOLVER
+                                </button>
+                            </form>
                         </div>
                     </div>
                 )}

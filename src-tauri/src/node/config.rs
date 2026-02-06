@@ -4,6 +4,7 @@
 use super::{ClientConfig, HostConfig, NodeConfig, NodeMode};
 use crate::db;
 use rusqlite::{params, Connection};
+use rusqlite::OptionalExtension;
 
 const CONFIG_KEY_NODE_MODE: &str = "node.mode";
 const CONFIG_KEY_NODE_NAME: &str = "node.name";
@@ -91,9 +92,13 @@ pub fn load_node_config() -> Result<NodeConfig, String> {
 }
 
 fn save_config_value(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
+    use chrono::Utc;
+    let now = Utc::now().to_rfc3339();
+    
     conn.execute(
-        "INSERT OR REPLACE INTO config (key, value) VALUES (?1, ?2)",
-        params![key, value],
+        "INSERT INTO app_config (key, value, created_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        params![key, value, now],
     )
     .map_err(|e| format!("Error saving config value: {}", e))?;
     Ok(())
@@ -101,7 +106,7 @@ fn save_config_value(conn: &Connection, key: &str, value: &str) -> Result<(), St
 
 fn get_config_value(conn: &Connection, key: &str) -> Result<Option<String>, String> {
     let mut stmt = conn
-        .prepare("SELECT value FROM config WHERE key = ?1")
+        .prepare("SELECT value FROM app_config WHERE key = ?1")
         .map_err(|e| format!("Error preparing query: {}", e))?;
 
     let result = stmt

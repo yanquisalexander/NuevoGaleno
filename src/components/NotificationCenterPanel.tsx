@@ -5,9 +5,13 @@ import {
     X,
     ChevronRight,
     Settings,
-    Clock
+    Clock,
+    Globe,
+    Server,
+    Laptop
 } from 'lucide-react';
 import { useNotifications, Notification } from '../contexts/NotificationContext';
+import { useNode } from '../contexts/NodeContext';
 
 interface NotificationCenterPanelProps {
     isOpen: boolean;
@@ -67,6 +71,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
 export function NotificationCenterPanel({ isOpen, onClose }: NotificationCenterPanelProps) {
     const { notifications, clearAll } = useNotifications();
+    const { activeContext } = useNode();
 
     return createPortal(
         <AnimatePresence>
@@ -102,6 +107,51 @@ export function NotificationCenterPanel({ isOpen, onClose }: NotificationCenterP
 
                         {/* Notificaciones */}
                         <div className="flex-1 overflow-y-auto">
+                            {/* Estado del Sistema */}
+                            {activeContext && (
+                                <div className="p-4 border-b border-white/10">
+                                    <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">
+                                        Estado del Sistema
+                                    </h3>
+                                    <div className={`flex items-start gap-3 p-3 rounded-lg ${activeContext.mode === 'remote'
+                                        ? 'bg-blue-500/10 border border-blue-500/30'
+                                        : 'bg-white/5'
+                                        }`}>
+                                        <div className="flex-shrink-0 mt-0.5">
+                                            {activeContext.mode === 'remote' ? (
+                                                <Globe className="w-5 h-5 text-blue-400" />
+                                            ) : (
+                                                <Laptop className="w-5 h-5 text-white/60" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h4 className="text-sm font-medium text-white/90">
+                                                    {activeContext.mode === 'remote' ? 'Servidor Remoto' : 'Modo Local'}
+                                                </h4>
+                                                {activeContext.mode === 'remote' && (
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                                        <span className="text-[10px] text-green-400 font-medium">Conectado</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-white/60 mb-2">
+                                                {activeContext.nodeName}
+                                            </p>
+                                            {activeContext.mode === 'remote' && activeContext.apiBaseUrl && (
+                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-black/30 border border-white/10">
+                                                    <Server className="w-3 h-3 text-white/40" />
+                                                    <span className="text-[10px] text-white/60 font-mono truncate">
+                                                        {activeContext.apiBaseUrl}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="p-4">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-sm font-semibold text-white/90">

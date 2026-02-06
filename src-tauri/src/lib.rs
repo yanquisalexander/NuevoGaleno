@@ -599,6 +599,43 @@ async fn is_api_server_running() -> Result<bool, String> {
     Ok(api::server::is_api_server_running().await)
 }
 
+#[tauri::command]
+async fn test_remote_connection(remote_url: String, auth_token: String) -> Result<serde_json::Value, String> {
+    use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+    
+    let mut headers = HeaderMap::new();
+    let auth_value = format!("Bearer {}", auth_token);
+    headers.insert(
+        AUTHORIZATION, 
+        HeaderValue::from_str(&auth_value).map_err(|e| format!("Invalid token: {}", e))?
+    );
+    
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Failed to create client: {}", e))?;
+    
+    let url = format!("{}/api/health", remote_url.trim_end_matches('/'));
+    
+    let response = client
+        .get(&url)
+        .headers(headers)
+        .send()
+        .await
+        .map_err(|e| format!("Connection failed: {}", e))?;
+    
+    if !response.status().is_success() {
+        return Err(format!("Server responded with status: {}", response.status()));
+    }
+    
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Invalid response: {}", e))?;
+    
+    Ok(body)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let logs_dir = db::path::get_app_data_dir()
@@ -776,6 +813,7 @@ pub fn run() {
             start_api_server,
             stop_api_server,
             is_api_server_running,
+            test_remote_connection,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

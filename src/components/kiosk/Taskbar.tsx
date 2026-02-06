@@ -8,6 +8,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { useShell } from '@/contexts/ShellContext';
 import { LicenseStatusIndicator } from "../LicenseStatusIndicator";
 import { Clock } from './Clock';
+import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
 
 
 interface SystemInfo {
@@ -208,6 +209,8 @@ export function Taskbar() {
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                         className="flex items-center gap-2 px-2 h-10 rounded-[4px] transition-colors"
                     >
+                        {/* Indicador de conexión remota */}
+                        <RemoteConnectionIndicator variant="windows" />
 
                         {/* License Status como parte del system tray */}
                         <div className="flex items-center">

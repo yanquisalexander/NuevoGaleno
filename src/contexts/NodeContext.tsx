@@ -41,6 +41,8 @@ interface NodeContextType {
   startApiServer: (config: HostConfig) => Promise<void>;
   stopApiServer: () => Promise<void>;
   isApiServerRunning: () => Promise<boolean>;
+  setTemporaryRemoteConnection: (remoteUrl: string, authToken: string, nodeName: string) => void;
+  clearTemporaryRemoteConnection: () => void;
 }
 
 const NodeContext = createContext<NodeContextType | undefined>(undefined);
@@ -62,6 +64,11 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   const [activeContext, setActiveContext] = useState<ActiveContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [temporaryRemote, setTemporaryRemote] = useState<{
+    remoteUrl: string;
+    authToken: string;
+    nodeName: string;
+  } | null>(null);
 
   const refreshConfig = React.useCallback(async () => {
     setIsLoading(true);
@@ -86,8 +93,19 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     refreshConfig();
   }, [refreshConfig]);
 
-  // Update active context when node config changes
+  // Update active context when node config changes or temporary remote is set
   useEffect(() => {
+    // Temporary remote connection takes precedence
+    if (temporaryRemote) {
+      setActiveContext({
+        mode: 'remote',
+        nodeName: temporaryRemote.nodeName,
+        apiBaseUrl: temporaryRemote.remoteUrl,
+        authToken: temporaryRemote.authToken,
+      });
+      return;
+    }
+
     if (!nodeConfig) return;
 
     const context: ActiveContext = {
@@ -101,7 +119,7 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     }
 
     setActiveContext(context);
-  }, [nodeConfig]);
+  }, [nodeConfig, temporaryRemote]);
 
   const updateNodeConfig = async (config: NodeConfig) => {
     try {
@@ -146,6 +164,14 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     }
   };
 
+  const setTemporaryRemoteConnection = (remoteUrl: string, authToken: string, nodeName: string) => {
+    setTemporaryRemote({ remoteUrl, authToken, nodeName });
+  };
+
+  const clearTemporaryRemoteConnection = () => {
+    setTemporaryRemote(null);
+  };
+
   return (
     <NodeContext.Provider
       value={{
@@ -158,6 +184,8 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
         startApiServer,
         stopApiServer,
         isApiServerRunning,
+        setTemporaryRemoteConnection,
+        clearTemporaryRemoteConnection,
       }}
     >
       {children}

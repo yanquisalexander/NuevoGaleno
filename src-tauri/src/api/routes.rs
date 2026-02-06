@@ -12,6 +12,18 @@ use serde::{Deserialize, Serialize};
 use crate::db::patients::{CreatePatientInput, Patient, UpdatePatientInput};
 use crate::services::patients::PatientService;
 
+/// Health check endpoint
+pub async fn health_check() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "ok",
+            "service": "Nuevo Galeno API",
+            "version": env!("CARGO_PKG_VERSION")
+        })),
+    )
+}
+
 /// Query parameters for pagination
 #[derive(Debug, Deserialize)]
 pub struct PaginationQuery {
@@ -120,6 +132,7 @@ pub async fn get_patients_count() -> impl IntoResponse {
 /// Create patient routes
 pub fn patient_routes() -> Router {
     Router::new()
+        .route("/health", axum::routing::get(health_check))
         .route("/patients", axum::routing::get(get_patients))
         .route("/patients", axum::routing::post(create_patient))
         .route("/patients/search", axum::routing::get(search_patients))

@@ -6,6 +6,7 @@ import { useMenuBar } from '@/contexts/MenuBarContext';
 import { Wifi, Volume2, Search, Apple, ChevronDown } from 'lucide-react';
 import type { MenuBarMenu } from '@/types/menubar';
 import { MenuBarClock } from './MenuBarClock';
+import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
 
 export function MenuBar() {
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export function MenuBar() {
             </div>
 
             <div className="flex items-center gap-3 h-full">
+                <RemoteConnectionIndicator variant="macos" />
                 <div className="flex items-center gap-3 mr-2">
                     <Wifi className="w-3.5 h-3.5" />
                     <Volume2 className="w-3.5 h-3.5" />

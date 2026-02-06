@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSession } from '@/hooks/useSession';
+import { useNode } from '@/contexts/NodeContext';
 import CommandPalette from "@/components/CommandPalette";
 import { useWindowManager } from "@/contexts/WindowManagerContext";
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -40,6 +41,7 @@ function KioskContent() {
   const [isInitialLock, setIsInitialLock] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const { currentUser, exitApp, isLocked, unlock, isLoading: sessionLoading } = useSession();
+  const { clearTemporaryRemoteConnection } = useNode();
   const { registerApp, openWindow } = useWindowManager();
   const { addNotification } = useNotifications();
   const { values } = useConfig();
@@ -174,8 +176,9 @@ function KioskContent() {
     if (!sessionLoading && !currentUser && currentStep === 'desktop') {
       setCurrentStep('login');
       setIsInitialLock(false); // NO mostrar lockscreen al cerrar sesión
+      clearTemporaryRemoteConnection(); // Limpiar conexión remota temporal
     }
-  }, [currentUser, currentStep, sessionLoading]);
+  }, [currentUser, currentStep, sessionLoading, clearTemporaryRemoteConnection]);
 
   const handleLogin = (_user: User) => {
     // La sesión ya se estableció en LoginScreen via sessionLogin
