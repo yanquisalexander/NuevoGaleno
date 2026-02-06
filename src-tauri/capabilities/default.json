@@ -18,16 +18,22 @@
     "opener:allow-reveal-item-in-dir",
     "updater:default",
     "log:default",
-    "http:default"
-  ],
-  "scope": {
-    "http": {
+    {
+      "identifier": "http:default",
       "allow": [
-        "https://chromecastbg.alexmeub.com/*",
-        "https://*.googleusercontent.com/*",
-        "https://images.unsplash.com/*",
-        "https://github.com/*"
+        {
+          "url": "https://chromecastbg.alexmeub.com/*"
+        },
+        {
+          "url": "https://*.googleusercontent.com/*"
+        },
+        {
+          "url": "https://images.unsplash.com/*"
+        },
+        {
+          "url": "https://github.com/*"
+        }
       ]
     }
-  }
+  ]
 }
