@@ -59,17 +59,7 @@ impl PatientService {
     /// Update patient
     pub fn update(&self, id: i64, input: UpdatePatientInput) -> ServiceResult<()> {
         // Validate that at least one field is being updated
-        if input.first_name.is_none()
-            && input.last_name.is_none()
-            && input.document_number.is_none()
-            && input.phone.is_none()
-            && input.email.is_none()
-            && input.birth_date.is_none()
-            && input.gender.is_none()
-            && input.blood_type.is_none()
-            && input.allergies.is_none()
-            && input.medical_notes.is_none()
-        {
+        if !input.has_any_field() {
             return Err(ServiceError::ValidationError(
                 "At least one field must be provided for update".to_string(),
             ));

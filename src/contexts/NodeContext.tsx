@@ -63,10 +63,28 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshConfig = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const config = await invoke<NodeConfig>('get_node_config');
+      setNodeConfig(config);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      // Set default standalone config on error
+      setNodeConfig({
+        mode: 'standalone',
+        node_name: 'NuevoGaleno',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Load node configuration on mount
   useEffect(() => {
     refreshConfig();
-  }, []);
+  }, [refreshConfig]);
 
   // Update active context when node config changes
   useEffect(() => {
@@ -84,24 +102,6 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
 
     setActiveContext(context);
   }, [nodeConfig]);
-
-  const refreshConfig = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const config = await invoke<NodeConfig>('get_node_config');
-      setNodeConfig(config);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      // Set default standalone config on error
-      setNodeConfig({
-        mode: 'standalone',
-        node_name: 'NuevoGaleno',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const updateNodeConfig = async (config: NodeConfig) => {
     try {

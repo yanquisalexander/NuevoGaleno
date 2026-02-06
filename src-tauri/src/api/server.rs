@@ -44,18 +44,18 @@ impl ApiServer {
             app = app.layer(cors);
         }
 
+        let addr = format!("0.0.0.0:{}", port);
+        
+        // Try to bind immediately to catch early errors
+        let listener = tokio::net::TcpListener::bind(&addr)
+            .await
+            .map_err(|e| format!("Failed to bind to {}: {}", addr, e))?;
+
+        log::info!("HTTP API server bound to {}", addr);
+
         // Spawn server in background
         let handle = tokio::spawn(async move {
-            let addr = format!("0.0.0.0:{}", port);
             log::info!("Starting HTTP API server on {}", addr);
-
-            let listener = match tokio::net::TcpListener::bind(&addr).await {
-                Ok(l) => l,
-                Err(e) => {
-                    log::error!("Failed to bind API server: {}", e);
-                    return;
-                }
-            };
 
             if let Err(e) = axum::serve(listener, app).await {
                 log::error!("API server error: {}", e);

@@ -62,37 +62,46 @@ export function usePatients() {
 }
 
 // Legacy exports for backward compatibility
-// These functions now use a default client instance
+// ⚠️ DEPRECATED: These functions use a default local client and do not respond to node configuration changes.
+// For new code, use the usePatients() hook which respects the active node context.
+// These are kept for backward compatibility only.
 
 import { createGalenoClient } from '../lib/galeno-client';
 
 // Create a default client (local mode)
 const defaultClient = createGalenoClient({ mode: 'local', nodeName: 'default' });
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function getPatients(limit?: number, offset?: number): Promise<Patient[]> {
     return defaultClient.getPatients(limit, offset);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function getPatientById(id: number): Promise<Patient | null> {
     return defaultClient.getPatientById(id);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function createPatient(input: CreatePatientInput): Promise<number> {
     return defaultClient.createPatient(input);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function updatePatient(id: number, input: UpdatePatientInput): Promise<void> {
     return defaultClient.updatePatient(id, input);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function deletePatient(id: number): Promise<void> {
     return defaultClient.deletePatient(id);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function searchPatients(query: string): Promise<Patient[]> {
     return defaultClient.searchPatients(query);
 }
 
+/** @deprecated Use usePatients() hook instead for node-aware operations */
 export async function getPatientsCount(): Promise<number> {
     return defaultClient.getPatientsCount();
 }
