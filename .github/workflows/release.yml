@@ -26,19 +26,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Node + pnpm cache (CLAVE)
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: 'pnpm'
-
-      # 3️⃣ pnpm
+      # 2️⃣ pnpm (INSTALAR PRIMERO)
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 8
           run_install: false
+
+      # 3️⃣ Node + pnpm cache
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
 
       # 4️⃣ Frontend deps
       - name: Install frontend dependencies
