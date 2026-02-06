@@ -9,6 +9,7 @@ import { useShell } from '@/contexts/ShellContext';
 import { LicenseStatusIndicator } from "../LicenseStatusIndicator";
 import { Clock } from './Clock';
 import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
+import { useNotImplemented } from "@/utils/system/NotImplemented";
 
 
 interface SystemInfo {
@@ -38,6 +39,8 @@ export function Taskbar() {
         isCharging: false,
         batteryAvailable: false
     });
+
+    const notImplemented = useNotImplemented();
 
 
 
@@ -308,11 +311,15 @@ export function Taskbar() {
                                     <div className="mt-10">
                                         <span className="text-xs font-semibold text-white">Recomendado</span>
                                         <div className="grid grid-cols-2 gap-4 mt-4">
-                                            <div className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
+                                            <div
+                                                onClick={() => notImplemented()}
+                                                className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
                                                 <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-sm">📄</div>
                                                 <div className="flex flex-col"><span className="text-[11px] text-white">Manual_Galeno.pdf</span><span className="text-[10px] text-white/40">Reciente</span></div>
                                             </div>
-                                            <div className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
+                                            <div
+                                                onClick={() => notImplemented()}
+                                                className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
                                                 <div className="w-8 h-8 rounded bg-orange-500/20 flex items-center justify-center text-sm">📊</div>
                                                 <div className="flex flex-col"><span className="text-[11px] text-white">Estadísticas_V1</span><span className="text-[10px] text-white/40">Ayer a las 14:00</span></div>
                                             </div>

@@ -1,0 +1,61 @@
+{
+    "title": "Manual Galeno",
+    "categories": [
+        {
+            "id": "intro",
+            "title": "Introducción",
+            "items": [
+                {
+                    "id": "welcome",
+                    "title": "Bienvenida",
+                    "path": "intro/welcome.md",
+                    "keywords": [
+                        "bienvenida",
+                        "inicio",
+                        "manual",
+                        "presentación"
+                    ]
+                },
+                {
+                    "id": "getting-started",
+                    "title": "Primeros Pasos",
+                    "path": "intro/getting-started.md",
+                    "keywords": [
+                        "primeros pasos",
+                        "instalación",
+                        "inicio rápido",
+                        "setup"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "usage",
+            "title": "Uso",
+            "items": [
+                {
+                    "id": "appointments",
+                    "title": "Agenda",
+                    "path": "usage/appointments.md",
+                    "keywords": [
+                        "agenda",
+                        "citas",
+                        "turnos",
+                        "programar"
+                    ]
+                },
+                {
+                    "id": "patients",
+                    "title": "Pacientes",
+                    "path": "usage/patients.md",
+                    "keywords": [
+                        "pacientes",
+                        "ficha",
+                        "historial",
+                        "buscar paciente"
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -134,3 +134,107 @@ export async function deleteToothSurface(patientId: number, toothNumber: string,
 export async function clearToothSurfaces(patientId: number, toothNumber: string): Promise<void> {
     return invoke('clear_tooth_surfaces', { patientId, toothNumber });
 }
+
+// ============================================================================
+// Odontogram Tooth Treatments API - Tratamientos a nivel de diente completo
+// ============================================================================
+
+export interface OdontogramToothTreatment {
+    id: number;
+    patient_id: number;
+    tooth_number: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    condition: string;
+    notes?: string;
+    is_active: boolean;
+    applied_date: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AddToothTreatmentInput {
+    patient_id: number;
+    tooth_number: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    condition: string;
+    notes?: string;
+    applied_date?: string;
+}
+
+export interface ToothTreatmentHistoryEntry {
+    id: number;
+    patient_id: number;
+    tooth_number: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    condition: string;
+    notes?: string;
+    action: string;
+    applied_date: string;
+    recorded_at: string;
+}
+
+export async function getToothTreatments(patientId: number, toothNumber: string): Promise<OdontogramToothTreatment[]> {
+    return invoke('get_tooth_treatments', { patientId, toothNumber });
+}
+
+export async function getToothTreatmentsByPatient(patientId: number): Promise<OdontogramToothTreatment[]> {
+    return invoke('get_tooth_treatments_by_patient', { patientId });
+}
+
+export async function addToothTreatment(input: AddToothTreatmentInput): Promise<number> {
+    return invoke('add_tooth_treatment', { input });
+}
+
+export async function deactivateToothTreatment(treatmentId: number): Promise<void> {
+    return invoke('deactivate_tooth_treatment', { treatmentId });
+}
+
+export async function getToothTreatmentHistory(patientId: number, toothNumber: string): Promise<ToothTreatmentHistoryEntry[]> {
+    return invoke('get_tooth_treatment_history', { patientId, toothNumber });
+}
+
+// ============================================================================
+// Odontogram Bridges API - Puentes dentales
+// ============================================================================
+
+export interface OdontogramBridge {
+    id: number;
+    patient_id: number;
+    bridge_name: string;
+    tooth_start: string;
+    tooth_end: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    notes?: string;
+    is_active: boolean;
+    applied_date: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AddBridgeInput {
+    patient_id: number;
+    bridge_name: string;
+    tooth_start: string;
+    tooth_end: string;
+    treatment_catalog_id?: number;
+    treatment_catalog_item_id?: number;
+    notes?: string;
+    applied_date?: string;
+}
+
+export async function getBridgesByPatient(patientId: number): Promise<OdontogramBridge[]> {
+    return invoke('get_bridges_by_patient', { patientId });
+}
+
+export async function addBridge(input: AddBridgeInput): Promise<number> {
+    return invoke('add_bridge', { input });
+}
+
+export async function deactivateBridge(bridgeId: number): Promise<void> {
+    return invoke('deactivate_bridge', { bridgeId });
+}
+

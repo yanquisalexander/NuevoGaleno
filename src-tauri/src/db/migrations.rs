@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 7;
+const CURRENT_SCHEMA_VERSION: i32 = 8;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -65,6 +65,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 7 {
         migrate_v7(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (7)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 8 {
+        migrate_v8(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (8)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -566,3 +572,99 @@ fn migrate_v7(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("migration v7 err: {}", e))
 }
+
+/// Migración v8: Atributos especiales para tratamientos (oscurecer, ausente, puentes, etc.)
+fn migrate_v8(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Agregar campos para efectos visuales y tratamientos especiales
+        -- applies_to_whole_tooth: si el tratamiento se aplica al diente completo (no a superficie específica)
+        -- visual_effect: efecto visual especial (darken, absent, implant, etc.)
+        -- is_bridge_component: si este tratamiento puede formar parte de un puente
+        ALTER TABLE treatment_catalog ADD COLUMN applies_to_whole_tooth INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE treatment_catalog ADD COLUMN visual_effect TEXT;
+        ALTER TABLE treatment_catalog ADD COLUMN is_bridge_component INTEGER NOT NULL DEFAULT 0;
+        
+        ALTER TABLE treatment_catalog_items ADD COLUMN applies_to_whole_tooth INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE treatment_catalog_items ADD COLUMN visual_effect TEXT;
+        ALTER TABLE treatment_catalog_items ADD COLUMN is_bridge_component INTEGER NOT NULL DEFAULT 0;
+
+        -- Tabla para registrar tratamientos a nivel de diente completo
+        CREATE TABLE IF NOT EXISTS odontogram_tooth_treatments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            tooth_number TEXT NOT NULL,
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            condition TEXT NOT NULL DEFAULT 'treatment',
+            notes TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            applied_date TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_item_id) REFERENCES treatment_catalog_items(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tooth_treatments_patient ON odontogram_tooth_treatments(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_tooth_treatments_tooth ON odontogram_tooth_treatments(tooth_number);
+        CREATE INDEX IF NOT EXISTS idx_tooth_treatments_active ON odontogram_tooth_treatments(is_active);
+        CREATE INDEX IF NOT EXISTS idx_tooth_treatments_composite ON odontogram_tooth_treatments(patient_id, tooth_number);
+
+        -- Tabla para registrar puentes dentales
+        CREATE TABLE IF NOT EXISTS odontogram_bridges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            bridge_name TEXT NOT NULL,
+            tooth_start TEXT NOT NULL,
+            tooth_end TEXT NOT NULL,
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            notes TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            applied_date TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_item_id) REFERENCES treatment_catalog_items(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bridges_patient ON odontogram_bridges(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_bridges_active ON odontogram_bridges(is_active);
+
+        -- Historial para tratamientos de diente completo
+        CREATE TABLE IF NOT EXISTS odontogram_tooth_treatment_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            tooth_number TEXT NOT NULL,
+            treatment_catalog_id INTEGER,
+            treatment_catalog_item_id INTEGER,
+            condition TEXT NOT NULL,
+            notes TEXT,
+            action TEXT NOT NULL,
+            applied_date TEXT NOT NULL,
+            recorded_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_item_id) REFERENCES treatment_catalog_items(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tooth_history_patient ON odontogram_tooth_treatment_history(patient_id);
+        CREATE INDEX IF NOT EXISTS idx_tooth_history_tooth ON odontogram_tooth_treatment_history(tooth_number);
+
+        -- Crear algunos tratamientos de ejemplo con efectos visuales
+        INSERT OR IGNORE INTO treatment_catalog (name, description, default_cost, category, color, applies_to_whole_tooth, visual_effect, show_independently)
+        VALUES 
+            ('Ausente', 'Diente ausente', 0.00, 'Diagnóstico', '#64748b', 1, 'absent', 0),
+            ('Implante', 'Implante dental', 8000.00, 'Implantología', '#8b5cf6', 1, 'implant', 0),
+            ('Diente Oscurecido', 'Diente con alteración de color', 0.00, 'Diagnóstico', '#1e293b', 1, 'darken', 0),
+            ('Puente Dental', 'Puente fijo', 12000.00, 'Prótesis', '#f59e0b', 0, NULL, 0);
+
+        UPDATE treatment_catalog SET is_bridge_component = 1 WHERE name = 'Puente Dental';
+        "#,
+    )
+    .map_err(|e| format!("migration v8 err: {}", e))
+}
+

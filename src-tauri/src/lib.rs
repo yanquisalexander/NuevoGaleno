@@ -340,6 +340,62 @@ fn get_tooth_surface_history(
     db::odontogram_surfaces::get_tooth_history(patient_id, &tooth_number)
 }
 
+// ===== ODONTOGRAM TOOTH TREATMENTS COMMANDS (diente completo) =====
+#[tauri::command]
+fn get_tooth_treatments(
+    patient_id: i64,
+    tooth_number: String,
+) -> Result<Vec<db::odontogram_tooth_treatments::OdontogramToothTreatment>, String> {
+    db::odontogram_tooth_treatments::get_tooth_treatments(patient_id, &tooth_number)
+}
+
+#[tauri::command]
+fn get_tooth_treatments_by_patient(
+    patient_id: i64,
+) -> Result<Vec<db::odontogram_tooth_treatments::OdontogramToothTreatment>, String> {
+    db::odontogram_tooth_treatments::get_tooth_treatments_by_patient(patient_id)
+}
+
+#[tauri::command]
+fn add_tooth_treatment(
+    input: db::odontogram_tooth_treatments::AddToothTreatmentInput,
+) -> Result<i64, String> {
+    db::odontogram_tooth_treatments::add_tooth_treatment(input)
+}
+
+#[tauri::command]
+fn deactivate_tooth_treatment(treatment_id: i64) -> Result<(), String> {
+    db::odontogram_tooth_treatments::deactivate_tooth_treatment(treatment_id)
+}
+
+#[tauri::command]
+fn get_tooth_treatment_history(
+    patient_id: i64,
+    tooth_number: String,
+) -> Result<Vec<db::odontogram_tooth_treatments::ToothTreatmentHistoryEntry>, String> {
+    db::odontogram_tooth_treatments::get_tooth_treatment_history(patient_id, &tooth_number)
+}
+
+// ===== ODONTOGRAM BRIDGES COMMANDS =====
+#[tauri::command]
+fn get_bridges_by_patient(
+    patient_id: i64,
+) -> Result<Vec<db::odontogram_tooth_treatments::OdontogramBridge>, String> {
+    db::odontogram_tooth_treatments::get_bridges_by_patient(patient_id)
+}
+
+#[tauri::command]
+fn add_bridge(
+    input: db::odontogram_tooth_treatments::AddBridgeInput,
+) -> Result<i64, String> {
+    db::odontogram_tooth_treatments::add_bridge(input)
+}
+
+#[tauri::command]
+fn deactivate_bridge(bridge_id: i64) -> Result<(), String> {
+    db::odontogram_tooth_treatments::deactivate_bridge(bridge_id)
+}
+
 // ===== TREATMENT CATALOG COMMANDS =====
 #[tauri::command]
 fn get_all_treatment_catalog() -> Result<Vec<db::treatment_catalog::TreatmentCatalogEntry>, String>
@@ -780,6 +836,16 @@ pub fn run() {
             deactivate_surface_treatment,
             get_surface_history,
             get_tooth_surface_history,
+            // odontogram tooth treatments (diente completo)
+            get_tooth_treatments,
+            get_tooth_treatments_by_patient,
+            add_tooth_treatment,
+            deactivate_tooth_treatment,
+            get_tooth_treatment_history,
+            // odontogram bridges
+            get_bridges_by_patient,
+            add_bridge,
+            deactivate_bridge,
             // treatment catalog
             get_all_treatment_catalog,
             get_treatment_catalog_by_id,

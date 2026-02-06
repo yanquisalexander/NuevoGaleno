@@ -28,7 +28,7 @@ interface Patient {
 
 interface SearchResult {
     id: string;
-    type: 'app' | 'patient' | 'recent' | 'action';
+    type: 'app' | 'patient' | 'recent' | 'action' | 'manual';
     title: string;
     subtitle?: string;
     icon: JSX.Element;
@@ -47,6 +47,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     const [isLoading, setIsLoading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const { apps, openWindow } = useWindowManager();
+    const manualIndexRef = useRef<any | null>(null);
     const { currentUser } = useSession();
     const isAdmin = currentUser?.role === 'admin';
 
@@ -105,6 +106,41 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                     });
                 }
             });
+
+            // 1.b Buscar en el Manual (index.json)
+            try {
+                if (!manualIndexRef.current) {
+                    const res = await fetch('/manual/index.json');
+                    if (res.ok) manualIndexRef.current = await res.json();
+                }
+
+                const manualIndex = manualIndexRef.current;
+                if (manualIndex && manualIndex.categories) {
+                    manualIndex.categories.forEach((cat: any) => {
+                        cat.items.forEach((item: any) => {
+                            const title = (item.title || '').toLowerCase();
+                            const catTitle = (cat.title || '').toLowerCase();
+                            const keywords: string[] = (item.keywords || []).map((k: string) => k.toLowerCase());
+                            const matches = title.includes(searchTerm) || catTitle.includes(searchTerm) || keywords.some(k => k.includes(searchTerm) || searchTerm.includes(k));
+                            if (matches) {
+                                allResults.push({
+                                    id: `manual-${cat.id}-${item.id}`,
+                                    type: 'manual',
+                                    title: item.title,
+                                    subtitle: cat.title,
+                                    icon: <FileText className="w-5 h-5 text-orange-400" />,
+                                    action: () => {
+                                        openWindow('manual-galeno', { path: `${cat.id}/${item.id}` });
+                                        onClose();
+                                    }
+                                });
+                            }
+                        });
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading manual index for search', err);
+            }
 
             // 2. Buscar en Pacientes
             try {
@@ -247,6 +283,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         switch (type) {
             case 'app': return 'Aplicación';
             case 'patient': return 'Paciente';
+            case 'manual': return 'Manual';
             case 'action': return 'Acción rápida';
             case 'recent': return 'Reciente';
             default: return '';
@@ -257,6 +294,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         switch (type) {
             case 'app': return 'text-blue-400';
             case 'patient': return 'text-purple-400';
+            case 'manual': return 'text-orange-400';
             case 'action': return 'text-green-400';
             case 'recent': return 'text-orange-400';
             default: return 'text-gray-400';

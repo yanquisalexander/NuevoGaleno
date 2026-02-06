@@ -17,6 +17,7 @@ import { GalenoUpdateApp } from './GalenoUpdate';
 import { TreatmentCatalogApp } from './TreatmentCatalog';
 import { MiGalenoApp } from './MiGaleno';
 import { NodeConfigApp } from './NodeConfig';
+import { ManualGalenoApp } from './ManualGaleno';
 import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
@@ -175,5 +176,13 @@ export const APP_DEFINITIONS = [
         defaultSize: { width: 800, height: 600 },
         component: NodeConfigApp,
         showOnDesktop: false,
+    },
+    {
+        id: 'manual-galeno',
+        name: 'Manual Galeno',
+        icon: '📖',
+        allowMultipleInstances: false,
+        defaultSize: { width: 800, height: 600 },
+        component: ManualGalenoApp,
     },
 ];

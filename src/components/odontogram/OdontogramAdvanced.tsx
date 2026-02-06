@@ -7,6 +7,14 @@ import {
     addToothSurfaceTreatment,
     deactivateSurfaceTreatment,
     getSurfaceHistory,
+    OdontogramToothTreatment,
+    getToothTreatmentsByPatient,
+    addToothTreatment,
+    deactivateToothTreatment,
+    OdontogramBridge,
+    getBridgesByPatient,
+    addBridge,
+    deactivateBridge,
 } from '../../hooks/useOdontogram';
 import {
     TreatmentCatalogEntry,
@@ -63,6 +71,10 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [showHistory, setShowHistory] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Tratamientos a nivel de diente completo y puentes
+    const [toothTreatments, setToothTreatments] = useState<OdontogramToothTreatment[]>([]);
+    const [bridges, setBridges] = useState<OdontogramBridge[]>([]);
+
     // Catálogo de tratamientos
     const [catalog, setCatalog] = useState<TreatmentCatalogEntry[]>([]);
     const [catalogItems, setCatalogItems] = useState<TreatmentCatalogItem[]>([]);
@@ -112,12 +124,16 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [surfaceData, catalogData] = await Promise.all([
+            const [surfaceData, catalogData, toothTreatmentsData, bridgesData] = await Promise.all([
                 getOdontogramSurfacesByPatient(patientId),
                 getAllTreatmentCatalog(),
+                getToothTreatmentsByPatient(patientId),
+                getBridgesByPatient(patientId),
             ]);
             setSurfaces(surfaceData);
             setCatalog(catalogData);
+            setToothTreatments(toothTreatmentsData);
+            setBridges(bridgesData);
         } catch (error) {
             console.error('Error cargando datos:', error);
             toast.error('Error al cargar el odontograma');
@@ -180,6 +196,46 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         return surfaces.filter(
             (s) => s.tooth_number === toothNumber.toString() && s.surface === surface && s.is_active
         );
+    };
+
+    // Obtener tratamientos de diente completo para un diente específico
+    const getToothTreatmentsForTooth = (toothNumber: number): OdontogramToothTreatment[] => {
+        return toothTreatments.filter(
+            (t) => t.tooth_number === toothNumber.toString() && t.is_active
+        );
+    };
+
+    // Obtener el efecto visual de un diente basado en sus tratamientos
+    const getToothVisualEffect = (toothNumber: number): string | null => {
+        const treatments = getToothTreatmentsForTooth(toothNumber);
+        if (treatments.length === 0) return null;
+
+        // El tratamiento más reciente determina el efecto visual
+        const mostRecent = treatments[0];
+
+        // Buscar efecto visual en el item del catálogo primero
+        if (mostRecent.treatment_catalog_item_id) {
+            const item = catalogItems.find((i) => i.id === mostRecent.treatment_catalog_item_id);
+            if (item?.visual_effect) return item.visual_effect;
+        }
+
+        // Luego buscar en el catálogo principal
+        if (mostRecent.treatment_catalog_id) {
+            const treatment = catalog.find((t) => t.id === mostRecent.treatment_catalog_id);
+            if (treatment?.visual_effect) return treatment.visual_effect;
+        }
+
+        return null;
+    };
+
+    // Verificar si un diente está en un puente
+    const getToothBridges = (toothNumber: number): OdontogramBridge[] => {
+        return bridges.filter((bridge) => {
+            const start = parseInt(bridge.tooth_start);
+            const end = parseInt(bridge.tooth_end);
+            const tooth = toothNumber;
+            return tooth >= Math.min(start, end) && tooth <= Math.max(start, end);
+        });
     };
 
     const getSurfaceColor = (toothNumber: number, surface: Surface): string => {
@@ -286,6 +342,8 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const renderTooth = (toothNumber: number) => {
         const isDeciduous = isDeciduousTooth(toothNumber);
         const isSelected = selectedTooth === toothNumber;
+        const visualEffect = getToothVisualEffect(toothNumber);
+        const toothBridges = getToothBridges(toothNumber);
 
         return (
             <div key={toothNumber} className="relative flex flex-col items-center gap-1">
@@ -389,7 +447,32 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                             />
                         );
                     })()}
+
+                    {/* Efectos visuales sobre el diente */}
+                    {visualEffect === 'absent' && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                            <div className="relative w-full h-full">
+                                <div className="absolute inset-0 bg-black/40" />
+                                <X className="absolute inset-0 m-auto w-8 h-8 text-red-500 stroke-[3]" />
+                            </div>
+                        </div>
+                    )}
+                    {visualEffect === 'darken' && (
+                        <div className="absolute inset-0 bg-black/50 pointer-events-none z-10" />
+                    )}
+                    {visualEffect === 'implant' && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                            <div className="w-1 h-full bg-gradient-to-b from-gray-300 via-gray-400 to-gray-500" />
+                        </div>
+                    )}
                 </div>
+
+                {/* Indicador de puente */}
+                {toothBridges.length > 0 && (
+                    <div className="absolute -top-2 left-0 right-0 flex justify-center">
+                        <div className="h-1 bg-amber-500/80 w-full" />
+                    </div>
+                )}
             </div>
         );
     };

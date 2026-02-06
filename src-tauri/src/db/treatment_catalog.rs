@@ -14,6 +14,9 @@ pub struct TreatmentCatalogEntry {
     pub color: Option<String>,
     pub icon: Option<String>,
     pub show_independently: bool,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
     pub is_active: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -28,6 +31,9 @@ pub struct TreatmentCatalogItem {
     pub default_cost: f64,
     pub color: Option<String>,
     pub icon: Option<String>,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
     pub is_active: bool,
     pub display_order: i32,
     pub created_at: String,
@@ -43,6 +49,9 @@ pub struct CreateTreatmentCatalogInput {
     pub color: Option<String>,
     pub icon: Option<String>,
     pub show_independently: bool,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +64,9 @@ pub struct UpdateTreatmentCatalogInput {
     pub color: Option<String>,
     pub icon: Option<String>,
     pub show_independently: bool,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
     pub is_active: bool,
 }
 
@@ -66,6 +78,9 @@ pub struct CreateTreatmentCatalogItemInput {
     pub default_cost: f64,
     pub color: Option<String>,
     pub icon: Option<String>,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
     pub display_order: i32,
 }
 
@@ -77,6 +92,9 @@ pub struct UpdateTreatmentCatalogItemInput {
     pub default_cost: f64,
     pub color: Option<String>,
     pub icon: Option<String>,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
     pub is_active: bool,
     pub display_order: i32,
 }
@@ -90,7 +108,8 @@ pub fn get_all_treatment_catalog() -> Result<Vec<TreatmentCatalogEntry>, String>
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, description, default_cost, category, color, icon, show_independently, is_active, created_at, updated_at
+            "SELECT id, name, description, default_cost, category, color, icon, show_independently, 
+                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, created_at, updated_at
              FROM treatment_catalog
              WHERE is_active = 1
              ORDER BY category, name",
@@ -108,9 +127,12 @@ pub fn get_all_treatment_catalog() -> Result<Vec<TreatmentCatalogEntry>, String>
                 color: row.get(5)?,
                 icon: row.get(6)?,
                 show_independently: row.get::<_, i32>(7)? == 1,
-                is_active: row.get::<_, i32>(8)? == 1,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                applies_to_whole_tooth: row.get::<_, i32>(8)? == 1,
+                visual_effect: row.get(9)?,
+                is_bridge_component: row.get::<_, i32>(10)? == 1,
+                is_active: row.get::<_, i32>(11)? == 1,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -125,7 +147,8 @@ pub fn get_treatment_catalog_by_id(id: i64) -> Result<Option<TreatmentCatalogEnt
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, description, default_cost, category, color, icon, show_independently, is_active, created_at, updated_at
+            "SELECT id, name, description, default_cost, category, color, icon, show_independently, 
+                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, created_at, updated_at
              FROM treatment_catalog
              WHERE id = ?1",
         )
@@ -141,9 +164,12 @@ pub fn get_treatment_catalog_by_id(id: i64) -> Result<Option<TreatmentCatalogEnt
             color: row.get(5)?,
             icon: row.get(6)?,
             show_independently: row.get::<_, i32>(7)? == 1,
-            is_active: row.get::<_, i32>(8)? == 1,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            applies_to_whole_tooth: row.get::<_, i32>(8)? == 1,
+            visual_effect: row.get(9)?,
+            is_bridge_component: row.get::<_, i32>(10)? == 1,
+            is_active: row.get::<_, i32>(11)? == 1,
+            created_at: row.get(12)?,
+            updated_at: row.get(13)?,
         })
     });
 
@@ -159,8 +185,9 @@ pub fn create_treatment_catalog(input: CreateTreatmentCatalogInput) -> Result<i6
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO treatment_catalog (name, description, default_cost, category, color, icon, show_independently, is_active, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8, ?9)",
+        "INSERT INTO treatment_catalog (name, description, default_cost, category, color, icon, show_independently, 
+                                        applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12)",
         params![
             input.name,
             input.description,
@@ -169,6 +196,9 @@ pub fn create_treatment_catalog(input: CreateTreatmentCatalogInput) -> Result<i6
             input.color,
             input.icon,
             if input.show_independently { 1 } else { 0 },
+            if input.applies_to_whole_tooth { 1 } else { 0 },
+            input.visual_effect,
+            if input.is_bridge_component { 1 } else { 0 },
             &now,
             &now,
         ],
@@ -184,8 +214,10 @@ pub fn update_treatment_catalog(input: UpdateTreatmentCatalogInput) -> Result<()
 
     conn.execute(
         "UPDATE treatment_catalog
-         SET name = ?1, description = ?2, default_cost = ?3, category = ?4, color = ?5, icon = ?6, show_independently = ?7, is_active = ?8, updated_at = ?9
-         WHERE id = ?10",
+         SET name = ?1, description = ?2, default_cost = ?3, category = ?4, color = ?5, icon = ?6, 
+             show_independently = ?7, applies_to_whole_tooth = ?8, visual_effect = ?9, is_bridge_component = ?10, 
+             is_active = ?11, updated_at = ?12
+         WHERE id = ?13",
         params![
             input.name,
             input.description,
@@ -194,6 +226,9 @@ pub fn update_treatment_catalog(input: UpdateTreatmentCatalogInput) -> Result<()
             input.color,
             input.icon,
             if input.show_independently { 1 } else { 0 },
+            if input.applies_to_whole_tooth { 1 } else { 0 },
+            input.visual_effect,
+            if input.is_bridge_component { 1 } else { 0 },
             if input.is_active { 1 } else { 0 },
             &now,
             input.id,
@@ -229,7 +264,8 @@ pub fn get_treatment_catalog_items(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_catalog_id, name, description, default_cost, color, icon, is_active, display_order, created_at, updated_at
+            "SELECT id, treatment_catalog_id, name, description, default_cost, color, icon, 
+                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, display_order, created_at, updated_at
              FROM treatment_catalog_items
              WHERE treatment_catalog_id = ?1 AND is_active = 1
              ORDER BY display_order, name",
@@ -246,10 +282,13 @@ pub fn get_treatment_catalog_items(
                 default_cost: row.get(4)?,
                 color: row.get(5)?,
                 icon: row.get(6)?,
-                is_active: row.get::<_, i32>(7)? == 1,
-                display_order: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                applies_to_whole_tooth: row.get::<_, i32>(7)? == 1,
+                visual_effect: row.get(8)?,
+                is_bridge_component: row.get::<_, i32>(9)? == 1,
+                is_active: row.get::<_, i32>(10)? == 1,
+                display_order: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -266,8 +305,9 @@ pub fn create_treatment_catalog_item(
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO treatment_catalog_items (treatment_catalog_id, name, description, default_cost, color, icon, is_active, display_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9)",
+        "INSERT INTO treatment_catalog_items (treatment_catalog_id, name, description, default_cost, color, icon, 
+                                             applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, display_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11, ?12)",
         params![
             input.treatment_catalog_id,
             input.name,
@@ -275,6 +315,9 @@ pub fn create_treatment_catalog_item(
             input.default_cost,
             input.color,
             input.icon,
+            if input.applies_to_whole_tooth { 1 } else { 0 },
+            input.visual_effect,
+            if input.is_bridge_component { 1 } else { 0 },
             input.display_order,
             &now,
             &now,
@@ -291,14 +334,19 @@ pub fn update_treatment_catalog_item(input: UpdateTreatmentCatalogItemInput) -> 
 
     conn.execute(
         "UPDATE treatment_catalog_items
-         SET name = ?1, description = ?2, default_cost = ?3, color = ?4, icon = ?5, is_active = ?6, display_order = ?7, updated_at = ?8
-         WHERE id = ?9",
+         SET name = ?1, description = ?2, default_cost = ?3, color = ?4, icon = ?5, 
+             applies_to_whole_tooth = ?6, visual_effect = ?7, is_bridge_component = ?8, 
+             is_active = ?9, display_order = ?10, updated_at = ?11
+         WHERE id = ?12",
         params![
             input.name,
             input.description,
             input.default_cost,
             input.color,
             input.icon,
+            if input.applies_to_whole_tooth { 1 } else { 0 },
+            input.visual_effect,
+            if input.is_bridge_component { 1 } else { 0 },
             if input.is_active { 1 } else { 0 },
             input.display_order,
             &now,
@@ -329,7 +377,8 @@ pub fn get_treatment_catalog_item_by_id(id: i64) -> Result<Option<TreatmentCatal
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, treatment_catalog_id, name, description, default_cost, color, icon, is_active, display_order, created_at, updated_at
+            "SELECT id, treatment_catalog_id, name, description, default_cost, color, icon, 
+                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, display_order, created_at, updated_at
              FROM treatment_catalog_items
              WHERE id = ?1",
         )
@@ -344,10 +393,13 @@ pub fn get_treatment_catalog_item_by_id(id: i64) -> Result<Option<TreatmentCatal
             default_cost: row.get(4)?,
             color: row.get(5)?,
             icon: row.get(6)?,
-            is_active: row.get::<_, i32>(7)? == 1,
-            display_order: row.get(8)?,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            applies_to_whole_tooth: row.get::<_, i32>(7)? == 1,
+            visual_effect: row.get(8)?,
+            is_bridge_component: row.get::<_, i32>(9)? == 1,
+            is_active: row.get::<_, i32>(10)? == 1,
+            display_order: row.get(11)?,
+            created_at: row.get(12)?,
+            updated_at: row.get(13)?,
         })
     });
 

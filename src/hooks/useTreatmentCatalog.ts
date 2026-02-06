@@ -9,6 +9,9 @@ export interface TreatmentCatalogEntry {
     color?: string;
     icon?: string;
     show_independently: boolean;
+    applies_to_whole_tooth: boolean;
+    visual_effect?: string; // 'darken', 'absent', 'implant', etc.
+    is_bridge_component: boolean;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -22,6 +25,9 @@ export interface TreatmentCatalogItem {
     default_cost: number;
     color?: string;
     icon?: string;
+    applies_to_whole_tooth: boolean;
+    visual_effect?: string;
+    is_bridge_component: boolean;
     is_active: boolean;
     display_order: number;
     created_at: string;
@@ -36,6 +42,9 @@ export interface CreateTreatmentCatalogInput {
     color?: string;
     icon?: string;
     show_independently: boolean;
+    applies_to_whole_tooth: boolean;
+    visual_effect?: string;
+    is_bridge_component: boolean;
 }
 
 export interface UpdateTreatmentCatalogInput {
@@ -47,6 +56,9 @@ export interface UpdateTreatmentCatalogInput {
     color?: string;
     icon?: string;
     show_independently: boolean;
+    applies_to_whole_tooth: boolean;
+    visual_effect?: string;
+    is_bridge_component: boolean;
     is_active: boolean;
 }
 
@@ -57,6 +69,9 @@ export interface CreateTreatmentCatalogItemInput {
     default_cost: number;
     color?: string;
     icon?: string;
+    applies_to_whole_tooth: boolean;
+    visual_effect?: string;
+    is_bridge_component: boolean;
     display_order: number;
 }
 
@@ -67,6 +82,9 @@ export interface UpdateTreatmentCatalogItemInput {
     default_cost: number;
     color?: string;
     icon?: string;
+    applies_to_whole_tooth: boolean;
+    visual_effect?: string;
+    is_bridge_component: boolean;
     is_active: boolean;
     display_order: number;
 }
