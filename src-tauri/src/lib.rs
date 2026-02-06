@@ -1,13 +1,13 @@
 // Modular Tauri commands: wizard (db/config) and importer (gln handling)
+mod config;
 mod db;
 mod global;
 mod import_pipeline;
 mod importer;
+mod licensing;
 mod pxlib;
-mod config;
 mod session;
 mod wizard;
-mod licensing;
 
 use tauri::Emitter;
 
@@ -104,8 +104,7 @@ fn delete_treatment(id: i64) -> Result<(), String> {
 #[tauri::command]
 fn get_all_templates() -> Result<Vec<db::templates::Template>, String> {
     let conn = db::get_connection()?;
-    db::templates::get_all_templates(&conn)
-        .map_err(|e| format!("Error getting templates: {}", e))
+    db::templates::get_all_templates(&conn).map_err(|e| format!("Error getting templates: {}", e))
 }
 
 #[tauri::command]
@@ -123,7 +122,9 @@ fn get_templates_by_type(template_type: String) -> Result<Vec<db::templates::Tem
 }
 
 #[tauri::command]
-fn create_template(input: db::templates::CreateTemplateInput) -> Result<db::templates::Template, String> {
+fn create_template(
+    input: db::templates::CreateTemplateInput,
+) -> Result<db::templates::Template, String> {
     let conn = db::get_connection()?;
     db::templates::create_template(&conn, input)
         .map_err(|e| format!("Error creating template: {}", e))
@@ -139,8 +140,7 @@ fn update_template(id: i64, input: db::templates::UpdateTemplateInput) -> Result
 #[tauri::command]
 fn delete_template(id: i64) -> Result<(), String> {
     let conn = db::get_connection()?;
-    db::templates::delete_template(&conn, id)
-        .map_err(|e| format!("Error deleting template: {}", e))
+    db::templates::delete_template(&conn, id).map_err(|e| format!("Error deleting template: {}", e))
 }
 
 #[tauri::command]
@@ -272,9 +272,7 @@ fn get_tooth_surfaces(
 }
 
 #[tauri::command]
-fn update_tooth_surface(
-    input: db::odontogram_surfaces::UpdateSurfaceInput,
-) -> Result<i64, String> {
+fn update_tooth_surface(input: db::odontogram_surfaces::UpdateSurfaceInput) -> Result<i64, String> {
     db::odontogram_surfaces::update_tooth_surface(input)
 }
 
@@ -332,8 +330,8 @@ fn get_tooth_surface_history(
 
 // ===== TREATMENT CATALOG COMMANDS =====
 #[tauri::command]
-fn get_all_treatment_catalog(
-) -> Result<Vec<db::treatment_catalog::TreatmentCatalogEntry>, String> {
+fn get_all_treatment_catalog() -> Result<Vec<db::treatment_catalog::TreatmentCatalogEntry>, String>
+{
     db::treatment_catalog::get_all_treatment_catalog()
 }
 
@@ -442,7 +440,9 @@ fn mark_reminder_sent(reminder_id: i64, notification_id: String) -> Result<(), S
 }
 
 #[tauri::command]
-fn get_upcoming_appointments(hours: i32) -> Result<Vec<db::appointments::AppointmentWithPatient>, String> {
+fn get_upcoming_appointments(
+    hours: i32,
+) -> Result<Vec<db::appointments::AppointmentWithPatient>, String> {
     let conn = db::get_connection()?;
     db::appointments::get_upcoming_appointments(&conn, hours)
 }
@@ -451,22 +451,43 @@ fn get_upcoming_appointments(hours: i32) -> Result<Vec<db::appointments::Appoint
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-static LICENSE_MANAGER: Lazy<Mutex<Option<licensing::LicenseManager>>> = Lazy::new(|| Mutex::new(None));
+static LICENSE_MANAGER: Lazy<Mutex<Option<licensing::LicenseManager>>> =
+    Lazy::new(|| Mutex::new(None));
 
 fn get_license_manager() -> Result<licensing::LicenseManager, String> {
     let mut manager_lock = LICENSE_MANAGER.lock().unwrap();
-    
+
     if manager_lock.is_none() {
         // TODO: Reemplazar estos valores con tus IDs reales de Lemon Squeezy
-        let store_id = 0;
-        let product_id = 0;
-        let variant_id = 0;
-        
-        let manager = licensing::LicenseManager::new(store_id, product_id, variant_id)
-            .map_err(|e| e.to_string())?;
+        let config = licensing::LemonSqueezyConfig {
+            store_id: 286686,   // Tu Store ID
+            product_id: 813454, // Tu Product ID
+            variants: vec![
+                licensing::LicenseVariant {
+                    id: 1282380, // Variant ID para licencia Mensual
+                    name: "Mensual".to_string(),
+                    description: "Licencia mensual con renovación automática".to_string(),
+                },
+                licensing::LicenseVariant {
+                    id: 1282355, // Variant ID para licencia Anual
+                    name: "Anual".to_string(),
+                    description: "Licencia anual con descuento".to_string(),
+                },
+                licensing::LicenseVariant {
+                    id: 1282371, // Variant ID para licencia Vitalicia
+                    name: "Vitalicia".to_string(),
+                    description: "Licencia de por vida, pago único".to_string(),
+                },
+            ],
+            trial_days: 14,
+            validation_interval_hours: 24,
+            offline_grace_period_days: 7,
+        };
+
+        let manager = licensing::LicenseManager::new(config).map_err(|e| e.to_string())?;
         *manager_lock = Some(manager);
     }
-    
+
     Ok(manager_lock.as_ref().unwrap().clone())
 }
 
@@ -482,35 +503,40 @@ async fn activate_license(
         .activate_license(&license_key, &customer_email, &instance_name)
         .await
         .map_err(|e| e.to_string())?;
-    
+
     // Emitir evento para que la UI se actualice
     let _ = app.emit("license-status-changed", ());
-    
+
     Ok(result)
 }
 
 #[tauri::command]
 async fn validate_license(app: tauri::AppHandle) -> Result<licensing::LicenseStatus, String> {
     let manager = get_license_manager()?;
-    let status = manager.validate_license().await.map_err(|e| e.to_string())?;
-    
+    let status = manager
+        .validate_license()
+        .await
+        .map_err(|e| e.to_string())?;
+
     // Emitir evento para que la UI se actualice
     let _ = app.emit("license-status-changed", ());
-    
+
     Ok(status)
 }
 
 #[tauri::command]
-async fn deactivate_license(app: tauri::AppHandle) -> Result<licensing::LemonSqueezyDeactivateResponse, String> {
+async fn deactivate_license(
+    app: tauri::AppHandle,
+) -> Result<licensing::LemonSqueezyDeactivateResponse, String> {
     let manager = get_license_manager()?;
     let result = manager
         .deactivate_license()
         .await
         .map_err(|e| e.to_string())?;
-    
+
     // Emitir evento para que la UI se actualice
     let _ = app.emit("license-status-changed", ());
-    
+
     Ok(result)
 }
 
@@ -519,15 +545,19 @@ fn get_license_status() -> Result<licensing::LicenseStatus, String> {
     let manager = get_license_manager()?;
     manager.get_trial_status().map_err(|e| e.to_string())
 }
-
+#[tauri::command]
+fn get_lemon_squeezy_config() -> Result<licensing::LemonSqueezyConfig, String> {
+    let manager = get_license_manager()?;
+    Ok(manager.get_config())
+}
 #[tauri::command]
 fn start_trial(app: tauri::AppHandle) -> Result<(), String> {
     let manager = get_license_manager()?;
     manager.start_trial().map_err(|e| e.to_string())?;
-    
+
     // Emitir evento para que la UI se actualice
     let _ = app.emit("license-status-changed", ());
-    
+
     Ok(())
 }
 
@@ -678,6 +708,7 @@ pub fn run() {
             deactivate_license,
             get_license_status,
             start_trial,
+            get_lemon_squeezy_config,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

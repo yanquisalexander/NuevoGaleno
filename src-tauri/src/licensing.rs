@@ -1,9 +1,9 @@
+use crate::db::path::get_app_data_dir;
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use crate::db::path::get_app_data_dir;
 
 const LEMON_SQUEEZY_API_BASE: &str = "https://api.lemonsqueezy.com/v1";
 
@@ -98,26 +98,37 @@ pub struct LicenseStatus {
     pub offline_mode: bool,
     pub cached_response: Option<LemonSqueezyValidateResponse>,
 }
-#[derive(Clone)]pub struct LicenseManager {
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LicenseVariant {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LemonSqueezyConfig {
+    pub store_id: i64,
+    pub product_id: i64,
+    pub variants: Vec<LicenseVariant>,
+    pub trial_days: i64,
+    pub validation_interval_hours: i64,
+    pub offline_grace_period_days: i64,
+}
+#[derive(Clone)]
+pub struct LicenseManager {
     db_path: PathBuf,
-    store_id: i64,
-    product_id: i64,
-    variant_id: i64,
+    config: LemonSqueezyConfig,
 }
 
 impl LicenseManager {
-    pub fn new(store_id: i64, product_id: i64, variant_id: i64) -> Result<Self> {
+    pub fn new(config: LemonSqueezyConfig) -> Result<Self> {
         let app_data_dir = get_app_data_dir()
             .map_err(|e| anyhow!("Error obteniendo directorio de datos: {}", e))?;
 
         let db_path = app_data_dir.join("license.db");
 
-        let manager = Self {
-            db_path,
-            store_id,
-            product_id,
-            variant_id,
-        };
+        let manager = Self { db_path, config };
 
         manager.init_db()?;
         Ok(manager)
@@ -154,6 +165,10 @@ impl LicenseManager {
         Ok(Connection::open(&self.db_path)?)
     }
 
+    pub fn get_config(&self) -> LemonSqueezyConfig {
+        self.config.clone()
+    }
+
     // Activar licencia con Lemon Squeezy
     pub async fn activate_license(
         &self,
@@ -186,11 +201,22 @@ impl LicenseManager {
         let activation_response: LemonSqueezyActivateResponse = response.json().await?;
 
         // Verificar que la licencia sea para nuestro producto
-        if activation_response.meta.store_id != self.store_id
-            || activation_response.meta.product_id != self.product_id
+        if activation_response.meta.store_id != self.config.store_id
+            || activation_response.meta.product_id != self.config.product_id
         {
+            return Err(anyhow!("Esta licencia no es válida para este producto"));
+        }
+
+        // Verificar que la variante sea una de las permitidas
+        let is_valid_variant = self
+            .config
+            .variants
+            .iter()
+            .any(|v| v.id == activation_response.meta.variant_id);
+
+        if !is_valid_variant {
             return Err(anyhow!(
-                "Esta licencia no es válida para este producto"
+                "Esta licencia no es válida para ninguna de las variantes de este producto"
             ));
         }
 
@@ -219,16 +245,15 @@ impl LicenseManager {
 
         if let Some(info) = local_info {
             // Intentar validar online
-            match self.validate_license_online(&info.license_key, &info.instance_id).await {
+            match self
+                .validate_license_online(&info.license_key, &info.instance_id)
+                .await
+            {
                 Ok(validate_response) => {
                     // Actualizar cache
                     self.update_cached_response(&info.license_key, &validate_response)?;
 
-                    return Ok(self.build_license_status(
-                        &validate_response,
-                        &info,
-                        false,
-                    ));
+                    return Ok(self.build_license_status(&validate_response, &info, false));
                 }
                 Err(_) => {
                     // Modo offline - usar cache si está disponible
@@ -270,10 +295,7 @@ impl LicenseManager {
         let response = client
             .post(format!("{}/licenses/validate", LEMON_SQUEEZY_API_BASE))
             .header("Accept", "application/json")
-            .form(&[
-                ("license_key", license_key),
-                ("instance_id", instance_id),
-            ])
+            .form(&[("license_key", license_key), ("instance_id", instance_id)])
             .send()
             .await?;
 
@@ -415,6 +437,36 @@ impl LicenseManager {
     }
 
     pub fn get_trial_status(&self) -> Result<LicenseStatus> {
+        // Primero verificar si hay una licencia activa guardada localmente
+        if let Ok(Some(local_info)) = self.get_local_license_info() {
+            // Si hay info de licencia, verificar si tiene cached_response
+            if let Some(cached_json) = &local_info.cached_response {
+                if let Ok(cached_response) =
+                    serde_json::from_str::<LemonSqueezyValidateResponse>(cached_json)
+                {
+                    // Usar la respuesta cacheada para construir el estado
+                    return Ok(self.build_license_status(&cached_response, &local_info, false));
+                }
+            }
+            // Si no hay cached_response válido pero hay license_key, asumir que está activa
+            // pero necesita validación online
+            return Ok(LicenseStatus {
+                is_licensed: true,
+                is_active: true,
+                is_trial: false,
+                trial_days_remaining: 0,
+                trial_expired: false,
+                trial_used: false,
+                license_key: Some(local_info.license_key.clone()),
+                customer_email: Some(local_info.customer_email.clone()),
+                status: "active".to_string(),
+                last_check: Some(Utc::now().to_rfc3339()),
+                offline_mode: true, // Marcar como offline porque no tenemos respuesta válida
+                cached_response: None,
+            });
+        }
+
+        // Si no hay licencia, verificar si hay trial
         let trial_started = self.get_trial_info()?;
 
         if let Some(started_at) = trial_started {
@@ -451,7 +503,7 @@ impl LicenseManager {
                 is_trial: false,
                 trial_days_remaining: 0,
                 trial_expired: false, // false porque nunca se inició un trial
-                trial_used: false, // Nunca se usó el trial
+                trial_used: false,    // Nunca se usó el trial
                 license_key: None,
                 customer_email: None,
                 status: "unlicensed".to_string(),

@@ -112,14 +112,31 @@ export interface LicenseRestrictions {
     watermark?: string;
 }
 
-// Configuración de Lemon Squeezy
+// Configuración de variantes de licencia
+export interface LicenseVariant {
+    id: number;
+    name: string;
+    description: string;
+}
+
+// Configuración de Lemon Squeezy desde Rust
+export interface LemonSqueezyConfig {
+    store_id: number;
+    product_id: number;
+    variants: LicenseVariant[];
+    trial_days: number;
+    validation_interval_hours: number;
+    offline_grace_period_days: number;
+}
+
+// Deprecated: Usar getLemonSqueezyConfig() en su lugar
 export const LEMON_SQUEEZY_CONFIG = {
-    STORE_ID: 0, // TODO: Reemplazar con tu Store ID
-    PRODUCT_ID: 0, // TODO: Reemplazar con tu Product ID
-    VARIANT_ID: 0, // TODO: Reemplazar con tu Variant ID
+    STORE_ID: 0,
+    PRODUCT_ID: 0,
+    VARIANT_ID: 0,
     TRIAL_DAYS: 30,
-    VALIDATION_INTERVAL_HOURS: 24, // Validar cada 24 horas
-    OFFLINE_GRACE_PERIOD_DAYS: 7, // Permitir 7 días sin conexión
+    VALIDATION_INTERVAL_HOURS: 24,
+    OFFLINE_GRACE_PERIOD_DAYS: 7,
 };
 
 export const LICENSE_RESTRICTIONS: {

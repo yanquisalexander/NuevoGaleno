@@ -6,13 +6,28 @@ import type {
     LemonSqueezyActivateResponse,
     LemonSqueezyDeactivateResponse,
     LicenseRestrictions,
+    LemonSqueezyConfig,
 } from '@/types/licensing';
 import { LICENSE_RESTRICTIONS } from '@/types/licensing';
 
 export function useLicense() {
     const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
+    const [config, setConfig] = useState<LemonSqueezyConfig | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Obtener configuración de Lemon Squeezy desde Rust
+    const loadConfig = useCallback(async () => {
+        try {
+            const lsConfig = await invoke<LemonSqueezyConfig>('get_lemon_squeezy_config');
+            setConfig(lsConfig);
+            return lsConfig;
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.error('Error loading Lemon Squeezy config:', errorMsg);
+            return null;
+        }
+    }, []);
 
     // Validar licencia
     const validateLicense = useCallback(async () => {
@@ -46,8 +61,9 @@ export function useLicense() {
                 });
 
                 if (response.activated) {
-                    // Validar después de activar para obtener el estado actualizado
-                    await validateLicense();
+                    // Obtener el estado actualizado del caché local
+                    const status = await invoke<LicenseStatus>('get_license_status');
+                    setLicenseStatus(status);
                     return { success: true, message: 'Licencia activada correctamente' };
                 } else {
                     throw new Error(response.error || 'Error al activar licencia');
@@ -60,7 +76,7 @@ export function useLicense() {
                 setIsLoading(false);
             }
         },
-        [validateLicense]
+        []
     );
 
     // Desactivar licencia
@@ -197,6 +213,7 @@ export function useLicense() {
 
     // Cargar estado inicial al montar
     useEffect(() => {
+        loadConfig();
         getLicenseStatus();
 
         // Escuchar eventos de cambio de licencia
@@ -217,10 +234,11 @@ export function useLicense() {
             unlisten.then(fn => fn());
             clearInterval(interval);
         };
-    }, [getLicenseStatus, validateLicense]);
+    }, [getLicenseStatus, validateLicense, loadConfig]);
 
     return {
         licenseStatus,
+        config,
         isLoading,
         error,
         activateLicense,
@@ -228,6 +246,7 @@ export function useLicense() {
         validateLicense,
         startTrial,
         getLicenseStatus,
+        loadConfig,
         getRestrictions,
         hasFeature,
         isLimitReached,
