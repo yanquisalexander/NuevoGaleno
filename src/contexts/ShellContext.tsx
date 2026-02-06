@@ -11,6 +11,8 @@ interface ShellContextType {
     setShowStartMenu: (show: boolean) => void;
     showPowerMenu: boolean;
     setShowPowerMenu: (show: boolean) => void;
+    showAltTab: boolean;
+    setShowAltTab: (show: boolean) => void;
     updateAvailable: boolean;
     setUpdateAvailable: (available: boolean) => void;
     toggleSearch: () => void;
@@ -29,6 +31,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     const [showCalendar, setShowCalendar] = useState(false);
     const [showStartMenu, setShowStartMenu] = useState(false);
     const [showPowerMenu, setShowPowerMenu] = useState(false);
+    const [showAltTab, setShowAltTab] = useState(false);
     const [updateAvailable, setUpdateAvailable] = useState(false);
 
     const closeAll = useCallback(() => {
@@ -37,6 +40,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
         setShowCalendar(false);
         setShowStartMenu(false);
         setShowPowerMenu(false);
+        setShowAltTab(false);
     }, []);
 
     const toggleSearch = useCallback(() => {
@@ -76,6 +80,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
             showCalendar, setShowCalendar,
             showStartMenu, setShowStartMenu,
             showPowerMenu, setShowPowerMenu,
+            showAltTab, setShowAltTab,
             updateAvailable, setUpdateAvailable,
             toggleSearch,
             toggleNotifications,

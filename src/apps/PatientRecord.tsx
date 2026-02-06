@@ -26,6 +26,7 @@ import { MedicalView } from '../components/patients/MedicalView';
 import { AddGeneralTreatmentDialog } from '../components/treatments/AddGeneralTreatmentDialog';
 import { useAppMenuBar } from '../hooks/useAppMenuBar';
 import { useMedicalView } from '../hooks/useMedicalView';
+import { useWindowManager } from '../contexts/WindowManagerContext';
 import type { WindowId } from '../types/window-manager';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -35,6 +36,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram'>('info');
     const [showAddTreatmentDialog, setShowAddTreatmentDialog] = useState(false);
+    const { updateTitle } = useWindowManager();
     const patientId = data?.patientId;
 
     // Hook para la vista médica personalizada
@@ -54,7 +56,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
     useAppMenuBar({
         windowId,
         config: {
-            appName: patient ? `${patient.first_name} ${patient.last_name}` : 'Ficha de Paciente',
+            appName: patient ? `Ficha de ${patient.first_name} ${patient.last_name}` : 'Ficha de Paciente',
             menus: [
                 {
                     id: 'file',
@@ -222,6 +224,10 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
         try {
             const data = await getPatientById(patientId);
             setPatient(data);
+            // Actualizar el título de la ventana con el nombre del paciente
+            if (data) {
+                updateTitle(windowId, `Ficha de ${data.first_name} ${data.last_name}`);
+            }
         } catch (error) {
             console.error('Error cargando paciente:', error);
         } finally {

@@ -31,8 +31,9 @@ export interface AppDefinition {
 }
 
 export type WindowAction =
-    | { type: 'OPEN_WINDOW'; appId: string; data?: any }
+    | { type: 'OPEN_WINDOW'; appId: string; data?: any; title?: string }
     | { type: 'CLOSE_WINDOW'; windowId: WindowId }
+    | { type: 'UPDATE_TITLE'; windowId: WindowId; title: string }
     | { type: 'CLOSE_ALL_WINDOWS' }
     | { type: 'MINIMIZE_WINDOW'; windowId: WindowId }
     | { type: 'MAXIMIZE_WINDOW'; windowId: WindowId }

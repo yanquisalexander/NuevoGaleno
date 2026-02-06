@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { DesktopContextMenu } from './DesktopContextMenu';
+import { AltTabSwitcher } from './AltTabSwitcher';
 import { playSound, UI_SOUNDS } from "@/consts/Sounds";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
@@ -264,6 +265,9 @@ export function Desktop({ layout = 'windows' }: DesktopProps) {
                     onNextWallpaper={() => changeWallpaper()}
                 />
             )}
+
+            {/* Alt+Tab Switcher */}
+            <AltTabSwitcher />
         </motion.div>
     );
 }

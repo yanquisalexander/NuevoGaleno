@@ -153,9 +153,7 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
                                         <SelectItem value="Completed" className="text-green-500 focus:bg-green-500/10 focus:text-green-400">
                                             Terminado
                                         </SelectItem>
-                                        <SelectItem value="Cancelled" className="text-red-500 focus:bg-red-500/10 focus:text-red-400">
-                                            Cancelado
-                                        </SelectItem>
+
                                     </SelectContent>
                                 </Select>
                             </div>

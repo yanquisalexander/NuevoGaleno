@@ -4,8 +4,9 @@ import type { WindowState, WindowAction, WindowId, AppDefinition } from '../type
 interface WindowManagerContextType {
     windows: WindowState[];
     apps: Map<string, AppDefinition>;
-    openWindow: (appId: string, data?: any) => void;
+    openWindow: (appId: string, data?: any, title?: string) => void;
     closeWindow: (windowId: WindowId) => void;
+    updateTitle: (windowId: WindowId, title: string) => void;
     closeAllWindows: () => void;
     minimizeWindow: (windowId: WindowId) => void;
     maximizeWindow: (windowId: WindowId) => void;
@@ -39,7 +40,7 @@ function windowReducer(state: WindowState[], action: WindowAction, apps: Map<str
             const newWindow: WindowState = {
                 id: `${action.appId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 appId: action.appId,
-                title: '',
+                title: action.title || app?.name || '',
                 isMinimized: false,
                 isMaximized: false,
                 isFocused: true,
@@ -97,6 +98,11 @@ function windowReducer(state: WindowState[], action: WindowAction, apps: Map<str
                 w.id === action.windowId ? { ...w, size: action.size } : w
             );
 
+        case 'UPDATE_TITLE':
+            return state.map(w =>
+                w.id === action.windowId ? { ...w, title: action.title } : w
+            );
+
         default:
             return state;
     }
@@ -129,7 +135,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('session:logout', handleLogout);
     }, []);
 
-    const openWindow = useCallback((appId: string, data?: any) => {
+    const openWindow = useCallback((appId: string, data?: any, title?: string) => {
         const app = apps.get(appId);
         if (!app) return;
 
@@ -142,7 +148,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        dispatch({ type: 'OPEN_WINDOW', appId, data });
+        dispatch({ type: 'OPEN_WINDOW', appId, data, title });
     }, [apps, windows]);
 
     const closeWindow = useCallback((windowId: WindowId) => {
@@ -177,6 +183,10 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'UPDATE_SIZE', windowId, size });
     }, []);
 
+    const updateTitle = useCallback((windowId: WindowId, title: string) => {
+        dispatch({ type: 'UPDATE_TITLE', windowId, title });
+    }, []);
+
     const registerApp = useCallback((app: AppDefinition) => {
         appsDispatch({ type: 'REGISTER', app });
     }, []);
@@ -195,6 +205,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
                 focusWindow,
                 updatePosition,
                 updateSize,
+                updateTitle,
                 registerApp,
             }}
         >
