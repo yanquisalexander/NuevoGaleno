@@ -3,7 +3,7 @@ import { X, Calendar, Clock, User, MapPin, Bell, Tag, Save, ChevronDown } from '
 import { format, addMinutes } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { Appointment, APPOINTMENT_TYPES, AppointmentStatus } from '../../types/appointments';
-import { getPatients, type Patient } from '../../hooks/usePatients';
+import { usePatients, type Patient } from '../../hooks/usePatients';
 import { cn } from '@/lib/utils';
 
 interface AppointmentFormProps {
@@ -24,6 +24,7 @@ export function AppointmentForm({
     const [patients, setPatients] = useState<Patient[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const { getPatients } = usePatients();
     const [formData, setFormData] = useState<Partial<Appointment>>({
         patient_id: appointment?.patient_id || 0,
         title: appointment?.title || '',

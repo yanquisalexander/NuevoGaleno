@@ -1,4 +1,4 @@
-import { Globe, Server } from 'lucide-react';
+import { Globe, Server, Activity } from 'lucide-react';
 import { useNode } from '@/contexts/NodeContext';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,70 +11,94 @@ export function RemoteConnectionIndicator({ variant = 'windows' }: RemoteConnect
     const { activeContext } = useNode();
     const [showTooltip, setShowTooltip] = useState(false);
 
-    if (!activeContext || activeContext.mode === 'local') {
-        return null;
-    }
+    if (!activeContext || activeContext.mode === 'local') return null;
 
     const isMacOS = variant === 'macos';
 
+    // --- Estilos Windows 11 (Fluent Design) ---
+    const winStyles = {
+        pill: "bg-[#ffffff0a] border border-[#ffffff15] hover:bg-[#ffffff12] active:scale-95 transition-all duration-200",
+        tooltip: "bg-[#2c2c2c] border border-[#454545] shadow-[0_8px_20px_rgba(0,0,0,0.4)] rounded-[4px] backdrop-blur-md",
+        text: "font-['Segoe_UI',_sans-serif] text-[11px] tracking-tight",
+        status: "bg-[#60cdff]" // Windows Cyan
+    };
+
+    // --- Estilos macOS (Apple Design Resources) ---
+    const macStyles = {
+        pill: "hover:bg-white/[0.15] backdrop-blur-xl transition-colors duration-150",
+        tooltip: "bg-[#1e1e1e]/80 border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)] rounded-lg backdrop-blur-2xl",
+        text: "font-['-apple-system','BlinkMacSystemFont',_sans-serif] text-[12px] tracking-wide",
+        status: "bg-[#34c759]" // Apple Green
+    };
+
+    const s = isMacOS ? macStyles : winStyles;
+
     return (
         <div
-            className="relative"
+            className="relative inline-block"
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
         >
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors ${isMacOS
-                    ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
-                    : 'bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20'
-                }`}>
-                <Globe className={isMacOS ? "w-3 h-3" : "w-3.5 h-3.5"} />
-                <span className={`font-medium ${isMacOS ? 'text-[11px]' : 'text-[10px]'}`}>
+            {/* Pill Indicator */}
+            <div className={`flex items-center gap-2 px-2.5 py-1 ${isMacOS ? 'rounded-full' : 'rounded'} ${s.pill} cursor-default`}>
+                <Globe className={`${isMacOS ? 'w-3 h-3 text-white/70' : 'w-3.5 h-3.5 text-blue-400'}`} />
+                <span className={`font-medium text-white/90 ${s.text}`}>
                     Remoto
                 </span>
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="relative flex h-2 w-2">
+                    <span className={` absolute inline-flex h-full w-full rounded-full opacity-75 ${s.status}`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${s.status}`}></span>
+                </span>
             </div>
 
+            {/* Tooltip */}
             <AnimatePresence>
                 {showTooltip && (
                     <motion.div
-                        initial={{ opacity: 0, y: isMacOS ? 5 : -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: isMacOS ? 5 : -5 }}
-                        transition={{ duration: 0.15 }}
-                        className={`absolute ${isMacOS ? 'top-full mt-2' : 'bottom-full mb-2'
-                            } left-1/2 -translate-x-1/2 z-50`}
+                        initial={isMacOS ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: -8 }}
+                        animate={isMacOS ? { opacity: 1, scale: 1 } : { opacity: 1, y: 0 }}
+                        exit={isMacOS ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: -8 }}
+                        transition={{ duration: 0.1, ease: "easeOut" }}
+                        className={`absolute ${isMacOS ? 'top-full mt-3' : 'bottom-full mb-3'} left-1/2 -translate-x-1/2 z-50`}
                     >
-                        <div className="bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl px-3 py-2 min-w-[200px] backdrop-blur-xl">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Server className="w-4 h-4 text-blue-400" />
-                                <span className="text-xs font-semibold text-white">
-                                    Servidor Remoto
+                        <div className={`px-4 py-3 min-w-[220px] ${s.tooltip}`}>
+                            <div className="flex items-center gap-2.5 mb-2.5 border-b border-white/5 pb-2">
+                                <div className={`p-1 rounded ${isMacOS ? 'bg-blue-500' : 'bg-[#0078d4]'}`}>
+                                    <Server className="w-3.5 h-3.5 text-white" />
+                                </div>
+                                <span className={`font-semibold text-white/95 ${s.text} text-[13px]`}>
+                                    Conexión Activa
                                 </span>
                             </div>
-                            <div className="text-[10px] text-white/60 space-y-0.5">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-white/40">Nodo:</span>
-                                    <span className="text-white/80 font-medium">{activeContext.nodeName}</span>
+
+                            <div className="space-y-2">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Nodo</span>
+                                    <span className={`text-white/80 ${s.text}`}>{activeContext.nodeName}</span>
                                 </div>
+
                                 {activeContext.apiBaseUrl && (
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-white/40">URL:</span>
-                                        <span className="text-white/70 font-mono truncate">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Endpoint</span>
+                                        <span className="text-blue-400/80 font-mono text-[10px] truncate max-w-[180px]">
                                             {activeContext.apiBaseUrl}
                                         </span>
                                     </div>
                                 )}
-                                <div className="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                    <span className="text-green-400">Conectado</span>
+
+                                <div className={`flex items-center gap-2 mt-2 pt-2 border-t border-white/5`}>
+                                    <Activity className={`w-3 h-3 ${isMacOS ? 'text-green-400' : 'text-[#60cdff]'}`} />
+                                    <span className={`${isMacOS ? 'text-green-400' : 'text-[#60cdff]'} font-medium text-[11px]`}>
+                                        Latencia optimizada
+                                    </span>
                                 </div>
                             </div>
                         </div>
-                        {/* Flecha del tooltip */}
-                        <div className={`absolute left-1/2 -translate-x-1/2 ${isMacOS
-                                ? 'top-0 -translate-y-1/2 border-l-4 border-r-4 border-b-4 border-transparent border-b-white/10'
-                                : 'bottom-0 translate-y-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-white/10'
-                            }`} />
+
+                        {/* Drop Shadow Arrow (Solo Windows) */}
+                        {!isMacOS && (
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-[-5px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-[#454545]" />
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

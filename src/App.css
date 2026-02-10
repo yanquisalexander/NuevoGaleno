@@ -6,6 +6,161 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* San Francisco Pro Font Faces - Using system fonts that closely match SF Pro */
+@font-face {
+  font-family: 'SF Pro Display';
+  src: local('SF Pro Display Regular'),
+       local('SF-Pro-Display-Regular'),
+       local('BlinkMacSystemFont'), /* macOS system font */
+       local('Segoe UI'), /* Windows system font */
+       local('Roboto'), /* Android system font */
+       local('Oxygen'), /* KDE system font */
+       local('Ubuntu'), /* Ubuntu system font */
+       local('Cantarell'), /* GNOME system font */
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: local('SF Pro Display Medium'),
+       local('SF-Pro-Display-Medium'),
+       local('BlinkMacSystemFont'),
+       local('Segoe UI Semibold'),
+       local('Segoe UI'),
+       local('Roboto Medium'),
+       local('Oxygen'),
+       local('Ubuntu Medium'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: local('SF Pro Display Semibold'),
+       local('SF-Pro-Display-Semibold'),
+       local('BlinkMacSystemFont'),
+       local('Segoe UI Semibold'),
+       local('Segoe UI'),
+       local('Roboto'),
+       local('Oxygen'),
+       local('Ubuntu'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: local('SF Pro Display Bold'),
+       local('SF-Pro-Display-Bold'),
+       local('BlinkMacSystemFont'),
+       local('Segoe UI Bold'),
+       local('Segoe UI'),
+       local('Roboto Bold'),
+       local('Oxygen'),
+       local('Ubuntu Bold'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Text';
+  src: local('SF Pro Text Regular'),
+       local('SF-Pro-Text-Regular'),
+       local('system-ui'), /* Modern system font stack */
+       local('BlinkMacSystemFont'),
+       local('Segoe UI'),
+       local('Roboto'),
+       local('Oxygen'),
+       local('Ubuntu'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Text';
+  src: local('SF Pro Text Medium'),
+       local('SF-Pro-Text-Medium'),
+       local('system-ui'),
+       local('BlinkMacSystemFont'),
+       local('Segoe UI Semibold'),
+       local('Segoe UI'),
+       local('Roboto Medium'),
+       local('Oxygen'),
+       local('Ubuntu Medium'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Text';
+  src: local('SF Pro Text Semibold'),
+       local('SF-Pro-Text-Semibold'),
+       local('system-ui'),
+       local('BlinkMacSystemFont'),
+       local('Segoe UI Semibold'),
+       local('Segoe UI'),
+       local('Roboto'),
+       local('Oxygen'),
+       local('Ubuntu'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Text';
+  src: local('SF Pro Text Bold'),
+       local('SF-Pro-Text-Bold'),
+       local('system-ui'),
+       local('BlinkMacSystemFont'),
+       local('Segoe UI Bold'),
+       local('Segoe UI'),
+       local('Roboto Bold'),
+       local('Oxygen'),
+       local('Ubuntu Bold'),
+       local('Cantarell'),
+       local('Helvetica Neue'),
+       local('Helvetica'),
+       local('Arial'),
+       sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
 @theme inline {
   /* Material Design 3 Border Radius */
   --radius-md3-none: 0;
@@ -104,12 +259,20 @@
   /* Roboto Font */
   --font-family-roboto: Roboto, system-ui, sans-serif;
 
+  /* SF Pro Fonts */
+  --font-family-sf-pro-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-family-sf-pro-text: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
   /* Material Design 3 Box Shadows */
   --shadow-md3-1: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
   --shadow-md3-2: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
   --shadow-md3-3: 0 4px 8px 3px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md3-4: 0 6px 10px 4px rgba(0, 0, 0, 0.15), 0 2px 3px rgba(0, 0, 0, 0.3);
   --shadow-md3-5: 0 8px 12px 6px rgba(0, 0, 0, 0.15), 0 4px 4px rgba(0, 0, 0, 0.3);
+
+  /* SF Pro Font Classes */
+  --font-family-sf-pro-display: var(--font-family-sf-pro-display);
+  --font-family-sf-pro-text: var(--font-family-sf-pro-text);
 }
 
 :root {
@@ -187,7 +350,7 @@
   }
   body {
     @apply bg-md3-background text-md3-on-background;
-    font-family: var(--font-family-roboto);
+    font-family: var(--font-family-sf-pro-text);
   }
 }
 

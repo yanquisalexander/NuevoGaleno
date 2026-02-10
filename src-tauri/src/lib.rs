@@ -2,6 +2,7 @@
 mod api;
 mod config;
 mod db;
+mod discovery;
 mod global;
 mod import_pipeline;
 mod importer;
@@ -642,7 +643,7 @@ fn set_node_config(config: node::NodeConfig) -> Result<(), String> {
 
 #[tauri::command]
 async fn start_api_server(config: node::HostConfig) -> Result<(), String> {
-    api::server::start_api_server(config).await
+    api::server::start_api_server(&config).await
 }
 
 #[tauri::command]
@@ -692,6 +693,66 @@ async fn test_remote_connection(remote_url: String, auth_token: String) -> Resul
     Ok(body)
 }
 
+// ===== DISCOVERY COMMANDS =====
+
+#[tauri::command]
+async fn start_node_broadcast(node_name: String, port: u16) -> Result<(), String> {
+    use crate::global::DISCOVERY_SERVICE;
+
+    let service_clone = {
+        let guard = DISCOVERY_SERVICE.lock().unwrap();
+        guard.clone().unwrap()
+    };
+
+    tokio::spawn(async move {
+        if let Err(e) = service_clone.start_broadcasting(&node_name, port).await {
+            log::error!("Failed to start node broadcasting: {}", e);
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn start_node_discovery() -> Result<(), String> {
+    use crate::global::DISCOVERY_SERVICE;
+
+    let service_clone = {
+        let guard = DISCOVERY_SERVICE.lock().unwrap();
+        guard.clone().unwrap()
+    };
+
+    tokio::spawn(async move {
+        if let Err(e) = service_clone.start_discovering().await {
+            log::error!("Failed to start node discovery: {}", e);
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_discovered_nodes() -> Result<Vec<discovery::DiscoveredNode>, String> {
+    use crate::global::DISCOVERY_SERVICE;
+
+    let guard = DISCOVERY_SERVICE.lock().unwrap();
+    if let Some(service) = guard.as_ref() {
+        Ok(service.get_discovered_nodes())
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+#[tauri::command]
+fn stop_node_discovery() -> Result<(), String> {
+    use crate::global::DISCOVERY_SERVICE;
+
+    if let Some(service) = DISCOVERY_SERVICE.lock().unwrap().as_ref() {
+        service.shutdown();
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let logs_dir = db::path::get_app_data_dir()
@@ -729,6 +790,52 @@ pub fn run() {
             // store global AppHandle for modules that need to emit from background tasks
             let mut g = global::GLOBAL_APP_HANDLE.lock().unwrap();
             *g = Some(app.handle().clone());
+
+            // Auto-start server if configured as host
+            let _app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match node::config::load_node_config() {
+                    Ok(config) => {
+                        if let (node::NodeMode::Host, Some(host_config)) = (config.mode, config.host_config) {
+                            log::info!("Auto-starting API server in host mode (node: {})", config.node_name);
+                            if let Err(e) = api::server::start_api_server(&host_config).await {
+                                log::error!("Failed to auto-start API server: {}", e);
+                            } else {
+                                log::info!("API server started automatically on port {}", host_config.api_port);
+
+                                // Start broadcasting this node
+                                let service_clone = {
+                                    let guard = global::DISCOVERY_SERVICE.lock().unwrap();
+                                    guard.as_ref().unwrap().clone()
+                                };
+                                let node_name = config.node_name.clone();
+                                let port = host_config.api_port;
+                                tauri::async_runtime::spawn(async move {
+                                    if let Err(e) = service_clone.start_broadcasting(&node_name, port).await {
+                                        log::error!("Failed to start node broadcasting: {}", e);
+                                    }
+                                });
+                            }
+                        } else if config.mode == node::NodeMode::Client {
+                            log::info!("Starting node discovery in client mode");
+                            // Start discovering nodes
+                            let service_clone = {
+                                let guard = global::DISCOVERY_SERVICE.lock().unwrap();
+                                guard.as_ref().unwrap().clone()
+                            };
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) = service_clone.start_discovering().await {
+                                    log::error!("Failed to start node discovery: {}", e);
+                                }
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Could not load node config for auto-start: {}", e);
+                    }
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -880,6 +987,11 @@ pub fn run() {
             stop_api_server,
             is_api_server_running,
             test_remote_connection,
+            // node discovery
+            start_node_broadcast,
+            start_node_discovery,
+            get_discovered_nodes,
+            stop_node_discovery,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

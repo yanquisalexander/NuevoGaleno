@@ -8,8 +8,9 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use tokio::task;
 
-use crate::db::patients::{CreatePatientInput, Patient, UpdatePatientInput};
+use crate::db::patients::{CreatePatientInput, UpdatePatientInput};
 use crate::services::auth::{AuthService, LoginRequest};
 use crate::services::patients::PatientService;
 
@@ -42,18 +43,22 @@ pub struct SearchQuery {
 
 /// POST /api/auth/login - Authenticate and get JWT token
 pub async fn login(Json(req): Json<LoginRequest>) -> impl IntoResponse {
-    let service = AuthService::new();
-    match service.login(req.username, req.password) {
-        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
-        Err(e) => (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "error": "Authentication failed",
-                "message": e
-            })),
-        )
-            .into_response(),
-    }
+    task::spawn_blocking(move || {
+        let service = AuthService::new();
+        match service.login(req.username, req.password) {
+            Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+            Err(e) => (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "Authentication failed",
+                    "message": e
+                })),
+            )
+                .into_response(),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// Response for token verification
@@ -61,6 +66,18 @@ pub async fn login(Json(req): Json<LoginRequest>) -> impl IntoResponse {
 pub struct VerifyResponse {
     pub valid: bool,
     pub user: Option<crate::db::users::User>,
+}
+
+/// Helper function for unauthorized response
+fn unauthorized_response() -> axum::http::Response<axum::body::Body> {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(VerifyResponse {
+            valid: false,
+            user: None,
+        }),
+    )
+        .into_response()
 }
 
 /// GET /api/auth/verify - Verify JWT token (requires Authorization header)
@@ -72,101 +89,89 @@ pub async fn verify_token(
         Some(value) => match value.to_str() {
             Ok(header) => {
                 if header.starts_with("Bearer ") {
-                    &header[7..]
+                    header[7..].to_string()
                 } else {
-                    return (
-                        StatusCode::UNAUTHORIZED,
-                        Json(VerifyResponse {
-                            valid: false,
-                            user: None,
-                        }),
-                    )
-                        .into_response();
+                    return unauthorized_response();
                 }
             }
             Err(_) => {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(VerifyResponse {
-                        valid: false,
-                        user: None,
-                    }),
-                )
-                    .into_response();
+                return unauthorized_response();
             }
         },
         None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(VerifyResponse {
-                    valid: false,
-                    user: None,
-                }),
-            )
-                .into_response();
+            return unauthorized_response();
         }
     };
 
-    let service = AuthService::new();
-    match service.verify_token(token) {
-        Ok(user) => (
-            StatusCode::OK,
-            Json(VerifyResponse {
-                valid: true,
-                user: Some(user),
-            }),
-        )
-            .into_response(),
-        Err(_) => (
-            StatusCode::UNAUTHORIZED,
-            Json(VerifyResponse {
-                valid: false,
-                user: None,
-            }),
-        )
-            .into_response(),
-    }
+    task::spawn_blocking(move || -> axum::http::Response<axum::body::Body> {
+        let service = AuthService::new();
+        match service.verify_token(&token) {
+            Ok(user) => (
+                StatusCode::OK,
+                Json(VerifyResponse {
+                    valid: true,
+                    user: Some(user),
+                }),
+            )
+                .into_response(),
+            Err(_) => unauthorized_response(),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 // ===== PATIENT ROUTES =====
 
 /// GET /api/patients - Get all patients with optional pagination
 pub async fn get_patients(Query(params): Query<PaginationQuery>) -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.get_all(params.limit, params.offset) {
-        Ok(patients) => (StatusCode::OK, Json(patients)).into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.get_all(params.limit, params.offset) {
+            Ok(patients) => (StatusCode::OK, Json(patients)).into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// GET /api/patients/:id - Get patient by ID
 pub async fn get_patient_by_id(Path(id): Path<i64>) -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.get_by_id(id) {
-        Ok(Some(patient)) => (StatusCode::OK, Json(patient)).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "error": "Not Found",
-                "message": format!("Patient {} not found", id)
-            })),
-        )
-            .into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.get_by_id(id) {
+            Ok(Some(patient)) => (StatusCode::OK, Json(patient)).into_response(),
+            Ok(None) => (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "Not Found",
+                    "message": format!("Patient {} not found", id)
+                })),
+            )
+                .into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// POST /api/patients - Create a new patient
 pub async fn create_patient(Json(input): Json<CreatePatientInput>) -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.create(input) {
-        Ok(id) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({ "id": id })),
-        )
-            .into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.create(input) {
+            Ok(id) => (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "id": id })),
+            )
+                .into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// PUT /api/patients/:id - Update patient
@@ -174,50 +179,66 @@ pub async fn update_patient(
     Path(id): Path<i64>,
     Json(input): Json<UpdatePatientInput>,
 ) -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.update(id, input) {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "message": "Patient updated successfully" })),
-        )
-            .into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.update(id, input) {
+            Ok(_) => (
+                StatusCode::OK,
+                Json(serde_json::json!({ "message": "Patient updated successfully" })),
+            )
+                .into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// DELETE /api/patients/:id - Delete patient
 pub async fn delete_patient(Path(id): Path<i64>) -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.delete(id) {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "message": "Patient deleted successfully" })),
-        )
-            .into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.delete(id) {
+            Ok(_) => (
+                StatusCode::OK,
+                Json(serde_json::json!({ "message": "Patient deleted successfully" })),
+            )
+                .into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// GET /api/patients/search?q=<query> - Search patients
 pub async fn search_patients(Query(params): Query<SearchQuery>) -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.search(&params.q) {
-        Ok(patients) => (StatusCode::OK, Json(patients)).into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.search(&params.q) {
+            Ok(patients) => (StatusCode::OK, Json(patients)).into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// GET /api/patients/count - Get total patient count
 pub async fn get_patients_count() -> impl IntoResponse {
-    let service = PatientService::new();
-    match service.get_count() {
-        Ok(count) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "count": count })),
-        )
-            .into_response(),
-        Err(e) => super::service_error_to_response(e),
-    }
+    task::spawn_blocking(move || {
+        let service = PatientService::new();
+        match service.get_count() {
+            Ok(count) => (
+                StatusCode::OK,
+                Json(serde_json::json!({ "count": count })),
+            )
+                .into_response(),
+            Err(e) => super::service_error_to_response(e),
+        }
+    })
+    .await
+    .unwrap()
 }
 
 /// Create patient routes

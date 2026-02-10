@@ -16,7 +16,7 @@ import {
     LayoutGrid
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Patient, getPatientById } from '../hooks/usePatients';
+import { Patient, usePatients } from '../hooks/usePatients';
 import { MedicalHistory } from '../components/patients/MedicalHistory';
 import { TreatmentList } from '../components/treatments/TreatmentList';
 import { TreatmentPayments } from '../components/payments/TreatmentPayments';
@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 
 export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?: any }) {
     const [patient, setPatient] = useState<Patient | null>(null);
+    const { getPatientById } = usePatients();
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram'>('info');
     const [showAddTreatmentDialog, setShowAddTreatmentDialog] = useState(false);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Patient, updatePatient } from '../../hooks/usePatients';
+import { Patient, usePatients } from '../../hooks/usePatients';
 import { FileText, Save, Edit, Calendar, AlertCircle, Activity, Pill, Stethoscope } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ interface MedicalHistoryProps {
 export function MedicalHistory({ patient, onUpdate }: MedicalHistoryProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const { updatePatient } = usePatients();
     const [formData, setFormData] = useState({
         allergies: patient.allergies || '',
         medical_notes: patient.medical_notes || '',

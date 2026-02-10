@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Patient, searchPatients } from '../../hooks/usePatients';
+import { Patient, usePatients } from '../../hooks/usePatients';
 import { Search, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -13,6 +13,7 @@ export function PatientSearch({ onSelectPatient, placeholder = "Buscar paciente.
     const [results, setResults] = useState<Patient[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    const { searchPatients } = usePatients();
 
     useEffect(() => {
         if (query.length < 2) {

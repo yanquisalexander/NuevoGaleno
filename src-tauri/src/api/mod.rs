@@ -8,7 +8,7 @@ pub mod server;
 use axum::{
     extract::{Request, State},
     http::StatusCode,
-    middleware::{self, Next},
+    middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };

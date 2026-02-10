@@ -14,8 +14,8 @@ import {
     ChevronRight
 } from 'lucide-react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
-import { invoke } from '@tauri-apps/api/core';
 import { useSession } from '../../hooks/useSession';
+import { usePatients } from '../../hooks/usePatients';
 
 interface Patient {
     id: number;
@@ -50,6 +50,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     const manualIndexRef = useRef<any | null>(null);
     const { currentUser } = useSession();
     const isAdmin = currentUser?.role === 'admin';
+    const { searchPatients } = usePatients();
 
     // Focus automático cuando se abre
     useEffect(() => {
@@ -144,7 +145,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
 
             // 2. Buscar en Pacientes
             try {
-                const patients: Patient[] = await invoke('search_patients', { query: searchTerm });
+                const patients = await searchPatients(searchTerm);
                 patients.forEach(patient => {
                     allResults.push({
                         id: `patient-${patient.id}`,

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { UserCircle, Activity, AlertTriangle, ArrowRight, Clock } from 'lucide-react';
 import { useWindowManager } from '../contexts/WindowManagerContext';
 import { NotificationDemo } from '../components/NotificationDemo';
-import { getPatientsCount } from '../hooks/usePatients';
+import { usePatients } from '../hooks/usePatients';
 import { getTreatmentStats } from '../hooks/useTreatments';
 import { getTotalDebt } from '../hooks/usePayments';
 import type { WindowId } from '../types/window-manager';
@@ -22,6 +22,7 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
     });
     const [isLoading, setIsLoading] = useState(true);
     const { openWindow } = useWindowManager();
+    const { getPatientsCount } = usePatients();
 
     useEffect(() => { loadStats(); }, []);
 

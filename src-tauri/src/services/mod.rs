@@ -5,7 +5,7 @@
 pub mod auth;
 pub mod patients;
 
-use std::sync::Arc;
+
 
 /// Service result type
 pub type ServiceResult<T> = Result<T, ServiceError>;

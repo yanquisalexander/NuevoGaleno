@@ -98,9 +98,9 @@ static API_SERVER: once_cell::sync::Lazy<Arc<RwLock<ApiServer>>> =
     once_cell::sync::Lazy::new(|| Arc::new(RwLock::new(ApiServer::new())));
 
 /// Start the global API server
-pub async fn start_api_server(config: HostConfig) -> Result<(), String> {
+pub async fn start_api_server(config: &HostConfig) -> Result<(), String> {
     let mut server = API_SERVER.write().await;
-    server.start(config).await
+    server.start(config.clone()).await
 }
 
 /// Stop the global API server

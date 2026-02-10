@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Patient, getPatients } from '../../hooks/usePatients';
+import { Patient, usePatients } from '../../hooks/usePatients';
 import { User, Phone, FileText, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -14,6 +14,7 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const pageSize = 20;
+    const { getPatients } = usePatients();
 
     useEffect(() => {
         loadPatients();

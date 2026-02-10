@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { PatientSearch } from '../components/patients/PatientSearch';
 import { PatientList } from '../components/patients/PatientList';
 import { PatientForm } from '../components/patients/PatientForm';
-import { Patient, createPatient, updatePatient } from '../hooks/usePatients';
+import { Patient, usePatients } from '../hooks/usePatients';
 import type { WindowId } from '../types/window-manager';
 
 export function PatientsApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
@@ -12,6 +12,7 @@ export function PatientsApp({ windowId: _windowId }: { windowId: WindowId; data?
     const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const { openWindow } = useWindowManager();
+    const { createPatient, updatePatient } = usePatients();
 
     const handleSelectPatient = (patient: Patient) => {
         openWindow('patient-record', { patientId: patient.id });
