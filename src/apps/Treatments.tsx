@@ -1,8 +1,10 @@
 import { Activity } from 'lucide-react';
 import { TreatmentList } from '../components/treatments/TreatmentList';
+import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
 
 export function TreatmentsApp({ windowId: _windowId, data }: { windowId: WindowId; data?: any }) {
+    useAppRuntime('treatments', 'Tratamientos');
     const patientId = data?.patientId;
 
     if (!patientId) {

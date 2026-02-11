@@ -21,8 +21,16 @@ export const useAppRuntime = (appId: string, name: string) => {
         };
         window.addEventListener('click', handleEvent);
 
+        // Update metrics periodically
+        const metricsInterval = setInterval(() => {
+            const ram = (performance as any).memory?.usedJSHeapSize || 0;
+            const cpu = Math.random() * 10; // Simulated CPU usage
+            runtimeManager.updateMetrics(appId, cpu, ram / 1024 / 1024);
+        }, 1000);
+
         return () => {
             window.removeEventListener('click', handleEvent);
+            clearInterval(metricsInterval);
         };
     }, [appId, name]);
 

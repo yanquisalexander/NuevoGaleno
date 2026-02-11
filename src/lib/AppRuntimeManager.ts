@@ -12,7 +12,8 @@ export class AppRuntimeManager {
 
     register(appId: string, name: string): void {
         if (this.apps.has(appId)) {
-            throw new Error(`App ${appId} already registered`);
+            // Already registered, do nothing
+            return;
         }
         const app: RuntimeApp = {
             id: appId,

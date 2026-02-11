@@ -27,11 +27,13 @@ import { AddGeneralTreatmentDialog } from '../components/treatments/AddGeneralTr
 import { useAppMenuBar } from '../hooks/useAppMenuBar';
 import { useMedicalView } from '../hooks/useMedicalView';
 import { useWindowManager } from '../contexts/WindowManagerContext';
+import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?: any }) {
+    useAppRuntime('patient-record', 'Ficha de Paciente');
     const [patient, setPatient] = useState<Patient | null>(null);
     const { getPatientById } = usePatients();
     const [isLoading, setIsLoading] = useState(true);

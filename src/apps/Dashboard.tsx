@@ -5,9 +5,11 @@ import { NotificationDemo } from '../components/NotificationDemo';
 import { usePatients } from '../hooks/usePatients';
 import { getTreatmentStats } from '../hooks/useTreatments';
 import { getTotalDebt } from '../hooks/usePayments';
+import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
 
 export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
+    useAppRuntime('dashboard', 'Panel de Control');
     const [stats, setStats] = useState({
         patientsCount: 0,
         treatmentStats: {

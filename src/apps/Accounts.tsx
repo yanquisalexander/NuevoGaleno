@@ -3,9 +3,11 @@ import { Activity, Wallet, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useWindowManager } from '../contexts/WindowManagerContext';
 import { getPatientsWithDebt } from '../hooks/usePayments';
+import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
 
 export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
+    useAppRuntime('accounts', 'Cuentas Corrientes');
     const [debtors, setDebtors] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { openWindow } = useWindowManager();

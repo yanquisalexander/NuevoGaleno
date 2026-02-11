@@ -5,9 +5,11 @@ import { PatientSearch } from '../components/patients/PatientSearch';
 import { PatientList } from '../components/patients/PatientList';
 import { PatientForm } from '../components/patients/PatientForm';
 import { Patient, usePatients } from '../hooks/usePatients';
+import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
 
 export function PatientsApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
+    useAppRuntime('patients', 'Pacientes');
     const [showForm, setShowForm] = useState(false);
     const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
