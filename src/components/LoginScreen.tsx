@@ -13,11 +13,13 @@ import {
     Wifi124Regular as Wifi,
     Battery124Regular as Battery,
     ChevronLeft24Regular as ChevronLeft,
-    Search24Regular as Search,
     ArrowRight24Regular as ArrowRight,
     Globe24Regular as Globe,
     Laptop24Regular as Laptop,
-    ArrowSync24Regular as RefreshCw
+    ArrowSync24Regular as RefreshCw,
+    PersonAdd24Regular as UserAdd,
+    Desktop24Regular as Desktop,
+    LockClosed24Regular as Lock
 } from '@fluentui/react-icons';
 import { Person24Regular as User } from '@fluentui/react-icons';
 
@@ -35,6 +37,7 @@ interface LoginScreenProps {
     onLogin: (user: UserData) => void;
 }
 
+// Componente de reloj estilo Barra de Menú macOS / Windows 11 Taskbar
 const Clock = () => {
     const [date, setDate] = useState(new Date());
     useEffect(() => {
@@ -43,12 +46,12 @@ const Clock = () => {
     }, []);
 
     return (
-        <div className="flex items-center gap-3 text-white/90 drop-shadow-sm">
-            <span className="text-[13px] font-medium tabular-nums tracking-tight">
-                {date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
-            </span>
-            <span className="text-[13px] font-medium tabular-nums tracking-tight">
+        <div className="flex flex-col items-end leading-tight text-white/90 drop-shadow-sm select-none">
+            <span className="text-[12px] font-medium tracking-wide">
                 {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <span className="text-[10px] font-medium opacity-70">
+                {date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
             </span>
         </div>
     );
@@ -59,38 +62,45 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     const { setTemporaryRemoteConnection, activeContext } = useNode();
     const { discoveredNodes, isDiscovering, startDiscovery, stopDiscovery } = useNodeDiscovery();
     const client = useGalenoClient();
+    const { lockScreen } = useSession();
+
+    // Estados
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<UserData[]>([]);
     const [isPinMode, setIsPinMode] = useState(false);
-    const [viewState, setViewState] = useState<'selection' | 'password' | 'remote-config'>('selection');
+
+    // ViewState: 'selection' (grid) | 'login' (form) | 'remote-config' (ip setup)
+    const [viewState, setViewState] = useState<'selection' | 'login' | 'remote-config'>('selection');
     const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+
+    // Remote logic
     const [remoteUrl, setRemoteUrl] = useState('');
     const [remoteToken, setRemoteToken] = useState('');
     const [testingConnection, setTestingConnection] = useState(false);
 
     useEffect(() => {
-        const savedMode = localStorage.getItem('lastLoginMode');
-        if (savedMode === 'pin') setIsPinMode(true);
-    }, []);
-
-    useEffect(() => {
         const loadUsers = async () => {
             try {
-                const userList: UserData[] = await invoke('list_users');
+                // Simulación de carga (reemplazar con invoke real si falla en dev)
+                const userList: UserData[] = await invoke('list_users').catch(() => []);
                 const gradients = [
-                    'from-blue-400 to-indigo-500',
+                    'from-blue-500 to-cyan-400',
+                    'from-violet-500 to-fuchsia-400',
                     'from-emerald-400 to-teal-500',
-                    'from-purple-400 to-pink-500',
-                    'from-amber-400 to-orange-500'
+                    'from-orange-400 to-amber-300',
+                    'from-rose-500 to-pink-400'
                 ];
+
                 const enhancedUsers = userList
                     .filter(u => u.active)
                     .map((u, i) => ({ ...u, avatarGradient: gradients[i % gradients.length] }));
+
                 setUsers(enhancedUsers);
-                if (enhancedUsers.length === 1) handleSelectUser(enhancedUsers[0]);
+                // Si solo hay un usuario, pre-seleccionar (opcional, comentado para ver la UI)
+                // if (enhancedUsers.length === 1) handleSelectUser(enhancedUsers[0]);
             } catch (error) {
                 console.error('Error cargando usuarios:', error);
             }
@@ -98,46 +108,61 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         loadUsers();
     }, []);
 
+    // Seleccionar usuario local de la lista
     const handleSelectUser = (user: UserData) => {
         setSelectedUser(user);
         setUsername(user.username);
+        // Lógica de PIN
         if (user.pin) {
             const savedMode = localStorage.getItem('lastLoginMode');
             setIsPinMode(savedMode === 'pin' || savedMode === null);
         } else {
             setIsPinMode(false);
         }
-        setViewState('password');
+        setViewState('login');
         setTimeout(() => document.getElementById('password-input')?.focus(), 150);
     };
+
+    // Manejar "Otro Usuario" o Login después de conectar remoto
+    const handleGenericLogin = () => {
+        setSelectedUser(null); // Importante: Null indica que no es un usuario pre-cargado
+        setUsername('');
+        setPassword('');
+        setIsPinMode(false); // Login genérico siempre usa contraseña
+        setViewState('login');
+        setTimeout(() => document.getElementById('username-input')?.focus(), 150);
+    }
 
     const handleBackToSelection = () => {
         setViewState('selection');
         setPassword('');
-        setSelectedUser(null);
-        setRemoteUrl('');
-        setRemoteToken('');
+        // No limpiamos remoteUrl por si quiere reintentar rápido
         setShowPassword(false);
     };
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!password) return;
+        if (!selectedUser && !username) return; // Si es genérico, necesitamos usuario
+
         setLoading(true);
         try {
             let user: UserData;
-            if (isPinMode && activeContext?.mode !== 'remote') {
+
+            // Si hay usuario seleccionado Y estamos en modo PIN Y no es remoto
+            if (selectedUser && isPinMode && activeContext?.mode !== 'remote') {
                 user = await loginWithPin(username, password) as UserData;
                 localStorage.setItem('lastLoginMode', 'pin');
             } else {
+                // Login estándar (usuario local o remoto)
                 user = await login(username, password, client) as UserData;
                 localStorage.setItem('lastLoginMode', 'password');
             }
             onLogin(user);
         } catch (err: any) {
             toast.error('Acceso denegado', {
-                description: 'Verifica tus credenciales.',
-                className: 'bg-[#1e1e1e]/90 backdrop-blur-2xl text-white border-white/10 rounded-xl'
+                description: 'Las credenciales no coinciden.',
+                className: 'bg-white/10 backdrop-blur-md border-white/20 text-white'
             });
             setPassword('');
         } finally {
@@ -146,206 +171,261 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     };
 
     return (
-        <div className="fixed inset-0 overflow-hidden font-sans bg-black text-slate-200 selection:bg-blue-500/40">
+        <div className="fixed inset-0 overflow-hidden font-sans bg-[#0f0f0f] text-slate-200 selection:bg-blue-500/30">
 
-            {/* Wallpaper con efecto de profundidad */}
-            <div
-                className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-in-out scale-100"
-                style={{
-                    backgroundImage: `url('https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=2064')`,
-                    filter: viewState !== 'selection' ? 'blur(40px) brightness(0.7)' : 'blur(0px) brightness(0.9)'
-                }}
-            />
+            {/* Background Abstracto / Fluid */}
+            <div className="absolute inset-0 z-0">
+                <div
+                    className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-out scale-[1.02]"
+                    style={{
+                        backgroundImage: `url('https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=2064')`, // Abstract Fluid
+                        filter: viewState !== 'selection' ? 'blur(20px) brightness(0.6) saturate(1.2)' : 'blur(0px) brightness(0.85) saturate(1.1)'
+                    }}
+                />
+                <div className="absolute inset-0 bg-black/20" /> {/* Overlay para contraste */}
+            </div>
 
-            {/* Menu Bar macOS */}
-            <div className="relative z-50 flex items-center justify-between px-5 h-8 backdrop-blur-md bg-black/10">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 group cursor-default">
-                        <span className="text-[13px] font-bold text-white/90">Nuevo Galeno</span>
-                    </div>
+            {/* Top Bar (Glass) */}
+            <div className="absolute top-0 w-full z-50 flex items-center justify-between px-6 h-10 bg-gradient-to-b from-black/40 to-transparent">
+                <div className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity cursor-default">
+                    <span className="text-[13px] font-semibold tracking-wide text-white drop-shadow-md">Nuevo Galeno</span>
                 </div>
-                <div className="flex items-center gap-4">
-                    <Wifi fontSize={14} className="text-white/80" />
-                    <Battery fontSize={16} className="text-white/80" />
+                <div className="flex items-center gap-5">
+                    <Wifi fontSize={16} className="text-white/90 drop-shadow-sm" />
+                    <Battery fontSize={18} className="text-white/90 drop-shadow-sm" />
+                    <button
+                        onClick={lockScreen}
+                        className="p-1 rounded hover:bg-white/10 transition-colors"
+                        title="Bloquear pantalla"
+                    >
+                        <Lock fontSize={16} className="text-white/90 drop-shadow-sm" />
+                    </button>
                     <Clock />
                 </div>
             </div>
 
-            <div className="relative z-10 flex flex-col items-center justify-center h-[calc(100vh-32px)]">
+            {/* Main Content */}
+            <div className="relative z-10 flex flex-col items-center justify-center h-full pt-6">
 
+                {/* View: User Selection (Grid) */}
                 {viewState === 'selection' && (
-                    <div className="animate-in fade-in zoom-in-95 duration-700 flex flex-col items-center">
-                        <h1 className="text-6xl font-semibold text-white mb-20 tracking-tight drop-shadow-2xl">
-                            Bienvenido
-                        </h1>
+                    <div className="animate-in fade-in zoom-in-95 duration-500 flex flex-col items-center w-full">
 
-                        <div className="flex flex-wrap justify-center gap-10 max-w-6xl px-10">
+                        {/* Redujimos el mb-16 a mb-6 para compensar el padding que le daremos a la grilla */}
+                        <div className="mb-6 text-center space-y-2">
+                            <h1 className="text-5xl md:text-6xl font-semibold text-white tracking-tight drop-shadow-2xl">
+                                ¿Quién eres?
+                            </h1>
+                        </div>
+
+                        {/* Cambiamos px-10 pb-10 por p-10 (que incluye pt-10). Esto le da espacio interno al scroll para la animación */}
+                        <div className="flex flex-wrap justify-center gap-x-12 gap-y-10 max-w-5xl p-10 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {/* Local Users */}
                             {users.map((user) => (
                                 <button
                                     key={user.id}
                                     onClick={() => handleSelectUser(user)}
-                                    className="group relative flex flex-col items-center w-32 transition-all duration-300"
+                                    className="group relative flex flex-col items-center w-36 outline-none"
                                 >
-                                    <div className={`w-28 h-28 rounded-[2.5rem] mb-4 relative flex items-center justify-center text-4xl font-medium 
-                                        bg-gradient-to-br ${user.avatarGradient} 
-                                        shadow-[0_20px_40px_rgba(0,0,0,0.3)]
-                                        group-hover:scale-105 group-hover:-translate-y-1 transition-all duration-500 ring-4 ring-transparent group-hover:ring-white/20`}
-                                    >
-                                        <span className="text-white drop-shadow-md">{user.name.charAt(0)}</span>
+                                    <div className={`
+                                        w-28 h-28 rounded-[2rem] mb-5 relative flex items-center justify-center text-4xl font-medium text-white
+                                        bg-gradient-to-br ${user.avatarGradient}
+                                        shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]
+                                        ring-4 ring-white/10 group-hover:ring-white/30 group-focus:ring-blue-400/50
+                                        transform transition-all duration-300 ease-out
+                                        group-hover:scale-110 group-hover:-translate-y-2 group-active:scale-95
+                                    `}>
+                                        <span className="drop-shadow-lg">{user.name.charAt(0)}</span>
+
                                     </div>
-                                    <span className="text-[15px] font-semibold text-white drop-shadow-lg">
-                                        {user.name}
+                                    <span className="text-[15px] font-medium text-white/90 group-hover:text-white transition-colors drop-shadow-md">
+                                        {user.name.split(' ')[0]}
                                     </span>
                                 </button>
                             ))}
 
-                            <div className="flex gap-8">
-                                <button
-                                    onClick={() => { setUsername(''); setViewState('password'); }}
-                                    className="group flex flex-col items-center"
-                                >
-                                    <div className="w-28 h-28 rounded-[2.5rem] mb-4 border-2 border-white/10 bg-white/5 flex items-center justify-center text-white/40 group-hover:bg-white/10 group-hover:border-white/20 transition-all duration-500">
-                                        <Laptop fontSize={40} />
-                                    </div>
-                                    <span className="text-[13px] text-white/60 font-medium">Local</span>
-                                </button>
+                            {/* Divider Vertical si hay usuarios */}
+                            {users.length > 0 && <div className="w-[1px] bg-white/10 rounded-full mx-2 hidden md:block" />}
 
-                                <button
-                                    onClick={() => { setViewState('remote-config'); }}
-                                    className="group flex flex-col items-center"
-                                >
-                                    <div className="w-28 h-28 rounded-[2.5rem] mb-4 border-2 border-white/10 bg-white/5 flex items-center justify-center text-white/40 group-hover:bg-blue-500/10 group-hover:border-blue-500/30 group-hover:text-blue-400 transition-all duration-500">
-                                        <Globe fontSize={40} />
-                                    </div>
-                                    <span className="text-[13px] text-white/60 font-medium">Remoto</span>
-                                </button>
-                            </div>
+                            {/* Manual / Other User Button */}
+                            <button
+                                onClick={handleGenericLogin}
+                                className="group flex flex-col items-center w-36 outline-none"
+                            >
+                                <div className="w-28 h-28 rounded-[2rem] mb-5 bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/60 group-hover:bg-white/20 group-hover:text-white group-hover:border-white/40 shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:-translate-y-2">
+                                    <UserAdd fontSize={36} />
+                                </div>
+                                <span className="text-[13px] font-medium text-white/60 group-hover:text-white transition-colors">Otro Usuario</span>
+                            </button>
+                        </div>
+
+                        {/* Bottom Actions */}
+                        <div className="absolute bottom-12 flex gap-6">
+                            <button
+                                onClick={() => setViewState('remote-config')}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black/20 hover:bg-black/40 backdrop-blur-xl border border-white/5 hover:border-white/20 transition-all text-sm font-medium text-white/70 hover:text-white"
+                            >
+                                <Globe fontSize={16} />
+                                Conectar a Servidor
+                            </button>
                         </div>
                     </div>
                 )}
 
-                {(viewState === 'remote-config' || viewState === 'password') && (
-                    <div className="animate-in slide-in-from-bottom-4 fade-in duration-500 flex flex-col items-center w-full max-w-[400px] px-6">
-                        <div className="w-full max-h-[85vh] overflow-y-auto custom-scrollbar p-8 rounded-[48px] bg-[#1e1e1e]/60 backdrop-blur-[50px] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.5)] flex flex-col items-center">
+                {/* View: Login Form or Remote Config */}
+                {(viewState === 'login' || viewState === 'remote-config') && (
+                    <div className="animate-in slide-in-from-bottom-8 fade-in duration-500 w-full max-w-[380px] px-4">
 
-                            {/* Avatar/Icon Section */}
-                            <div className={`w-24 h-24 rounded-[2rem] flex items-center justify-center text-4xl font-light mb-6 shadow-2xl border border-white/10 ${viewState === 'password' && selectedUser ? `bg-gradient-to-br ${selectedUser.avatarGradient}` : 'bg-white/5'}`}>
-                                {viewState === 'remote-config' ? <Globe fontSize={40} className="text-blue-400" /> : (selectedUser ? selectedUser.name.charAt(0) : <User fontSize={40} className="text-white/20" />)}
-                            </div>
+                        {/* Glass Card */}
+                        <div className="w-full p-8 rounded-[3rem] bg-[#1a1a1a]/40 backdrop-blur-[60px] border border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.7)]">
 
-                            <h2 className="text-2xl font-semibold text-white mb-1">
-                                {viewState === 'remote-config' ? 'Servidor' : (selectedUser ? selectedUser.name : 'Ingresar')}
-                            </h2>
-                            <p className="text-white/40 text-[13px] mb-8 font-medium">
-                                {viewState === 'remote-config' ? 'Configuración de red' : `@${username || 'usuario'}`}
-                            </p>
+                            <div className="flex flex-col items-center">
+                                {/* Avatar */}
+                                <div className={`
+                                    w-20 h-20 rounded-[1.8rem] flex items-center justify-center text-3xl font-light mb-5 shadow-xl border border-white/10
+                                    ${viewState === 'remote-config' ? 'bg-blue-500/20 text-blue-400' :
+                                        (selectedUser ? `bg-gradient-to-br ${selectedUser.avatarGradient} text-white` : 'bg-white/10 text-white/50')}
+                                `}>
+                                    {viewState === 'remote-config' ? <Desktop fontSize={32} /> :
+                                        (selectedUser ? selectedUser.name.charAt(0) : <User fontSize={32} />)}
+                                </div>
 
-                            {viewState === 'remote-config' ? (
-                                <div className="w-full space-y-6">
-                                    {/* Discovery Section */}
-                                    <div className="w-full bg-white/5 rounded-3xl p-4 border border-white/5">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-[12px] font-bold text-white/40 uppercase tracking-widest px-1">Red Local</span>
-                                            <div className="flex gap-1">
-                                                {!isDiscovering ? (
-                                                    <Button onClick={startDiscovery} size="sm" className="h-7 bg-blue-500 hover:bg-blue-400 text-[11px] rounded-full px-3">Buscar</Button>
-                                                ) : (
-                                                    <Button onClick={stopDiscovery} size="sm" variant="ghost" className="h-7 text-red-400 text-[11px] hover:bg-red-500/10 rounded-full px-3">Parar</Button>
+                                <h2 className="text-xl font-semibold text-white mb-1">
+                                    {viewState === 'remote-config' ? 'Conexión Remota' : (selectedUser ? selectedUser.name : 'Iniciar Sesión')}
+                                </h2>
+                                <p className="text-white/40 text-[13px] mb-8 font-medium">
+                                    {viewState === 'remote-config' ? 'Configura el punto de acceso' :
+                                        (selectedUser ? `@${selectedUser.username}` : 'Introduce tus credenciales')}
+                                </p>
+
+                                {/* FORM: Remote Config */}
+                                {viewState === 'remote-config' ? (
+                                    <div className="w-full space-y-5">
+                                        {/* Discovery List */}
+                                        <div className="w-full bg-black/20 rounded-2xl p-3 border border-white/5">
+                                            <div className="flex items-center justify-between mb-3 px-1">
+                                                <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Disponibles</span>
+                                                <button onClick={isDiscovering ? stopDiscovery : startDiscovery}
+                                                    className={`text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${isDiscovering ? 'text-red-400 bg-red-500/10' : 'text-blue-400 bg-blue-500/10'}`}>
+                                                    {isDiscovering ? 'DETENER' : 'ESCANEAR'}
+                                                </button>
+                                            </div>
+                                            <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                                {discoveredNodes.map((node) => (
+                                                    <button key={node.service_name}
+                                                        onClick={() => setRemoteUrl(`http://${node.hostname}:${node.port}`)}
+                                                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-white/10 transition-colors text-left group">
+                                                        <div className="truncate pr-2">
+                                                            <div className="text-[13px] text-white font-medium">{node.node_name}</div>
+                                                            <div className="text-[11px] text-white/40">{node.hostname}</div>
+                                                        </div>
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                                                    </button>
+                                                ))}
+                                                {!isDiscovering && discoveredNodes.length === 0 && (
+                                                    <div className="py-4 text-center text-[11px] text-white/20 italic">No se detectaron servidores</div>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                            {discoveredNodes.map((node) => (
-                                                <button key={node.service_name} type="button" onClick={() => setRemoteUrl(`http://${node.hostname}:${node.port}`)}
-                                                    className="w-full flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all text-left group">
-                                                    <div className="overflow-hidden">
-                                                        <p className="text-sm font-medium text-white truncate">{node.node_name}</p>
-                                                        <p className="text-[11px] text-white/30 truncate">{node.hostname}:{node.port}</p>
-                                                    </div>
-                                                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                                        <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            setTestingConnection(true);
+                                            try {
+                                                const result = await invoke<any>('test_remote_connection', { remoteUrl, authToken: remoteToken });
+                                                setTemporaryRemoteConnection(remoteUrl, remoteToken, result.service || 'Remoto');
+                                                // BUG FIX: Vamos al login genérico (sin usuario pre-seleccionado)
+                                                handleGenericLogin();
+                                                toast.success(`Conectado a ${result.service}`);
+                                            } catch (err: any) {
+                                                toast.error('No se pudo conectar');
+                                            } finally { setTestingConnection(false); }
+                                        }} className="space-y-4">
+                                            <div className="space-y-3">
+                                                <Input value={remoteUrl} onChange={(e) => setRemoteUrl(e.target.value)} placeholder="http://192.168.1.X:8080"
+                                                    className="h-11 bg-black/20 border-white/5 focus:border-blue-500/50 focus:bg-black/40 rounded-xl px-4 text-[13px] text-white placeholder:text-white/20 transition-all" />
+                                                <Input type="password" value={remoteToken} onChange={(e) => setRemoteToken(e.target.value)} placeholder="Token de seguridad"
+                                                    className="h-11 bg-black/20 border-white/5 focus:border-blue-500/50 focus:bg-black/40 rounded-xl px-4 text-[13px] text-white placeholder:text-white/20 transition-all" />
+                                            </div>
+                                            <Button type="submit" disabled={testingConnection || !remoteUrl}
+                                                className="w-full h-11 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-all border border-white/5">
+                                                {testingConnection ? <RefreshCw className="animate-spin" /> : 'Establecer Conexión'}
+                                            </Button>
+                                        </form>
+                                    </div>
+                                ) : (
+                                    /* FORM: Login (Unified for Local & Remote) */
+                                    <form onSubmit={handleLogin} className="w-full space-y-4">
+
+                                        {/* BUG FIX: Si no hay usuario seleccionado (Remote/Generic), mostrar campo Username */}
+                                        {!selectedUser && (
+                                            <div className="relative group animate-in slide-in-from-top-2 fade-in duration-300">
+                                                <Input
+                                                    id="username-input"
+                                                    type="text"
+                                                    value={username}
+                                                    onChange={(e) => setUsername(e.target.value)}
+                                                    placeholder="Nombre de usuario"
+                                                    className="h-12 bg-white/5 border-transparent focus:bg-white/10 focus:border-white/10 rounded-2xl px-4 text-white placeholder:text-white/20 transition-all text-base text-center"
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div className="relative group">
+                                            <Input
+                                                id="password-input"
+                                                type={isPinMode ? "password" : (showPassword ? "text" : "password")}
+                                                value={password}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (isPinMode) setPassword(val.replace(/\D/g, '').slice(0, 6));
+                                                    else setPassword(val);
+                                                }}
+                                                placeholder={isPinMode ? "PIN" : "Contraseña"}
+                                                className={`h-12 bg-white/5 border-transparent focus:bg-white/10 focus:border-white/10 rounded-2xl px-4 text-white placeholder:text-white/20 transition-all text-center ${isPinMode ? 'tracking-[0.5em] text-xl font-bold' : 'text-base tracking-normal'}`}
+                                            />
+                                            {!isPinMode && (
+                                                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
+                                                    {showPassword ? <EyeOff fontSize={16} /> : <Eye fontSize={16} />}
                                                 </button>
-                                            ))}
-                                            {!isDiscovering && discoveredNodes.length === 0 && (
-                                                <p className="text-[11px] text-white/20 text-center py-2 italic">No se encontraron servidores</p>
                                             )}
                                         </div>
-                                    </div>
 
-                                    <form onSubmit={async (e) => {
-                                        e.preventDefault();
-                                        setTestingConnection(true);
-                                        try {
-                                            const result = await invoke<any>('test_remote_connection', { remoteUrl, authToken: remoteToken });
-                                            setTemporaryRemoteConnection(remoteUrl, remoteToken, result.service || 'Remoto');
-                                            setViewState('password');
-                                        } catch (err: any) {
-                                            toast.error('Error de conexión');
-                                        } finally { setTestingConnection(false); }
-                                    }} className="space-y-4">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-4">Dirección URL</label>
-                                            <Input value={remoteUrl} onChange={(e) => setRemoteUrl(e.target.value)} placeholder="http://192.168..."
-                                                className="h-12 bg-black/20 border-white/10 focus:border-blue-500/50 rounded-2xl px-5 text-white placeholder:text-white/10" />
-                                        </div>
-                                        <div className="space-y-1.5 relative">
-                                            <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-4">Token de Acceso</label>
-                                            <Input type={showPassword ? "text" : "password"} value={remoteToken} onChange={(e) => setRemoteToken(e.target.value)} placeholder="••••••••"
-                                                className="h-12 bg-black/20 border-white/10 focus:border-blue-500/50 rounded-2xl px-5 text-white" />
-                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 bottom-3 text-white/20 hover:text-white/50">
-                                                {showPassword ? <EyeOff fontSize={16} /> : <Eye fontSize={16} />}
-                                            </button>
-                                        </div>
-                                        <Button type="submit" disabled={testingConnection || !remoteUrl} className="w-full h-12 bg-blue-500 hover:bg-blue-400 text-white rounded-2xl font-semibold transition-all">
-                                            {testingConnection ? <RefreshCw fontSize={18} className="animate-spin" /> : 'Conectar'}
+                                        <Button type="submit" disabled={loading || !password}
+                                            className="w-full h-12 mt-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-2xl shadow-[0_4px_20px_rgba(59,130,246,0.3)] hover:shadow-[0_4px_25px_rgba(59,130,246,0.5)] active:scale-[0.98] transition-all font-semibold text-[15px]">
+                                            {loading ? <RefreshCw fontSize={18} className="animate-spin" /> : <ArrowRight fontSize={20} />}
                                         </Button>
-                                    </form>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleLogin} className="w-full space-y-4">
-                                    <div className="relative group">
-                                        <Input id="password-input" type={isPinMode ? "password" : (showPassword ? "text" : "password")} value={password}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (isPinMode) setPassword(val.replace(/\D/g, '').slice(0, 6));
-                                                else setPassword(val);
-                                            }}
-                                            placeholder={isPinMode ? "PIN de 6 dígitos" : "Contraseña"}
-                                            className="h-12 bg-white/5 border-white/10 focus:bg-white/10 focus:border-blue-500/50 rounded-2xl text-center text-white placeholder:text-white/20 transition-all text-lg tracking-[0.3em]"
-                                        />
-                                        {!isPinMode && (
-                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors">
-                                                {showPassword ? <EyeOff fontSize={18} /> : <Eye fontSize={18} />}
-                                            </button>
-                                        )}
-                                    </div>
-                                    <Button type="submit" disabled={loading || !password} className="w-full h-12 bg-blue-500 hover:bg-blue-400 text-white rounded-2xl shadow-lg active:scale-[0.98] transition-all font-bold">
-                                        {loading ? <RefreshCw fontSize={20} className="animate-spin" /> : <ArrowRight fontSize={22} />}
-                                    </Button>
 
-                                    <div className="flex flex-col gap-3 pt-4 items-center">
+                                        {/* Toggle PIN/Pass - Solo si el usuario tiene PIN y no es remoto */}
                                         {selectedUser?.pin && activeContext?.mode !== 'remote' && (
-                                            <button type="button" onClick={() => { setIsPinMode(!isPinMode); setPassword(''); }} className="text-[11px] text-white/30 hover:text-blue-400 uppercase tracking-widest font-bold transition-colors">
-                                                {isPinMode ? 'Usar contraseña' : 'Usar PIN'}
-                                            </button>
+                                            <div className="flex justify-center mt-2">
+                                                <button type="button" onClick={() => { setIsPinMode(!isPinMode); setPassword(''); }}
+                                                    className="text-[10px] text-white/30 hover:text-white/60 uppercase tracking-widest font-bold transition-colors">
+                                                    {isPinMode ? 'Usar contraseña' : 'Usar PIN'}
+                                                </button>
+                                            </div>
                                         )}
-                                    </div>
-                                </form>
-                            )}
+                                    </form>
+                                )}
 
-                            <button type="button" onClick={handleBackToSelection} className="mt-6 flex items-center gap-2 text-[11px] font-bold text-white/20 hover:text-white/50 transition-colors uppercase tracking-[0.2em]">
-                                <ChevronLeft fontSize={14} /> Volver
-                            </button>
+                                <button type="button" onClick={handleBackToSelection}
+                                    className="mt-8 flex items-center gap-1.5 text-[11px] font-bold text-white/30 hover:text-white transition-colors uppercase tracking-widest">
+                                    <ChevronLeft fontSize={12} /> Volver
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
+            {/* Global Styles */}
             <style dangerouslySetInnerHTML={{
                 __html: `
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
             `}} />
         </div>
     );

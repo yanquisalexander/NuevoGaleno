@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { DesktopContextMenu } from './DesktopContextMenu';
@@ -12,18 +12,17 @@ interface DesktopProps {
     layout?: string;
 }
 
-export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
+export function Desktop({ layout = 'windows' }: DesktopProps) {
     const { apps, openWindow } = useWindowManager();
     const { getUserPreferences } = useSession();
     const [selectedApp, setSelectedApp] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
-    // Obtener preferences del usuario
-    const userPrefs = getUserPreferences();
-    const layout = (userPrefs.layout_style as string) || defaultLayout;
-    const wallpaperProvider: WallpaperProviderType = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'chromecast';
-
     const isMac = layout === 'macos';
+
+    // Obtener el provider de las preferences del usuario
+    const userPrefs = getUserPreferences();
+    const wallpaperProvider: WallpaperProviderType = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'chromecast';
 
     // Usar el hook de wallpaper
     const {
@@ -60,6 +59,93 @@ export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
         // Solo ejecutar una vez cuando Desktop se monte
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Referencia para evitar ciclos en el random
+    const usedIndices = useRef<Set<number>>(new Set());
+    const wallpapersRef = useRef<ChromecastImage[]>([]);
+    const isChangingRef = useRef(false);
+
+    // Normalizar URL de Google (http -> https)
+    const normalizeUrl = (url: string) => url.replace('http://', 'https://');
+
+    const changeWallpaper = useCallback((dataList?: ChromecastImage[]) => {
+        const list = dataList || wallpapersRef.current;
+        if (list.length === 0 || isChangingRef.current) return;
+
+        isChangingRef.current = true;
+
+        // Lógica para no repetir hasta agotar la lista
+        if (usedIndices.current.size >= list.length) usedIndices.current.clear();
+
+        let randomIndex: number;
+        do {
+            randomIndex = Math.floor(Math.random() * list.length);
+        } while (usedIndices.current.has(randomIndex));
+
+        usedIndices.current.add(randomIndex);
+        const nextData = list[randomIndex];
+        const nextUrl = normalizeUrl(nextData.url);
+
+        // Precarga de imagen
+        const img = new Image();
+        img.src = nextUrl;
+        img.onload = () => {
+            console.log('[Desktop] Wallpaper loaded:', nextData.location);
+            setCurrentWallpaper((prev) => {
+                setPrevWallpaper(prev);
+                return nextUrl;
+            });
+            setWallpaperInfo(nextData);
+
+            // Tiempo de la animación de motion (1.5s) + margen
+            setTimeout(() => {
+                setPrevWallpaper('');
+                isChangingRef.current = false;
+            }, 1600);
+        };
+        img.onerror = (err) => {
+            console.error('[Desktop] Error loading wallpaper image:', nextUrl, err);
+            isChangingRef.current = false;
+            // Intentar otra imagen
+            changeWallpaper(list);
+        };
+    }, []);
+
+    // Actualizar ref cuando wallpapers cambie
+    useEffect(() => {
+        wallpapersRef.current = wallpapers;
+    }, [wallpapers]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        console.log('[Desktop] Fetching wallpapers from:', CHROMECAST_API);
+
+        fetchWithTimeout(CHROMECAST_API)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+                return res.json();
+            })
+            .then((data: ChromecastImage[]) => {
+                if (isMounted) {
+                    console.log('[Desktop] Loaded', data.length, 'wallpapers');
+                    setWallpapers(data);
+                    changeWallpaper(data);
+                }
+            })
+            .catch((error) => {
+                console.error('[Desktop] Failed to load wallpapers:', error);
+                if (isMounted) {
+                    // Fondo de emergencia si la API falla
+                    console.warn('[Desktop] Using fallback wallpaper');
+                    setCurrentWallpaper(FALLBACK_WALLPAPER);
+                }
+            });
+
+        return () => { isMounted = false; };
+    }, [changeWallpaper]);
 
     return (
         <motion.div

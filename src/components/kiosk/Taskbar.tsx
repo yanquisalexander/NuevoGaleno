@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RefreshCcwIcon } from 'lucide-react';
+import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RefreshCcwIcon, Lock, ChevronDown } from 'lucide-react';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useSession } from '@/hooks/useSession';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -21,7 +21,7 @@ interface SystemInfo {
 
 export function Taskbar() {
     const { windows, apps, openWindow, focusWindow } = useWindowManager();
-    const { currentUser } = useSession();
+    const { currentUser, lockScreen, exitApp } = useSession();
     const { notifications } = useNotifications();
     const {
         showStartMenu, setShowStartMenu,
@@ -44,6 +44,23 @@ export function Taskbar() {
     const [taskbarContextMenu, setTaskbarContextMenu] = useState<{ x: number; y: number } | null>(null);
 
     const notImplemented = useNotImplemented();
+
+    const [showUserMenu, setShowUserMenu] = useState(false);
+
+    // Cerrar menú de usuario al hacer click fuera
+    useEffect(() => {
+        if (!showUserMenu) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest('.user-menu-button') && !target.closest('.user-menu-dropdown')) {
+                setShowUserMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showUserMenu]);
 
 
 
@@ -124,6 +141,17 @@ export function Taskbar() {
                         className="h-10 w-10 flex items-center justify-center rounded-[4px]"
                     >
                         <Search className="w-5 h-5 text-white/90" />
+                    </motion.button>
+
+                    {/* Bloquear */}
+                    <motion.button
+                        whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={lockScreen}
+                        className="h-10 w-10 flex items-center justify-center rounded-[4px]"
+                        title="Bloquear pantalla"
+                    >
+                        <Lock className="w-5 h-5 text-white/90" />
                     </motion.button>
 
                     <div className="h-6 w-[1px] bg-white/10 mx-1" />
@@ -337,14 +365,58 @@ export function Taskbar() {
                                 </div>
 
                                 {/* Footer: Usuario y Energía */}
-                                <div className="h-16 bg-black/20 backdrop-blur-md flex items-center justify-between px-10 border-t border-white/5">
-                                    <div className="flex items-center gap-3 py-1 px-2 rounded hover:bg-white/5 cursor-pointer transition-colors">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center border border-white/20">
-                                            <User className="w-4 h-4 text-white" />
-                                        </div>
-                                        <span className="text-xs font-medium text-white">
-                                            {currentUser?.name || 'Usuario'}
-                                        </span>
+                                <div className="h-16 bg-black/20 backdrop-blur-md flex items-center justify-between px-10 border-t border-white/5 relative">
+                                    <div className="flex items-center gap-3">
+                                        <motion.button
+                                            whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => setShowUserMenu(!showUserMenu)}
+                                            className="user-menu-button relative flex items-center gap-3 py-1 px-2 rounded transition-colors"
+                                        >
+                                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center border border-white/20">
+                                                <User className="w-4 h-4 text-white" />
+                                            </div>
+                                            <span className="text-xs font-medium text-white">
+                                                {currentUser?.name || 'Usuario'}
+                                            </span>
+                                            <ChevronDown className={`w-3 h-3 text-white/70 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                                        </motion.button>
+
+                                        {/* User Menu Dropdown */}
+                                        <AnimatePresence>
+                                            {showUserMenu && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                    transition={{ duration: 0.15 }}
+                                                    className="user-menu-dropdown absolute bottom-full left-10 mb-2 w-48 bg-[#2c2c2c]/95 backdrop-blur-[20px] rounded-lg border border-white/10 shadow-xl z-[50] overflow-hidden"
+                                                >
+                                                    <div className="py-1">
+                                                        <button
+                                                            onClick={() => {
+                                                                lockScreen();
+                                                                setShowUserMenu(false);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2 text-left text-xs text-white/90 hover:bg-white/10 transition-colors"
+                                                        >
+                                                            <Lock className="w-4 h-4" />
+                                                            Bloquear pantalla
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                exitApp();
+                                                                setShowUserMenu(false);
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-2 text-left text-xs text-white/90 hover:bg-white/10 transition-colors"
+                                                        >
+                                                            <Power className="w-4 h-4" />
+                                                            Cerrar sesión
+                                                        </button>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                     <motion.button
                                         whileHover={{ scale: 1.1, color: "#fff" }}

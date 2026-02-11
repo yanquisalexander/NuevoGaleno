@@ -117,6 +117,11 @@ pub fn remove_user_pin(username: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn update_user_preferences(username: String, preferences: Option<String>) -> Result<(), String> {
+    users::update_user_preferences(&username, preferences.as_deref())
+}
+
+#[tauri::command]
 pub fn logout_user() -> Result<(), String> {
     end_session()
 }

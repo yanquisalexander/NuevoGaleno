@@ -19,6 +19,7 @@ import { TreatmentCatalogApp } from './TreatmentCatalog';
 import { MiGalenoApp } from './MiGaleno';
 import { NodeConfigApp } from './NodeConfig';
 import { ManualGalenoApp } from './ManualGaleno';
+import { DevToolsApp } from './DevTools';
 import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
@@ -35,6 +36,8 @@ export { UserAccountsApp } from './UserAccounts';
 export { TreatmentCatalogApp } from './TreatmentCatalog';
 export { MiGalenoApp } from './MiGaleno';
 export { NodeConfigApp } from './NodeConfig';
+export { ManualGalenoApp } from './ManualGaleno';
+export { DevToolsApp } from './DevTools';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -194,5 +197,14 @@ export const APP_DEFINITIONS = [
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: ManualGalenoApp,
+    },
+    {
+        id: 'dev-tools',
+        name: 'DEV Tools',
+        icon: '🛠️',
+        allowMultipleInstances: false,
+        defaultSize: { width: 800, height: 600 },
+        component: DevToolsApp,
+        showOnDesktop: false,
     },
 ];

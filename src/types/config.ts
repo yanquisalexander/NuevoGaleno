@@ -6,6 +6,7 @@ export interface ConfigDefinition {
     description: string;
     ui_section?: string;
     admin_only?: boolean;
+    user_preference?: boolean;
     choices?: Array<string | number | boolean>;
     min?: number;
     max?: number;

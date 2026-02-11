@@ -13,6 +13,7 @@ pub struct User {
     pub pin: Option<String>,
     pub active: bool,
     pub created_at: String,
+    pub preferences: Option<String>, // JSON string for user preferences
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,15 +29,16 @@ pub fn create_user(input: CreateUserInput) -> Result<i64, String> {
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO users (username, password_hash, name, role, created_at, updated_at, active)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1)",
+        "INSERT INTO users (username, password_hash, name, role, created_at, updated_at, active, preferences)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7)",
         params![
             input.username,
             input.password_hash,
             input.name,
             input.role,
             &now,
-            &now
+            &now,
+            None::<String> // preferences default to NULL
         ],
     )
     .map_err(|e| format!("Error creando usuario: {}", e))?;
@@ -48,7 +50,7 @@ pub fn get_user_by_username(username: &str) -> Result<Option<(User, String)>, St
     let conn = get_connection()?;
 
     let mut stmt = conn
-        .prepare("SELECT id, username, password_hash, pin, name, role, active, created_at FROM users WHERE username = ?1")
+        .prepare("SELECT id, username, password_hash, pin, name, role, active, created_at, preferences FROM users WHERE username = ?1")
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let result = stmt.query_row(params![username], |row| {
@@ -61,6 +63,7 @@ pub fn get_user_by_username(username: &str) -> Result<Option<(User, String)>, St
                 pin: row.get(3).ok(),
                 active: row.get::<_, i32>(6)? == 1,
                 created_at: row.get(7)?,
+                preferences: row.get(8).ok(),
             },
             row.get::<_, String>(2)?, // password_hash
         ))
@@ -77,7 +80,7 @@ pub fn list_users() -> Result<Vec<User>, String> {
     let conn = get_connection()?;
 
     let mut stmt = conn
-        .prepare("SELECT id, username, name, role, pin, active, created_at FROM users ORDER BY created_at DESC")
+        .prepare("SELECT id, username, name, role, pin, active, created_at, preferences FROM users ORDER BY created_at DESC")
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let users = stmt
@@ -90,6 +93,7 @@ pub fn list_users() -> Result<Vec<User>, String> {
                 pin: row.get(4).ok(),
                 active: row.get::<_, i32>(5)? == 1,
                 created_at: row.get(6)?,
+                preferences: row.get(7).ok(),
             })
         })
         .map_err(|e| format!("Error listando usuarios: {}", e))?
@@ -149,11 +153,29 @@ pub fn update_user_pin(username: &str, new_pin: Option<&str>) -> Result<(), Stri
     Ok(())
 }
 
+pub fn update_user_preferences(username: &str, preferences: Option<&str>) -> Result<(), String> {
+    let conn = get_connection()?;
+    let now = Utc::now().to_rfc3339();
+
+    let updated = conn
+        .execute(
+            "UPDATE users SET preferences = ?1, updated_at = ?2 WHERE username = ?3",
+            params![preferences, &now, username],
+        )
+        .map_err(|e| format!("Error actualizando preferences: {}", e))?;
+
+    if updated == 0 {
+        return Err("Usuario no encontrado".to_string());
+    }
+
+    Ok(())
+}
+
 pub fn verify_user_pin(username: &str, pin: &str) -> Result<Option<User>, String> {
     let conn = get_connection()?;
 
     let mut stmt = conn
-        .prepare("SELECT id, username, name, role, pin, active, created_at FROM users WHERE username = ?1")
+        .prepare("SELECT id, username, name, role, pin, active, created_at, preferences FROM users WHERE username = ?1")
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let result = stmt.query_row(params![username], |row| {
@@ -165,6 +187,7 @@ pub fn verify_user_pin(username: &str, pin: &str) -> Result<Option<User>, String
             pin: row.get(4).ok(),
             active: row.get::<_, i32>(5)? == 1,
             created_at: row.get(6)?,
+            preferences: row.get(7).ok(),
         })
     });
 

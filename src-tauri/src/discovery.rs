@@ -49,6 +49,11 @@ impl DiscoveryService {
     pub async fn start_broadcasting(&self, node_name: &str, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let instance_name = format!("{}.{}", node_name.replace(" ", "_"), SERVICE_TYPE.trim_end_matches('.'));
         let hostname = hostname::get()?.to_string_lossy().to_string();
+        let hostname_mdns = if hostname.ends_with(".local.") {
+            hostname
+        } else {
+            format!("{}.local.", hostname)
+        };
         let version = env!("CARGO_PKG_VERSION");
 
         let properties = [
@@ -59,7 +64,7 @@ impl DiscoveryService {
         let service_info = ServiceInfo::new(
             SERVICE_TYPE,
             &instance_name,
-            &hostname,
+            &hostname_mdns,
             "",
             port,
             &properties[..],

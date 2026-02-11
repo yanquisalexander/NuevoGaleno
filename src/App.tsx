@@ -27,6 +27,7 @@ import { useAutoUpdate } from '@/hooks/useAutoUpdate';
 import { LicenseWatermark } from '@/components/LicenseWatermark';
 import { useLicense } from '@/hooks/useLicense';
 import { ShutdownScreen } from "./components/kiosk/ShutdownScreen";
+import { Toaster } from 'sonner';
 
 interface User {
   id: number;
@@ -40,7 +41,7 @@ function KioskContent() {
   const [currentStep, setCurrentStep] = useState<'splash' | 'setup' | 'login' | 'desktop'>('splash');
   const [isInitialLock, setIsInitialLock] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const { currentUser, exitApp, isLocked, unlock, isLoading: sessionLoading } = useSession();
+  const { currentUser, exitApp, isLocked, lockScreen, unlock, isLoading: sessionLoading } = useSession();
   const { clearTemporaryRemoteConnection } = useNode();
   const { registerApp, openWindow } = useWindowManager();
   const { addNotification } = useNotifications();
@@ -315,7 +316,10 @@ function KioskContent() {
 
 function App() {
   return (
-    <KioskContent />
+    <>
+      <KioskContent />
+      <Toaster />
+    </>
   );
 }
 

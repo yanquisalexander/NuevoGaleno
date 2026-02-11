@@ -3,13 +3,16 @@ import {
     Monitor, HardDrive, User, Shield, Sliders,
     Search, ChevronRight, Download, FileText,
     Wifi, Bluetooth, LayoutGrid, Battery,
-    Volume2, Bell, Focus, MousePointer2
+    Volume2, Bell, Focus, MousePointer2,
+    Globe, Gamepad2, Accessibility, RefreshCcw,
+    Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useConfig } from '@/hooks/useConfig';
 import { useSession } from '@/hooks/useSession';
+import { useWallpaper, WallpaperProviderType } from '@/hooks/useWallpaper';
 import { ConfigDefinition } from '@/types/config';
 import { TemplateManager } from '@/components/templates';
 
@@ -51,6 +54,7 @@ const getSectionIcon = (sectionName: string) => {
 // Iconos decorativos para los items dentro de las tarjetas (simulación)
 const getFieldIcon = (key: string) => {
     const lower = key.toLowerCase();
+    if (lower.includes('wallpaper') || lower.includes('fondo')) return ImageIcon;
     if (lower.includes('pantalla') || lower.includes('brillo')) return Monitor;
     if (lower.includes('sonido') || lower.includes('volumen')) return Volume2;
     if (lower.includes('notific')) return Bell;
@@ -71,10 +75,17 @@ const formatLabel = (value: string) =>
 
 export function ConfigurationApp() {
     const { schema, values, isLoading, setConfigValue, reload } = useConfig();
-    const { currentUser } = useSession();
+    const { currentUser, updatePreferences, getUserPreferences } = useSession();
     const { openWindow } = useWindowManager();
     const [savingKey, setSavingKey] = useState<string | null>(null);
     const [showTemplates, setShowTemplates] = useState(false);
+
+    // Obtener el proveedor de wallpaper actual
+    const userPrefs = getUserPreferences();
+    const currentWallpaperProvider = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'chromecast';
+    
+    // Usar el hook para obtener las imágenes del proveedor actual
+    const { wallpapers, isLoading: wallpapersLoading } = useWallpaper(currentWallpaperProvider);
 
     // Estado para la navegación lateral (Fluent Sidebar)
     const [activeSectionId, setActiveSectionId] = useState<string>('sistema');
@@ -91,7 +102,17 @@ export function ConfigurationApp() {
             if (definition.admin_only && !isAdmin) return;
             const sectionName = definition.ui_section?.trim() || 'Sistema';
             const group = map.get(sectionName) ?? [];
-            group.push({ key, definition, value: values[key] });
+
+            // Para configuraciones por usuario, obtener el valor de las preferences del usuario
+            let value = values[key];
+            if (definition.user_preference) {
+                const userPrefs = getUserPreferences();
+                // Convertir key a snake_case para las preferences
+                const prefKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+                value = userPrefs[prefKey] ?? definition.default;
+            }
+
+            group.push({ key, definition, value });
             map.set(sectionName, group);
         });
 
@@ -105,7 +126,7 @@ export function ConfigurationApp() {
         // Ordenar: Sistema primero si existe
         list.sort((a, b) => (a.id === 'sistema' ? -1 : 1));
         return list;
-    }, [schema, values, isAdmin]);
+    }, [schema, values, isAdmin, getUserPreferences]);
 
     // Efecto para seleccionar la primera sección por defecto si la actual no existe
     useMemo(() => {
@@ -118,7 +139,15 @@ export function ConfigurationApp() {
         async (key: string, nextValue: unknown) => {
             setSavingKey(key);
             try {
-                await setConfigValue(key, nextValue);
+                const definition = schema?.[key];
+                if (definition?.user_preference) {
+                    // Guardar en preferences del usuario
+                    const prefKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+                    await updatePreferences({ [prefKey]: nextValue });
+                } else {
+                    // Guardar en configuración global
+                    await setConfigValue(key, nextValue);
+                }
                 toast.success('Configuración guardada');
             } catch (error: any) {
                 console.error(error);
@@ -127,7 +156,7 @@ export function ConfigurationApp() {
                 setSavingKey(null);
             }
         },
-        [setConfigValue]
+        [schema, setConfigValue, updatePreferences]
     );
 
     // --- Renderizado de Controles Fluent ---
@@ -209,6 +238,7 @@ export function ConfigurationApp() {
     if (showTemplates) return <TemplateManager onBack={() => setShowTemplates(false)} />;
 
     const currentSection = sections.find(s => s.id === activeSectionId);
+    const isPersonalization = activeSectionId.includes('personalización') || activeSectionId.includes('apariencia');
 
     return (
         <div className="flex h-full w-full bg-[#202020] text-white overflow-hidden font-segoe select-none">
@@ -269,22 +299,22 @@ export function ConfigurationApp() {
                     })}
 
                     {/* Links especiales hardcodeados para parecer Windows */}
-                    {isAdmin && (
-                        <div className="pt-4 mt-2 border-t border-white/5">
+                    <div className="pt-4 mt-2 border-t border-white/5">
+                        {isAdmin && (
                             <button onClick={() => openWindow('system-tools')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
                                 <Shield className="h-4 w-4 text-red-400" />
                                 Herramientas Admin
                             </button>
-                        </div>
-                    )}
-                    <button onClick={() => openWindow('galeno-update')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
-                        <Download className="h-4 w-4 text-blue-400" />
-                        Galeno Update
-                    </button>
-                    <button onClick={() => setShowTemplates(true)} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
-                        <FileText className="h-4 w-4 text-purple-400" />
-                        Plantillas
-                    </button>
+                        )}
+                        <button onClick={() => openWindow('galeno-update')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
+                            <Download className="h-4 w-4 text-blue-400" />
+                            Galeno Update
+                        </button>
+                        <button onClick={() => setShowTemplates(true)} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
+                            <FileText className="h-4 w-4 text-purple-400" />
+                            Plantillas
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -319,48 +349,106 @@ export function ConfigurationApp() {
                 <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
                     <div className="max-w-4xl space-y-1">
 
-                        {/* Renderizar campos agrupados en tarjetas estilo Windows 11 */}
-                        {/* En Win11, los items a menudo están en una lista continua dentro de una tarjeta, o tarjetas separadas */}
+                        {/* --- PREVIEW DE WALLPAPER (Estilo OS) --- */}
+                        {isPersonalization && (
+                            <div className="mb-8 flex justify-center">
+                                <div className="relative aspect-video w-full max-w-[480px] rounded-xl border-8 border-[#1a1a1a] shadow-2xl overflow-hidden bg-black group">
+                                    <img
+                                        src={String(values['wallpaper'] || '/api/placeholder/800/450')}
+                                        className="w-full h-full object-cover"
+                                        alt="Fondo actual"
+                                    />
+                                    {/* Superposición que simula la UI de Windows */}
+                                    <div className="absolute inset-0 bg-black/10" />
+                                    <div className="absolute bottom-4 right-4 w-24 h-16 bg-white/10 backdrop-blur-md rounded border border-white/20 p-2 pointer-events-none">
+                                        <div className="w-full h-1.5 bg-white/40 rounded-full mb-1.5" />
+                                        <div className="w-2/3 h-1 bg-white/20 rounded-full mb-4" />
+                                        <div className="absolute bottom-2 right-2 w-3 h-3 bg-blue-500 rounded-sm" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className={fluentCard}>
                             {currentSection?.fields.map((field, index) => {
                                 const FieldIcon = getFieldIcon(field.key);
                                 const isLast = index === currentSection.fields.length - 1;
+                                const isWallpaperField = field.key.toLowerCase().includes('wallpaper');
 
                                 return (
-                                    <div
-                                        key={field.key}
-                                        className={`
-                                            group flex items-center justify-between p-4 pl-5 hover:bg-[#323232] transition-colors cursor-default
-                                            ${!isLast ? 'border-b border-[#383838]' : ''}
-                                        `}
-                                    >
-                                        <div className="flex items-center gap-4 overflow-hidden">
-                                            {/* Icono de la opción (Opcional, Win11 a veces lo usa a la izquierda) */}
-                                            <div className="flex-none text-white/40 group-hover:text-white/80 transition-colors">
-                                                <FieldIcon className="h-5 w-5" strokeWidth={1.5} />
+                                    <div key={field.key} className={`flex flex-col ${!isLast ? 'border-b border-[#383838]' : ''}`}>
+                                        <div
+                                            className="group flex items-center justify-between p-4 pl-5 hover:bg-[#323232] transition-colors cursor-default"
+                                        >
+                                            <div className="flex items-center gap-4 overflow-hidden">
+                                                <div className="flex-none text-white/40 group-hover:text-white/80 transition-colors">
+                                                    <FieldIcon className="h-5 w-5" strokeWidth={1.5} />
+                                                </div>
+
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[15px] text-white/90 font-normal truncate">
+                                                        {formatLabel(field.key)}
+                                                    </span>
+                                                    {field.definition.description && (
+                                                        <span className="text-xs text-white/50 truncate max-w-lg block">
+                                                            {field.definition.description}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            <div className="flex flex-col min-w-0">
-                                                <span className="text-[15px] text-white/90 font-normal truncate">
-                                                    {formatLabel(field.key)}
-                                                </span>
-                                                {field.definition.description && (
-                                                    <span className="text-xs text-white/50 truncate max-w-lg block">
-                                                        {field.definition.description}
-                                                    </span>
+                                            <div className="flex-none pl-6 flex items-center gap-4">
+                                                {field.definition.admin_only && (
+                                                    <Shield className="h-3 w-3 text-amber-500" title="Requiere Admin" />
+                                                )}
+                                                {renderControl(field)}
+                                            </div>
+                                        </div>
+
+                                        {/* Grid de imágenes del proveedor actual si es el campo de Wallpaper */}
+                                        {isWallpaperField && isPersonalization && (
+                                            <div className="px-5 pb-5 pt-2">
+                                                <p className="text-xs font-medium text-white/60 mb-3">
+                                                    Con este proveedor tendrás imágenes como estas
+                                                </p>
+                                                {wallpapersLoading ? (
+                                                    <div className="grid grid-cols-5 gap-2">
+                                                        {[1, 2, 3, 4, 5].map((i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="aspect-video rounded-md bg-white/5 animate-pulse"
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                ) : wallpapers.length > 0 ? (
+                                                    <div className="grid grid-cols-5 gap-2">
+                                                        {wallpapers.slice(0, 5).map((wallpaper, index) => (
+                                                            <div
+                                                                key={index}
+                                                                className="aspect-video rounded-md overflow-hidden border border-white/5 hover:border-blue-500 cursor-pointer transition-all active:scale-95 group relative"
+                                                            >
+                                                                <img
+                                                                    src={wallpaper.url}
+                                                                    className="w-full h-full object-cover"
+                                                                    alt={wallpaper.name}
+                                                                    loading="lazy"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <p className="text-xs text-white font-medium truncate">
+                                                                        {wallpaper.location}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-xs text-white/40 text-center py-4">
+                                                        No se pudieron cargar las imágenes de ejemplo
+                                                    </div>
                                                 )}
                                             </div>
-                                        </div>
-
-                                        <div className="flex-none pl-6 flex items-center gap-4">
-                                            {field.definition.admin_only && (
-                                                <Shield className="h-3 w-3 text-amber-500" title="Requiere Admin" />
-                                            )}
-                                            {renderControl(field)}
-                                            {/* Chevron decorativo si fuera una navegación */}
-                                            {/* <ChevronRight className="h-4 w-4 text-white/20" /> */}
-                                        </div>
+                                        )}
                                     </div>
                                 );
                             })}

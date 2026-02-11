@@ -11,6 +11,7 @@ layoutStyle:
   choices: [windows, macos]
   description: Estilo visual de la interfaz.
   ui_section: General
+  user_preference: true
 
 enforceSystemPasswordForImports:
   type: boolean
@@ -18,3 +19,11 @@ enforceSystemPasswordForImports:
   description: Requiere contraseña del sistema al ejecutar importaciones masivas.
   ui_section: Sistema
   admin_only: true
+
+wallpaperProvider:
+  type: enum
+  default: chromecast
+  choices: [chromecast, bing, predefined]
+  description: Proveedor de wallpapers para el escritorio.
+  ui_section: Personalización
+  user_preference: true

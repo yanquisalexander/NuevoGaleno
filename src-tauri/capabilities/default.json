@@ -32,6 +32,9 @@
         },
         {
           "url": "https://github.com/*"
+        },
+        {
+          "url": " https://www.bing.com/HPImageArchive.aspx*"
         }
       ]
     }

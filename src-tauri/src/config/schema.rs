@@ -22,6 +22,8 @@ pub struct ConfigValue {
     pub ui_section: String,
     #[serde(default)]
     pub admin_only: bool,
+    #[serde(default)]
+    pub user_preference: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub choices: Option<Vec<Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

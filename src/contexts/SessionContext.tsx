@@ -7,6 +7,7 @@ interface User {
     name: string;
     role: string;
     pin?: string;
+    preferences?: string; // JSON string
 }
 
 interface SessionContextType {
@@ -21,6 +22,8 @@ interface SessionContextType {
     logout: (client: any) => Promise<void>;
     setPin: (pin: string) => Promise<void>;
     removePin: () => Promise<void>;
+    updatePreferences: (preferences: Record<string, any>) => Promise<void>;
+    getUserPreferences: () => Record<string, any>;
     verifySession: (client: any) => Promise<boolean>;
     exitApp: () => Promise<void>;
     refreshSession: () => Promise<void>;
@@ -96,9 +99,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
 
     const unlock = async (password: string, isPin: boolean): Promise<void> => {
-        if (!currentUser) throw new Error('No hay usuario en sesión');
-
-        try {
+        if (currentUser) {
             if (isPin) {
                 await invoke<User>('unlock_with_pin', {
                     username: currentUser.username,
@@ -116,10 +117,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                     passwordHash: hashHex,
                 });
             }
-            setIsLocked(false);
-        } catch (error) {
-            throw error;
         }
+        // Desbloquear en cualquier caso
+        setIsLocked(false);
     };
 
     const logout = async (client: any) => {
@@ -145,6 +145,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(updatedUser);
     };
 
+    const updatePreferences = async (preferences: Record<string, any>): Promise<void> => {
+        if (!currentUser) throw new Error('No hay usuario en sesión');
+        const preferencesJson = JSON.stringify(preferences);
+        await invoke('update_user_preferences', {
+            username: currentUser.username,
+            preferences: preferencesJson
+        });
+        setCurrentUser({ ...currentUser, preferences: preferencesJson });
+    };
+
+    const getUserPreferences = (): Record<string, any> => {
+        if (!currentUser?.preferences) return {};
+        try {
+            return JSON.parse(currentUser.preferences);
+        } catch (error) {
+            console.error('Error parsing user preferences:', error);
+            return {};
+        }
+    };
+
     const verifySession = async (client: any): Promise<boolean> => {
         try {
             return await client.verifySession();
@@ -161,7 +181,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         <SessionContext.Provider value={{
             currentUser, isLoading, isLocked, sessionDuration,
             login, loginWithPin, lockScreen, unlock, logout,
-            setPin, removePin, verifySession, exitApp,
+            setPin, removePin, updatePreferences, getUserPreferences, verifySession, exitApp,
             refreshSession: loadSession
         }}>
             {children}

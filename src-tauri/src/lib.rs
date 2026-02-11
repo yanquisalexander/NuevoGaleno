@@ -916,6 +916,7 @@ pub fn run() {
             session::unlock_with_pin,
             session::set_user_pin,
             session::remove_user_pin,
+            session::update_user_preferences,
             session::logout_user,
             session::get_current_user,
             session::get_current_session_info,

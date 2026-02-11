@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
 
 export type NodeMode = 'standalone' | 'host' | 'client';
 
@@ -103,6 +104,10 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
         apiBaseUrl: temporaryRemote.remoteUrl,
         authToken: temporaryRemote.authToken,
       });
+      // Validate remote mode requirements
+      if (!temporaryRemote.remoteUrl || !temporaryRemote.authToken) {
+        toast.error('Remote mode requires apiBaseUrl and authToken');
+      }
       return;
     }
 
@@ -119,6 +124,11 @@ export const NodeProvider: React.FC<NodeProviderProps> = ({ children }) => {
     }
 
     setActiveContext(context);
+
+    // Validate remote mode requirements
+    if (context.mode === 'remote' && (!context.apiBaseUrl || !context.authToken)) {
+      toast.error('Remote mode requires apiBaseUrl and authToken');
+    }
   }, [nodeConfig, temporaryRemote]);
 
   const updateNodeConfig = async (config: NodeConfig) => {

@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 9;
+const CURRENT_SCHEMA_VERSION: i32 = 10;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -77,6 +77,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 9 {
         migrate_v9(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (9)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 10 {
+        migrate_v10(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (10)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -692,4 +698,14 @@ fn migrate_v9(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v9 err: {}", e))
+}
+
+/// Migración v10: Agregar campo preferences a users
+fn migrate_v10(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT NULL;
+        "#,
+    )
+    .map_err(|e| format!("migration v10 err: {}", e))
 }

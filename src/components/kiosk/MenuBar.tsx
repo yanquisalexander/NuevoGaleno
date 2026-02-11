@@ -10,9 +10,24 @@ import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
 
 export function MenuBar() {
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-    const { currentUser } = useSession();
+    const { currentUser, lockScreen } = useSession();
     const { togglePowerMenu, toggleSearch, toggleNotifications } = useShell();
     const { currentMenuBar } = useMenuBar();
+
+    // Default menus if none provided
+    const defaultMenus: MenuBarMenu[] = [
+        {
+            id: 'galeno',
+            label: 'Galeno',
+            items: [
+                { id: 'lock', label: 'Bloquear Pantalla', type: 'item', action: lockScreen, shortcut: 'Ctrl+Cmd+Q' },
+                { id: 'separator1', type: 'separator' },
+                { id: 'logout', label: 'Cerrar Sesión', type: 'item', action: () => { /* TODO */ } },
+            ]
+        }
+    ];
+
+    const menus = currentMenuBar?.menus?.length ? currentMenuBar.menus : defaultMenus;
 
     const handleMenuClick = (menuId: string) => {
         setOpenMenuId(openMenuId === menuId ? null : menuId);
@@ -93,7 +108,7 @@ export function MenuBar() {
                 </button>
                 <div className="flex items-center gap-0 h-full">
                     <span className="font-bold px-2">{currentMenuBar?.appName || 'GalenoOS'}</span>
-                    {currentMenuBar?.menus.map((menu) => renderMenu(menu))}
+                    {menus.map((menu) => renderMenu(menu))}
                 </div>
             </div>
 
