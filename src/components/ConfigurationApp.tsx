@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-    Sliders, Shield, RefreshCw,
-    Monitor, HardDrive, User, Search, ChevronRight, Download, FileText
+    Monitor, HardDrive, User, Shield, Sliders,
+    Search, ChevronRight, Download, FileText,
+    Wifi, Bluetooth, LayoutGrid, Battery,
+    Volume2, Bell, Focus, MousePointer2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -20,26 +22,52 @@ type ConfigEntry = {
 
 type SectionConfig = {
     section: string;
+    id: string; // ID seguro para URL/Selección
     fields: ConfigEntry[];
 };
 
-// --- Helpers de Formato y Estilo ---
+// --- Helpers de Estilo ---
+const fluentCard = "bg-[#2c2c2c] border border-[#383838] rounded-lg overflow-hidden mb-4 shadow-sm";
+const fluentInput = "bg-[#333333] border border-[#454545] border-b-[#888] hover:bg-[#3a3a3a] focus:bg-[#1f1f1f] focus:border-b-blue-400 text-white text-sm rounded-md px-3 py-1.5 outline-none transition-colors w-full";
+const fluentSelect = "appearance-none bg-[#333333] border border-[#454545] hover:bg-[#3a3a3a] text-white text-sm rounded-md pl-3 pr-8 py-1.5 outline-none transition-colors w-full cursor-pointer";
+
+// Mapeo de iconos estilo Windows 11 Sidebar
+const getSectionIcon = (sectionName: string) => {
+    const lower = sectionName.toLowerCase();
+    if (lower.includes('sistema') || lower.includes('general')) return Monitor;
+    if (lower.includes('red') || lower.includes('internet')) return Wifi;
+    if (lower.includes('bluetooth') || lower.includes('dispositivos')) return Bluetooth;
+    if (lower.includes('personalización') || lower.includes('apariencia')) return LayoutGrid;
+    if (lower.includes('aplicaciones')) return LayoutGrid;
+    if (lower.includes('cuentas') || lower.includes('usuario')) return User;
+    if (lower.includes('hora') || lower.includes('idioma')) return Globe;
+    if (lower.includes('juegos')) return Gamepad2;
+    if (lower.includes('accesibilidad')) return Accessibility;
+    if (lower.includes('seguridad') || lower.includes('privacidad')) return Shield;
+    if (lower.includes('update') || lower.includes('actualización')) return RefreshCcw;
+    return Sliders; // Default
+};
+
+// Iconos decorativos para los items dentro de las tarjetas (simulación)
+const getFieldIcon = (key: string) => {
+    const lower = key.toLowerCase();
+    if (lower.includes('pantalla') || lower.includes('brillo')) return Monitor;
+    if (lower.includes('sonido') || lower.includes('volumen')) return Volume2;
+    if (lower.includes('notific')) return Bell;
+    if (lower.includes('batería') || lower.includes('energía')) return Battery;
+    if (lower.includes('almacenamiento')) return HardDrive;
+    if (lower.includes('mouse') || lower.includes('cursor')) return MousePointer2;
+    if (lower.includes('concentración')) return Focus;
+    return Sliders;
+};
+
+// Formateo de texto (CamelCase a Texto Legible)
 const formatLabel = (value: string) =>
     value
         .replace(/([A-Z])/g, ' $1')
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (char) => char.toUpperCase())
         .trim();
-
-// Asignar iconos y colores según el nombre de la sección para dar el toque "Settings"
-const getSectionIcon = (sectionName: string) => {
-    const lower = sectionName.toLowerCase();
-    if (lower.includes('sistema') || lower.includes('general')) return { icon: Monitor, color: 'text-blue-400', bg: 'bg-blue-400/10' };
-    if (lower.includes('almacenamiento') || lower.includes('datos')) return { icon: HardDrive, color: 'text-amber-400', bg: 'bg-amber-400/10' };
-    if (lower.includes('usuario') || lower.includes('cuenta')) return { icon: User, color: 'text-emerald-400', bg: 'bg-emerald-400/10' };
-    if (lower.includes('seguridad')) return { icon: Shield, color: 'text-rose-400', bg: 'bg-rose-400/10' };
-    return { icon: Sliders, color: 'text-indigo-400', bg: 'bg-indigo-400/10' };
-};
 
 export function ConfigurationApp() {
     const { schema, values, isLoading, setConfigValue, reload } = useConfig();
@@ -48,111 +76,122 @@ export function ConfigurationApp() {
     const [savingKey, setSavingKey] = useState<string | null>(null);
     const [showTemplates, setShowTemplates] = useState(false);
 
+    // Estado para la navegación lateral (Fluent Sidebar)
+    const [activeSectionId, setActiveSectionId] = useState<string>('sistema');
+    const [searchQuery, setSearchQuery] = useState('');
+
     const isAdmin = currentUser?.role === 'admin';
 
+    // Procesar secciones
     const sections = useMemo<SectionConfig[]>(() => {
         if (!schema) return [];
         const map = new Map<string, ConfigEntry[]>();
 
         Object.entries(schema).forEach(([key, definition]) => {
             if (definition.admin_only && !isAdmin) return;
-            const sectionName = definition.ui_section?.trim() || 'General';
+            const sectionName = definition.ui_section?.trim() || 'Sistema';
             const group = map.get(sectionName) ?? [];
             group.push({ key, definition, value: values[key] });
             map.set(sectionName, group);
         });
 
-        return Array.from(map.entries()).map(([section, fields]) => ({ section, fields }));
+        // Aseguramos que siempre haya una sección "Sistema" o la primera disponible
+        const list = Array.from(map.entries()).map(([section, fields]) => ({
+            section,
+            id: section.toLowerCase().replace(/\s+/g, '-'),
+            fields
+        }));
+
+        // Ordenar: Sistema primero si existe
+        list.sort((a, b) => (a.id === 'sistema' ? -1 : 1));
+        return list;
     }, [schema, values, isAdmin]);
+
+    // Efecto para seleccionar la primera sección por defecto si la actual no existe
+    useMemo(() => {
+        if (sections.length > 0 && !sections.find(s => s.id === activeSectionId)) {
+            setActiveSectionId(sections[0].id);
+        }
+    }, [sections, activeSectionId]);
 
     const handleSave = useCallback(
         async (key: string, nextValue: unknown) => {
             setSavingKey(key);
             try {
                 await setConfigValue(key, nextValue);
-                toast.success('Configuración actualizada');
+                toast.success('Configuración guardada');
             } catch (error: any) {
-                console.error('Error guardando configuración', error);
-                toast.error(error?.toString?.() ?? 'No se pudo guardar');
+                console.error(error);
+                toast.error('Error al guardar');
             } finally {
-                setSavingKey((current) => (current === key ? null : current));
+                setSavingKey(null);
             }
         },
         [setConfigValue]
     );
 
-    // --- Renderizado de Controles (Inputs, Toggles) ---
+    // --- Renderizado de Controles Fluent ---
     const renderControl = (entry: ConfigEntry) => {
         const effectiveValue = entry.value ?? entry.definition.default;
         const isSaving = savingKey === entry.key;
 
-        // Estilo Toggle Windows 11
+        // Toggle Switch estilo Windows 11
         if (entry.definition.type === 'boolean') {
             const boolValue = typeof effectiveValue === 'boolean' ? effectiveValue : Boolean(entry.definition.default);
             return (
                 <button
-                    type="button"
                     onClick={() => handleSave(entry.key, !boolValue)}
                     disabled={isSaving}
                     className={`
-                        relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-200 border
-                        ${boolValue
-                            ? 'bg-blue-600 border-blue-600 hover:bg-blue-500'
-                            : 'bg-[#333] border-white/10 hover:bg-[#3d3d3d]'
-                        }
+                        relative inline-flex h-5 w-10 items-center rounded-full transition-colors duration-200 border border-transparent
+                        ${boolValue ? 'bg-[#0078d4] hover:bg-[#006cc1]' : 'bg-[#5c5c5c] hover:bg-[#6e6e6e] border-[#707070]'}
                         ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
                 >
-                    <span className="sr-only">{boolValue ? 'Activado' : 'Desactivado'}</span>
                     <span
                         className={`
-                            h-4 w-4 rounded-full transition-transform duration-200 shadow-sm
-                            ${boolValue ? 'translate-x-[26px] bg-white' : 'translate-x-1 bg-white/50'}
+                            inline-block h-3 w-3 transform rounded-full bg-white transition-transform duration-200
+                            ${boolValue ? 'translate-x-6' : 'translate-x-1'}
+                            ${boolValue ? 'shadow-sm' : ''}
                         `}
                     />
                 </button>
             );
         }
 
-        // Estilo Select Windows 11
+        // Select estilo Windows 11
         if (entry.definition.type === 'enum') {
             const selected = String(effectiveValue ?? '');
             return (
                 <div className="relative w-48">
                     <select
-                        key={`${entry.key}-${selected}`}
-                        className="w-full appearance-none rounded-md border border-white/10 bg-[#333] px-3 py-1.5 text-sm text-white placeholder-white/40 focus:border-blue-500 focus:bg-[#2b2b2b] focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-50"
                         value={selected}
-                        onChange={(event) => handleSave(entry.key, event.target.value)}
+                        onChange={(e) => handleSave(entry.key, e.target.value)}
                         disabled={isSaving}
+                        className={fluentSelect}
                     >
                         {(entry.definition.choices ?? []).map((option) => (
-                            <option key={String(option)} value={String(option)} className="bg-[#2d2d2d]">
+                            <option key={String(option)} value={String(option)}>
                                 {String(option)}
                             </option>
                         ))}
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white/50">
-                        <ChevronRight className="h-4 w-4 rotate-90" />
-                    </div>
+                    <ChevronRight className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-white/50 rotate-90" />
                 </div>
             );
         }
 
-        // Estilo Input Texto/Número Windows 11
+        // Input Texto/Numérico estilo Windows 11
         const inputType = entry.definition.type === 'integer' || entry.definition.type === 'float' ? 'number' : 'text';
-        const displayValue = effectiveValue === undefined || effectiveValue === null ? '' : String(effectiveValue);
-
         return (
             <div className="w-48">
                 <input
-                    key={`${entry.key}-${displayValue}`}
                     type={inputType}
-                    defaultValue={displayValue}
+                    defaultValue={String(effectiveValue ?? '')}
                     onBlur={(e) => {
                         const val = e.target.value;
                         if (inputType === 'number') {
-                            const parsed = val.trim() === '' ? entry.definition.default ?? 0 : Number(val);
+                            const parsed = Number(val);
                             if (!Number.isNaN(parsed)) handleSave(entry.key, parsed);
                         } else {
                             handleSave(entry.key, val);
@@ -160,232 +199,179 @@ export function ConfigurationApp() {
                     }}
                     onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                     disabled={isSaving}
-                    className="w-full rounded-md border border-white/10 bg-[#333] px-3 py-1.5 text-sm text-white placeholder-white/40 focus:border-blue-500 focus:bg-[#1f1f1f] focus:ring-1 focus:ring-blue-500 outline-none transition-all border-b-2 border-b-white/20 focus:border-b-blue-500"
+                    className={fluentInput}
                 />
             </div>
         );
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#202020]">
-                <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-blue-500 border-t-transparent" />
-                <p className="text-sm font-medium text-white/60">Cargando configuración...</p>
-            </div>
-        );
-    }
+    if (isLoading) return <div className="flex h-full items-center justify-center text-white">Cargando...</div>;
+    if (showTemplates) return <TemplateManager onBack={() => setShowTemplates(false)} />;
 
-    // Si está en modo plantillas, mostrar el TemplateManager
-    if (showTemplates) {
-        return (
-            <div className="flex h-full flex-col bg-[#202020] text-white">
-                <div className="flex items-center justify-between p-4 border-b border-white/10">
-                    <Button
-                        variant="ghost"
-                        onClick={() => setShowTemplates(false)}
-                        className="text-white/60 hover:text-white"
-                    >
-                        ← Volver a Configuración
-                    </Button>
-                </div>
-                <TemplateManager />
-            </div>
-        );
-    }
+    const currentSection = sections.find(s => s.id === activeSectionId);
 
     return (
-        <div className="flex h-full flex-col bg-[#202020] text-white selection:bg-blue-500/30">
-            {/* --- Header Fijo --- */}
-            <div className="flex-none px-8 py-8">
-                <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                        <h1 className="text-3xl font-semibold tracking-tight">Configuración</h1>
-                        <p className="text-sm text-white/60">
-                            Administra las preferencias del sistema y tu cuenta
-                        </p>
+        <div className="flex h-full w-full bg-[#202020] text-white overflow-hidden font-segoe select-none">
+
+            {/* --- SIDEBAR (Navegación) --- */}
+            <div className="w-[280px] flex-none flex flex-col pt-8 pb-4 px-2 bg-[#202020]/95 backdrop-blur-xl border-r border-white/5">
+                {/* Search Box estilo Sidebar */}
+                <div className="px-4 mb-6">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
+                        <input
+                            type="text"
+                            placeholder="Buscar una configuración"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-[#2d2d2d] border border-b border-transparent focus:border-b-[#0078d4] border-white/5 rounded-md py-1.5 pl-9 pr-3 text-sm text-white placeholder-white/40 outline-none transition-all"
+                        />
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={reload}
-                        className="h-9 w-9 rounded-md bg-white/5 hover:bg-white/10 text-white/80"
-                        title="Recargar configuración"
-                    >
-                        <RefreshCw className="h-4 w-4" />
-                    </Button>
                 </div>
 
-                {/* Search Bar simulada (Visual) */}
-                <div className="mt-6 relative max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                    <input
-                        type="text"
-                        placeholder="Buscar una configuración"
-                        className="w-full h-9 rounded-md bg-[#2d2d2d] border border-white/5 pl-9 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50 border-b-2 border-b-white/10 focus:border-b-blue-500 transition-colors"
-                    />
-                </div>
-            </div>
-
-            {/* --- Contenido Scrolleable --- */}
-            <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
-                <div className="mx-auto max-w-4xl space-y-8">
-
-                    {/* --- Sección Cuenta (Hero Card) --- */}
-                    <div className="mb-8 rounded-xl border border-white/5 bg-gradient-to-br from-white/5 to-[#272727] p-6 relative overflow-hidden group">
-                        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-lg font-bold">
-                                    {currentUser?.name?.substring(0, 1)}
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-semibold text-white">
-                                        {currentUser?.name}
-                                    </h3>
-                                    <p className="text-sm text-white/60">
-                                        @{currentUser?.username} • {currentUser?.role}
-                                    </p>
-                                </div>
-                            </div>
-                            <Button
-                                onClick={() => openWindow('user-profile')}
-                                className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
-                            >
-                                Gestionar cuenta
-                                <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
-                            </Button>
+                {/* Lista de Secciones */}
+                <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar px-2">
+                    {/* Botón de Perfil (Pseudo-Header del Sidebar) */}
+                    <div className="mb-4 px-2 flex items-center gap-3 py-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors group">
+                        <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold overflow-hidden border border-white/10">
+                            {currentUser?.avatar_url ? (
+                                <img src={currentUser.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+                            ) : (
+                                currentUser?.name?.substring(0, 1)
+                            )}
+                        </div>
+                        <div className="flex flex-col text-left">
+                            <span className="text-sm font-semibold text-white/90">{currentUser?.name}</span>
+                            <span className="text-xs text-white/50">{currentUser?.email || currentUser?.username}</span>
                         </div>
                     </div>
 
-                    {/* Generar Secciones Dinámicas */}
                     {sections.map((section) => {
-                        const styleInfo = getSectionIcon(section.section);
-                        const Icon = styleInfo.icon;
-
+                        const Icon = getSectionIcon(section.section);
+                        const isActive = activeSectionId === section.id;
                         return (
-                            <div key={section.section} className="space-y-3">
-                                {/* Título de Sección con Icono */}
-                                <div className="flex items-center gap-3 px-1 mb-2">
-                                    <div className={`flex h-8 w-8 items-center justify-center rounded-md ${styleInfo.bg}`}>
-                                        <Icon className={`h-5 w-5 ${styleInfo.color}`} />
-                                    </div>
-                                    <h2 className="text-lg font-semibold">{section.section}</h2>
-                                </div>
-
-                                {/* Tarjeta contenedora estilo Windows */}
-                                <div className="flex flex-col overflow-hidden rounded-xl border border-white/5 bg-[#272727] shadow-sm">
-                                    {section.fields.map((field, index) => (
-                                        <div
-                                            key={field.key}
-                                            className={`
-                                                group flex min-h-[72px] items-center justify-between gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors
-                                                ${index !== section.fields.length - 1 ? 'border-b border-white/5' : ''}
-                                            `}
-                                        >
-                                            {/* Columna Izquierda: Texto e Icono opcional */}
-                                            <div className="flex items-center gap-4 flex-1">
-                                                {/* Indicador visual hover */}
-                                                <div className="w-1 h-8 rounded-full bg-blue-500 absolute left-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-
-                                                <div className="space-y-0.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-medium text-white/90">
-                                                            {formatLabel(field.key)}
-                                                        </span>
-                                                        {field.definition.admin_only && (
-                                                            <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500 border border-amber-500/20">
-                                                                ADMIN
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-xs text-white/50 max-w-md">
-                                                        {field.definition.description}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {/* Columna Derecha: Control */}
-                                            <div className="flex-none pl-4">
-                                                {renderControl(field)}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            <button
+                                key={section.id}
+                                onClick={() => setActiveSectionId(section.id)}
+                                className={`
+                                    relative w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200
+                                    ${isActive ? 'bg-[#353535] text-white' : 'text-white/70 hover:bg-[#2d2d2d] hover:text-white/90'}
+                                `}
+                            >
+                                {/* Indicador activo (Pill lateral) */}
+                                {isActive && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-1 bg-[#0078d4] rounded-r-full" />
+                                )}
+                                <Icon className={`h-4 w-4 ${isActive ? 'text-[#0078d4]' : ''}`} />
+                                {section.section}
+                            </button>
                         );
                     })}
 
-                    {/* --- Sección Admin (Hero Card) --- */}
+                    {/* Links especiales hardcodeados para parecer Windows */}
                     {isAdmin && (
-                        <div className="mt-8 rounded-xl border border-red-500/20 bg-gradient-to-br from-red-900/10 to-[#272727] p-6 relative overflow-hidden group">
-                            <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-red-500/5 to-transparent pointer-events-none" />
-                            <div className="relative z-10 flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                                        <Shield className="w-4 h-4 text-red-400" />
-                                        Zona Administrativa
-                                    </h3>
-                                    <p className="text-sm text-white/60 mt-1 max-w-lg">
-                                        Acceso a herramientas de mantenimiento de base de datos y logs del sistema.
-                                    </p>
-                                </div>
-                                <Button
-                                    onClick={() => openWindow('system-tools')}
-                                    className="bg-white/10 hover:bg-white/20 text-white border border-white/10"
-                                >
-                                    Abrir Herramientas
-                                    <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
-                                </Button>
-                            </div>
+                        <div className="pt-4 mt-2 border-t border-white/5">
+                            <button onClick={() => openWindow('system-tools')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
+                                <Shield className="h-4 w-4 text-red-400" />
+                                Herramientas Admin
+                            </button>
                         </div>
                     )}
+                    <button onClick={() => openWindow('galeno-update')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
+                        <Download className="h-4 w-4 text-blue-400" />
+                        Galeno Update
+                    </button>
+                    <button onClick={() => setShowTemplates(true)} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
+                        <FileText className="h-4 w-4 text-purple-400" />
+                        Plantillas
+                    </button>
+                </div>
+            </div>
 
-                    {/* --- Sección Actualización (Hero Card) --- */}
-                    <div className="mt-8 rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-900/10 to-[#272727] p-6 relative overflow-hidden group">
-                        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                                    <Download className="w-4 h-4 text-blue-400" />
-                                    Galeno Update
-                                </h3>
-                                <p className="text-sm text-white/60 mt-1 max-w-lg">
-                                    Mantén tu sistema actualizado con las últimas características y mejoras de seguridad.
-                                </p>
+            {/* --- CONTENIDO PRINCIPAL --- */}
+            <div className="flex-1 flex flex-col bg-[#202020] overflow-hidden relative">
+
+                {/* Header (Breadcrumb + Titulo) */}
+                <div className="flex-none pt-8 pb-6 px-8">
+                    {/* Hero específico si es la sección "Sistema" */}
+                    {activeSectionId === 'sistema' ? (
+                        <div className="flex items-start gap-6 mb-6">
+                            <div className="w-32 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg flex items-center justify-center shrink-0">
+                                <Monitor className="h-8 w-8 text-white/90" />
                             </div>
-                            <Button
-                                onClick={() => openWindow('galeno-update')}
-                                className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/20 shadow-lg shadow-blue-500/20"
-                            >
-                                Buscar Actualizaciones
-                                <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
-                            </Button>
-                        </div>
-                    </div>
-
-                    {/* --- Sección Plantillas (Hero Card) --- */}
-                    <div className="mt-8 rounded-xl border border-purple-500/20 bg-gradient-to-br from-purple-900/10 to-[#272727] p-6 relative overflow-hidden group">
-                        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-purple-500/5 to-transparent pointer-events-none" />
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                                    <FileText className="w-4 h-4 text-purple-400" />
-                                    Plantillas de Documentos
-                                </h3>
-                                <p className="text-sm text-white/60 mt-1 max-w-lg">
-                                    Gestiona plantillas personalizables para recibos, facturas y otros documentos.
+                            <div className="space-y-1 pt-1">
+                                <h1 className="text-2xl font-semibold tracking-tight uppercase">{currentUser?.name?.split(' ')[0]}</h1>
+                                <p className="text-sm text-white/60">
+                                    Nuevo Galeno OS
                                 </p>
+                                <button className="text-sm text-[#4cc2ff] hover:underline mt-1">Cambiar nombre</button>
                             </div>
-                            <Button
-                                onClick={() => setShowTemplates(true)}
-                                className="bg-purple-600 hover:bg-purple-500 text-white border border-purple-500/20 shadow-lg shadow-purple-500/20"
-                            >
-                                Gestionar Plantillas
-                                <ChevronRight className="w-4 h-4 ml-2 opacity-50" />
-                            </Button>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="mb-6">
+                            <p className="text-xs text-white/50 mb-1">Sistema &gt; Configuración</p>
+                            <h1 className="text-2xl font-semibold">{currentSection?.section}</h1>
+                        </div>
+                    )}
+                </div>
 
+                {/* Scroll Area */}
+                <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
+                    <div className="max-w-4xl space-y-1">
+
+                        {/* Renderizar campos agrupados en tarjetas estilo Windows 11 */}
+                        {/* En Win11, los items a menudo están en una lista continua dentro de una tarjeta, o tarjetas separadas */}
+
+                        <div className={fluentCard}>
+                            {currentSection?.fields.map((field, index) => {
+                                const FieldIcon = getFieldIcon(field.key);
+                                const isLast = index === currentSection.fields.length - 1;
+
+                                return (
+                                    <div
+                                        key={field.key}
+                                        className={`
+                                            group flex items-center justify-between p-4 pl-5 hover:bg-[#323232] transition-colors cursor-default
+                                            ${!isLast ? 'border-b border-[#383838]' : ''}
+                                        `}
+                                    >
+                                        <div className="flex items-center gap-4 overflow-hidden">
+                                            {/* Icono de la opción (Opcional, Win11 a veces lo usa a la izquierda) */}
+                                            <div className="flex-none text-white/40 group-hover:text-white/80 transition-colors">
+                                                <FieldIcon className="h-5 w-5" strokeWidth={1.5} />
+                                            </div>
+
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[15px] text-white/90 font-normal truncate">
+                                                    {formatLabel(field.key)}
+                                                </span>
+                                                {field.definition.description && (
+                                                    <span className="text-xs text-white/50 truncate max-w-lg block">
+                                                        {field.definition.description}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-none pl-6 flex items-center gap-4">
+                                            {field.definition.admin_only && (
+                                                <Shield className="h-3 w-3 text-amber-500" title="Requiere Admin" />
+                                            )}
+                                            {renderControl(field)}
+                                            {/* Chevron decorativo si fuera una navegación */}
+                                            {/* <ChevronRight className="h-4 w-4 text-white/20" /> */}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Banner de ayuda al final */}
+                        <div className="mt-8 flex items-center gap-2 text-sm text-white/40 hover:text-white/60 cursor-pointer w-fit transition-colors">
+                            <span className="underline decoration-dotted">Obtener ayuda</span>
+                        </div>
+
+                    </div>
                 </div>
             </div>
         </div>

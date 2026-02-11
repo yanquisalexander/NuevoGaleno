@@ -13,12 +13,33 @@ mod services;
 mod session;
 mod wizard;
 
+use sysinfo::System;
 use tauri::Emitter;
 
 // Simple greeting for sanity checks
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn get_system_stats() -> Result<serde_json::Value, String> {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    let cpu_usage = sys.global_cpu_info().cpu_usage();
+    let total_memory = sys.total_memory();
+    let used_memory = sys.used_memory();
+    let uptime = System::uptime();
+
+    let stats = serde_json::json!({
+        "cpu": cpu_usage,
+        "total_ram": total_memory,
+        "used_ram": used_memory,
+        "uptime": uptime
+    });
+
+    Ok(stats)
 }
 
 // ===== PATIENTS COMMANDS =====
@@ -386,9 +407,7 @@ fn get_bridges_by_patient(
 }
 
 #[tauri::command]
-fn add_bridge(
-    input: db::odontogram_tooth_treatments::AddBridgeInput,
-) -> Result<i64, String> {
+fn add_bridge(input: db::odontogram_tooth_treatments::AddBridgeInput) -> Result<i64, String> {
     db::odontogram_tooth_treatments::add_bridge(input)
 }
 
@@ -657,39 +676,45 @@ async fn is_api_server_running() -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn test_remote_connection(remote_url: String, auth_token: String) -> Result<serde_json::Value, String> {
-    use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-    
+async fn test_remote_connection(
+    remote_url: String,
+    auth_token: String,
+) -> Result<serde_json::Value, String> {
+    use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+
     let mut headers = HeaderMap::new();
     let auth_value = format!("Bearer {}", auth_token);
     headers.insert(
-        AUTHORIZATION, 
-        HeaderValue::from_str(&auth_value).map_err(|e| format!("Invalid token: {}", e))?
+        AUTHORIZATION,
+        HeaderValue::from_str(&auth_value).map_err(|e| format!("Invalid token: {}", e))?,
     );
-    
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .map_err(|e| format!("Failed to create client: {}", e))?;
-    
+
     let url = format!("{}/api/health", remote_url.trim_end_matches('/'));
-    
+
     let response = client
         .get(&url)
         .headers(headers)
         .send()
         .await
         .map_err(|e| format!("Connection failed: {}", e))?;
-    
+
     if !response.status().is_success() {
-        return Err(format!("Server responded with status: {}", response.status()));
+        return Err(format!(
+            "Server responded with status: {}",
+            response.status()
+        ));
     }
-    
+
     let body: serde_json::Value = response
         .json()
         .await
         .map_err(|e| format!("Invalid response: {}", e))?;
-    
+
     Ok(body)
 }
 
@@ -796,12 +821,20 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match node::config::load_node_config() {
                     Ok(config) => {
-                        if let (node::NodeMode::Host, Some(host_config)) = (config.mode, config.host_config) {
-                            log::info!("Auto-starting API server in host mode (node: {})", config.node_name);
+                        if let (node::NodeMode::Host, Some(host_config)) =
+                            (config.mode, config.host_config)
+                        {
+                            log::info!(
+                                "Auto-starting API server in host mode (node: {})",
+                                config.node_name
+                            );
                             if let Err(e) = api::server::start_api_server(&host_config).await {
                                 log::error!("Failed to auto-start API server: {}", e);
                             } else {
-                                log::info!("API server started automatically on port {}", host_config.api_port);
+                                log::info!(
+                                    "API server started automatically on port {}",
+                                    host_config.api_port
+                                );
 
                                 // Start broadcasting this node
                                 let service_clone = {
@@ -811,7 +844,9 @@ pub fn run() {
                                 let node_name = config.node_name.clone();
                                 let port = host_config.api_port;
                                 tauri::async_runtime::spawn(async move {
-                                    if let Err(e) = service_clone.start_broadcasting(&node_name, port).await {
+                                    if let Err(e) =
+                                        service_clone.start_broadcasting(&node_name, port).await
+                                    {
                                         log::error!("Failed to start node broadcasting: {}", e);
                                     }
                                 });
@@ -992,6 +1027,8 @@ pub fn run() {
             start_node_discovery,
             get_discovered_nodes,
             stop_node_discovery,
+            // system stats
+            get_system_stats,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

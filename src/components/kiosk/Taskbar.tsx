@@ -9,6 +9,7 @@ import { useShell } from '@/contexts/ShellContext';
 import { LicenseStatusIndicator } from "../LicenseStatusIndicator";
 import { Clock } from './Clock';
 import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
+import { TaskbarContextMenu } from './TaskbarContextMenu';
 import { useNotImplemented } from "@/utils/system/NotImplemented";
 
 
@@ -39,6 +40,8 @@ export function Taskbar() {
         isCharging: false,
         batteryAvailable: false
     });
+
+    const [taskbarContextMenu, setTaskbarContextMenu] = useState<{ x: number; y: number } | null>(null);
 
     const notImplemented = useNotImplemented();
 
@@ -89,7 +92,13 @@ export function Taskbar() {
     return (
         <>
             {/* --- BARRA DE TAREAS --- */}
-            <div className="fixed bottom-0 left-0 right-0 h-12 bg-[#1c1c1c]/99 backdrop-blur-[20px] border-t border-white/20 shadow-2xl z-40 flex items-center justify-between px-2">
+            <div
+                className="fixed bottom-0 left-0 right-0 h-12 bg-[#1c1c1c]/99 backdrop-blur-[20px] border-t border-white/20 shadow-2xl z-40 flex items-center justify-between px-2"
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    setTaskbarContextMenu({ x: e.clientX, y: e.clientY });
+                }}
+            >
 
                 {/* Sección Izquierda */}
                 <div className="flex items-center h-full gap-1">
@@ -352,6 +361,13 @@ export function Taskbar() {
                 document.body
             )}
 
+            {taskbarContextMenu && (
+                <TaskbarContextMenu
+                    x={taskbarContextMenu.x}
+                    y={taskbarContextMenu.y}
+                    onClose={() => setTaskbarContextMenu(null)}
+                />
+            )}
 
         </>
     );

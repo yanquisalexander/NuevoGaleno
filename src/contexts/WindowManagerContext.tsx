@@ -1,5 +1,7 @@
 import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect } from 'react';
 import type { WindowState, WindowAction, WindowId, AppDefinition } from '../types/window-manager';
+import { RuntimeApp } from "@/lib/AppRuntimeManager";
+import { runtimeManager } from "@/hooks/useAppRuntime";
 
 interface WindowManagerContextType {
     windows: WindowState[];
@@ -15,6 +17,10 @@ interface WindowManagerContextType {
     updatePosition: (windowId: WindowId, position: { x: number; y: number }) => void;
     updateSize: (windowId: WindowId, size: { width: number; height: number }) => void;
     registerApp: (app: AppDefinition) => void;
+    killApp: (appId: string) => void;
+    freezeApp: (appId: string) => void;
+    resumeApp: (appId: string) => void;
+    getRuntimeApps: () => RuntimeApp[];
 }
 
 const WindowManagerContext = createContext<WindowManagerContextType | null>(null);
@@ -189,7 +195,28 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
 
     const registerApp = useCallback((app: AppDefinition) => {
         appsDispatch({ type: 'REGISTER', app });
+        runtimeManager.register(app.id, app.name);
     }, []);
+
+    const killApp = useCallback((appId: string) => {
+        runtimeManager.kill(appId);
+        // Close windows
+        windows.filter(w => w.appId === appId).forEach(w => closeWindow(w.id));
+    }, [windows]);
+
+    const freezeApp = useCallback((appId: string) => {
+        runtimeManager.freeze(appId);
+        // Perhaps minimize windows
+        windows.filter(w => w.appId === appId).forEach(w => minimizeWindow(w.id));
+    }, [windows]);
+
+    const resumeApp = useCallback((appId: string) => {
+        runtimeManager.resume(appId);
+        // Restore windows
+        windows.filter(w => w.appId === appId).forEach(w => restoreWindow(w.id));
+    }, [windows]);
+
+    const getRuntimeApps = useCallback(() => runtimeManager.getAll(), []);
 
     return (
         <WindowManagerContext.Provider
@@ -207,6 +234,10 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
                 updateSize,
                 updateTitle,
                 registerApp,
+                killApp,
+                freezeApp,
+                resumeApp,
+                getRuntimeApps,
             }}
         >
             {children}

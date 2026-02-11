@@ -1,4 +1,5 @@
-﻿import {
+﻿import { TaskManager } from '../components/TaskManager';
+import {
     DashboardApp,
     PatientsApp,
     PatientRecordApp,
@@ -175,6 +176,15 @@ export const APP_DEFINITIONS = [
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: NodeConfigApp,
+        showOnDesktop: false,
+    },
+    {
+        id: 'task-manager',
+        name: 'Task Manager',
+        icon: '⚙️',
+        allowMultipleInstances: false,
+        defaultSize: { width: 800, height: 600 },
+        component: TaskManager,
         showOnDesktop: false,
     },
     {
