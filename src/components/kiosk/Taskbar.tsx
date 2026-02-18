@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RefreshCcwIcon, Lock, ChevronDown } from 'lucide-react';
+import { Search, Battery, BatteryCharging, Wifi, Volume2, User, Power, LayoutGrid, Bell, RefreshCcwIcon, Lock, ChevronDown, FileText, Settings, X } from 'lucide-react';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useSession } from '@/hooks/useSession';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -12,6 +12,16 @@ import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
 import { TaskbarContextMenu } from './TaskbarContextMenu';
 import { useNotImplemented } from "@/utils/system/NotImplemented";
 import { useGalenoClient } from "@/hooks/useGalenoClient";
+import { usePatients } from '@/hooks/usePatients';
+
+interface StartSearchResult {
+    id: string;
+    type: 'app' | 'manual' | 'patient' | 'action';
+    title: string;
+    subtitle?: string;
+    icon: JSX.Element;
+    action: () => void;
+}
 
 
 interface SystemInfo {
@@ -51,6 +61,23 @@ export function Taskbar() {
 
     const [showUserMenu, setShowUserMenu] = useState(false);
 
+    // --- Start menu search state ---
+    const patients = usePatients();
+    const { searchPatients } = patients;
+    const [startQuery, setStartQuery] = useState('');
+    const [startResults, setStartResults] = useState<StartSearchResult[]>([]);
+    const [startSelected, setStartSelected] = useState<number>(0);
+    const [isStartLoading, setIsStartLoading] = useState(false);
+    const manualIndexRef = useRef<any | null>(null);
+
+    // Refs para funciones que cambian de referencia: evitamos incluirlas en deps del efecto
+    const openWindowRef = useRef(openWindow);
+    const searchPatientsRef = useRef(searchPatients);
+
+    useEffect(() => { openWindowRef.current = openWindow; }, [openWindow]);
+    useEffect(() => { searchPatientsRef.current = searchPatients; }, [searchPatients]);
+
+
     // Cerrar menú de usuario al hacer click fuera
     useEffect(() => {
         if (!showUserMenu) return;
@@ -65,6 +92,108 @@ export function Taskbar() {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showUserMenu]);
+
+    // --- Start menu: búsqueda funcional (apps, manual, pacientes, acciones rápidas) ---
+    useEffect(() => {
+        if (!showStartMenu) {
+            setStartQuery('');
+            setStartResults([]);
+            setStartSelected(0);
+            setIsStartLoading(false);
+            return;
+        }
+
+        if (startQuery.trim().length === 0) {
+            setStartResults([]);
+            setStartSelected(0);
+            setIsStartLoading(false);
+            return;
+        }
+
+        setIsStartLoading(true);
+        const timer = setTimeout(async () => {
+            const q = startQuery.trim().toLowerCase();
+            const results: StartSearchResult[] = [];
+
+            // 1) Apps
+            Array.from(apps.values()).forEach(app => {
+                const name = (app.name || '').toLowerCase();
+                const desc = ((app as any).description || '').toLowerCase();
+                if (name.includes(q) || desc.includes(q)) {
+                    results.push({
+                        id: `app-${app.id}`,
+                        type: 'app',
+                        title: app.name,
+                        subtitle: (app as any).description || 'Aplicación',
+                        icon: app.iconComponent ? <app.iconComponent fontSize={18} /> : <span className="text-lg">{app.icon}</span>,
+                        action: () => { openWindowRef.current?.(app.id); setShowStartMenu(false); }
+                    });
+                }
+            });
+
+            // 2) Manual (index.json)
+            try {
+                if (!manualIndexRef.current) {
+                    const res = await fetch('/manual/index.json');
+                    if (res.ok) manualIndexRef.current = await res.json();
+                }
+
+                const manualIndex = manualIndexRef.current;
+                if (manualIndex && manualIndex.categories) {
+                    manualIndex.categories.forEach((cat: any) => {
+                        cat.items.forEach((item: any) => {
+                            const title = (item.title || '').toLowerCase();
+                            const catTitle = (cat.title || '').toLowerCase();
+                            const keywords: string[] = (item.keywords || []).map((k: string) => k.toLowerCase());
+                            const matches = title.includes(q) || catTitle.includes(q) || keywords.some(k => k.includes(q) || q.includes(k));
+                            if (matches) {
+                                results.push({
+                                    id: `manual-${cat.id}-${item.id}`,
+                                    type: 'manual',
+                                    title: item.title,
+                                    subtitle: cat.title,
+                                    icon: <FileText className="w-5 h-5 text-orange-400" />,
+                                    action: () => { openWindowRef.current?.('manual-galeno', { path: `${cat.id}/${item.id}` }); setShowStartMenu(false); }
+                                });
+                            }
+                        });
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading manual index for start menu search', err);
+            }
+
+            // 3) Pacientes
+            try {
+                const patients = await (searchPatientsRef.current ? searchPatientsRef.current(q) : Promise.resolve([]));
+                patients.forEach((p: any) => {
+                    results.push({
+                        id: `patient-${p.id}`,
+                        type: 'patient',
+                        title: `${p.first_name} ${p.last_name}`,
+                        subtitle: `DNI: ${p.document_number || 'Sin DNI'}`,
+                        icon: <User className="w-5 h-5 text-purple-400" />,
+                        action: () => { openWindowRef.current?.('patient-record', { patientId: p.id }); setShowStartMenu(false); }
+                    });
+                });
+            } catch (err) {
+                console.error('Error searching patients from start menu', err);
+            }
+
+            // 4) Quick actions
+            if (currentUser?.role === 'admin') {
+                if ('system-tools'.includes(q) || 'mantenimiento'.includes(q) || 'admin'.includes(q)) {
+                    results.push({ id: 'action-system-tools', type: 'action', title: 'Mantenimiento del sistema', subtitle: 'Abrir herramientas del sistema', icon: <Settings className="w-5 h-5 text-yellow-400" />, action: () => { openWindowRef.current?.('system-tools'); setShowStartMenu(false); } });
+                }
+            }
+
+            setStartResults(results);
+            setStartSelected(0);
+            setIsStartLoading(false);
+        }, 200);
+
+        return () => clearTimeout(timer);
+    }, [startQuery, apps, currentUser?.role, showStartMenu]);
 
 
 
@@ -314,58 +443,119 @@ export function Taskbar() {
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within:text-blue-400 transition-colors" />
                                         <input
                                             type="text"
+                                            value={startQuery}
+                                            onChange={(e) => setStartQuery(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'ArrowDown') {
+                                                    e.preventDefault();
+                                                    setStartSelected(prev => Math.min(prev + 1, startResults.length - 1));
+                                                } else if (e.key === 'ArrowUp') {
+                                                    e.preventDefault();
+                                                    setStartSelected(prev => Math.max(prev - 1, 0));
+                                                } else if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const item = startResults[startSelected];
+                                                    if (item) item.action();
+                                                } else if (e.key === 'Escape') {
+                                                    setStartQuery('');
+                                                }
+                                            }}
                                             placeholder="Buscar aplicaciones, documentos y configuración"
-                                            className="w-full h-9 bg-black/20 border-b border-white/10 rounded-sm pl-10 pr-4 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500 transition-all"
+                                            className="w-full h-9 bg-black/20 border-b border-white/10 rounded-sm pl-10 pr-10 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500 transition-all"
                                             autoFocus
                                         />
+
+                                        {startQuery && (
+                                            <button onClick={() => setStartQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-white/5">
+                                                <X className="w-4 h-4 text-white/60" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
                                 {/* Apps Ancladas */}
                                 <div className="flex-1 px-8 overflow-y-auto pt-2">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <span className="text-xs font-semibold text-white">Anclado</span>
-                                        <button className="text-[11px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded text-white/80 transition-colors">Todas las aplicaciones &gt;</button>
-                                    </div>
-                                    <div className="grid grid-cols-6 gap-y-6">
-                                        {Array.from(apps.values()).filter(app => app.showOnDesktop !== false).map((app) => (
-                                            <motion.button
-                                                key={app.id}
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                onClick={() => { openWindow(app.id); setShowStartMenu(false); }}
-                                                className="flex flex-col items-center gap-2 group"
-                                            >
-                                                <div className="w-10 h-10 flex items-center justify-center transition-transform">
-                                                    {
-                                                        app.iconComponent
-                                                            ? <app.iconComponent fontSize={32} />
-                                                            : <span className="text-3xl">{app.icon}</span>
-                                                    }
-                                                </div>
-                                                <span className="text-[11px] text-white/90 text-center line-clamp-1 w-16">{app.name}</span>
-                                            </motion.button>
-                                        ))}
-                                    </div>
-
-                                    {/* Recomendados */}
-                                    <div className="mt-10">
-                                        <span className="text-xs font-semibold text-white">Recomendado</span>
-                                        <div className="grid grid-cols-2 gap-4 mt-4">
-                                            <div
-                                                onClick={() => notImplemented()}
-                                                className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
-                                                <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-sm">📄</div>
-                                                <div className="flex flex-col"><span className="text-[11px] text-white">Manual_Galeno.pdf</span><span className="text-[10px] text-white/40">Reciente</span></div>
+                                    {startQuery.trim().length > 0 ? (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="text-xs text-white/60">{isStartLoading ? 'Buscando...' : `${startResults.length} resultado${startResults.length !== 1 ? 's' : ''}`}</div>
+                                                <button onClick={() => { setStartQuery(''); setStartResults([]); }} className="text-xs text-white/40 hover:text-white/80">Borrar</button>
                                             </div>
-                                            <div
-                                                onClick={() => notImplemented()}
-                                                className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
-                                                <div className="w-8 h-8 rounded bg-orange-500/20 flex items-center justify-center text-sm">📊</div>
-                                                <div className="flex flex-col"><span className="text-[11px] text-white">Estadísticas_V1</span><span className="text-[10px] text-white/40">Ayer a las 14:00</span></div>
+
+                                            {(!isStartLoading && startResults.length === 0) && (
+                                                <div className="flex flex-col items-center justify-center h-28 text-center text-white/50">
+                                                    <FileText className="w-10 h-10 mb-2 text-white/20" />
+                                                    <div className="text-sm">No se encontraron resultados</div>
+                                                    <div className="text-xs mt-1">Prueba con otro término</div>
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-1">
+                                                {startResults.map((r, idx) => (
+                                                    <button
+                                                        key={r.id}
+                                                        onClick={() => { r.action(); setShowStartMenu(false); }}
+                                                        onMouseEnter={() => setStartSelected(idx)}
+                                                        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${idx === startSelected ? 'bg-white/10 shadow-lg' : 'hover:bg-white/8'}`}
+                                                    >
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === startSelected ? 'bg-white/10' : 'bg-white/5'}`}>
+                                                            {r.icon}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-medium text-white truncate">{r.title}</div>
+                                                            {r.subtitle && <div className="text-xs text-white/50 truncate">{r.subtitle}</div>}
+                                                        </div>
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <span className="text-xs font-semibold text-white">Anclado</span>
+                                                <button className="text-[11px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded text-white/80 transition-colors">Todas las aplicaciones &gt;</button>
+                                            </div>
+                                            <div className="grid grid-cols-6 gap-y-6">
+                                                {Array.from(apps.values()).filter(app => app.showOnDesktop !== false).map((app) => (
+                                                    <motion.button
+                                                        key={app.id}
+                                                        whileHover={{ scale: 1.1 }}
+                                                        whileTap={{ scale: 0.9 }}
+                                                        onClick={() => { openWindow(app.id); setShowStartMenu(false); }}
+                                                        className="flex flex-col items-center gap-2 group"
+                                                    >
+                                                        <div className="w-10 h-10 flex items-center justify-center transition-transform">
+                                                            {
+                                                                app.iconComponent
+                                                                    ? <app.iconComponent fontSize={32} />
+                                                                    : <span className="text-3xl">{app.icon}</span>
+                                                            }
+                                                        </div>
+                                                        <span className="text-[11px] text-white/90 text-center line-clamp-1 w-16">{app.name}</span>
+                                                    </motion.button>
+                                                ))}
+                                            </div>
+
+                                            {/* Recomendados */}
+                                            <div className="mt-10">
+                                                <span className="text-xs font-semibold text-white">Recomendado</span>
+                                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                                    <div
+                                                        onClick={() => notImplemented()}
+                                                        className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
+                                                        <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-sm">📄</div>
+                                                        <div className="flex flex-col"><span className="text-[11px] text-white">Manual_Galeno.pdf</span><span className="text-[10px] text-white/40">Reciente</span></div>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => notImplemented()}
+                                                        className="flex items-center gap-3 p-2 rounded hover:bg-white/5 cursor-pointer">
+                                                        <div className="w-8 h-8 rounded bg-orange-500/20 flex items-center justify-center text-sm">📊</div>
+                                                        <div className="flex flex-col"><span className="text-[11px] text-white">Estadísticas_V1</span><span className="text-[10px] text-white/40">Ayer a las 14:00</span></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
 
                                 {/* Footer: Usuario y Energía */}

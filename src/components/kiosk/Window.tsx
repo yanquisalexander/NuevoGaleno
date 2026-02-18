@@ -3,6 +3,7 @@ import { X, Square, Copy, Minus } from 'lucide-react'; // Iconos más estilo Win
 import { motion } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useConfig } from '../../hooks/useConfig';
+import { useSession } from '@/hooks/useSession';
 import type { WindowId } from '../../types/window-manager';
 
 interface WindowProps {
@@ -26,7 +27,9 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
     } = useWindowManager();
 
     const { values } = useConfig();
-    const layoutStyle = (values.layoutStyle as string) || 'windows';
+    const { getUserPreferences } = useSession();
+    const userPrefs = getUserPreferences();
+    const layoutStyle = (userPrefs.layout_style as string) || (values.layoutStyle as string) || 'windows';
     const isMac = layoutStyle === 'macos';
 
     const windowState = windows.find(w => w.id === windowId);

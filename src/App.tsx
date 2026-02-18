@@ -41,7 +41,7 @@ function KioskContent() {
   const [currentStep, setCurrentStep] = useState<'splash' | 'setup' | 'login' | 'desktop'>('splash');
   const [isInitialLock, setIsInitialLock] = useState(false);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const { currentUser, exitApp, isLocked, lockScreen, unlock, isLoading: sessionLoading } = useSession();
+  const { currentUser, exitApp, isLocked, lockScreen, unlock, isLoading: sessionLoading, getUserPreferences } = useSession();
   const { clearTemporaryRemoteConnection } = useNode();
   const { registerApp, openWindow } = useWindowManager();
   const { addNotification } = useNotifications();
@@ -54,7 +54,9 @@ function KioskContent() {
     setUpdateAvailable
   } = useShell();
 
-  const layoutStyle = (values.layoutStyle as string) || 'windows';
+  // Effective layout: prefer user preference `layout_style`, fall back to global config `layoutStyle`
+  const userPrefs = getUserPreferences();
+  const layoutStyle = (userPrefs.layout_style as string) || (values.layoutStyle as string) || 'windows';
   const isMac = layoutStyle === 'macos';
 
   // Auto-update hook - checks for updates and manages state

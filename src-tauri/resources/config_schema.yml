@@ -22,7 +22,7 @@ enforceSystemPasswordForImports:
 
 wallpaperProvider:
   type: enum
-  default: chromecast
+  default: bing
   choices: [chromecast, bing, predefined]
   description: Proveedor de wallpapers para el escritorio.
   ui_section: Personalización
