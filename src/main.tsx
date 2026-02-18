@@ -5,6 +5,7 @@ import { ConfigProvider } from "./contexts/ConfigContext";
 import { ShellProvider } from "./contexts/ShellContext";
 import { SessionProvider } from "./contexts/SessionContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { WallpaperProvider } from './contexts/WallpaperContext';
 import { WindowManagerProvider } from "./contexts/WindowManagerContext";
 import { MenuBarProvider } from "./contexts/MenuBarContext";
 import { NodeProvider } from "./contexts/NodeContext";
@@ -23,14 +24,16 @@ initErrorLogging().then(() => {
           <NodeProvider>
             <ShellProvider>
               <SessionProvider>
-                <NotificationProvider>
-                  <MenuBarProvider>
-                    <WindowManagerProvider>
-                      <App />
-                      <NotificationCenter />
-                    </WindowManagerProvider>
-                  </MenuBarProvider>
-                </NotificationProvider>
+                <WallpaperProvider>
+                  <NotificationProvider>
+                    <MenuBarProvider>
+                      <WindowManagerProvider>
+                        <App />
+                        <NotificationCenter />
+                      </WindowManagerProvider>
+                    </MenuBarProvider>
+                  </NotificationProvider>
+                </WallpaperProvider>
               </SessionProvider>
             </ShellProvider>
           </NodeProvider>
@@ -49,14 +52,16 @@ initErrorLogging().then(() => {
           <NodeProvider>
             <ShellProvider>
               <SessionProvider>
-                <NotificationProvider>
-                  <MenuBarProvider>
-                    <WindowManagerProvider>
-                      <App />
-                      <NotificationCenter />
-                    </WindowManagerProvider>
-                  </MenuBarProvider>
-                </NotificationProvider>
+                <WallpaperProvider>
+                  <NotificationProvider>
+                    <MenuBarProvider>
+                      <WindowManagerProvider>
+                        <App />
+                        <NotificationCenter />
+                      </WindowManagerProvider>
+                    </MenuBarProvider>
+                  </NotificationProvider>
+                </WallpaperProvider>
               </SessionProvider>
             </ShellProvider>
           </NodeProvider>

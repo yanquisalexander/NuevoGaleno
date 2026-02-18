@@ -135,7 +135,7 @@ const providers: Record<WallpaperProviderType, WallpaperProvider> = {
     predefined: predefinedProvider
 };
 
-export const useWallpaper = (providerType: WallpaperProviderType = 'chromecast') => {
+export const useWallpaper = (providerType: WallpaperProviderType = 'bing') => {
     const [wallpapers, setWallpapers] = useState<WallpaperImage[]>([]);
     const [currentWallpaper, setCurrentWallpaper] = useState<string>('');
     const [prevWallpaper, setPrevWallpaper] = useState<string>('');
@@ -154,7 +154,7 @@ export const useWallpaper = (providerType: WallpaperProviderType = 'chromecast')
     }, [wallpapers]);
 
     // Función para cambiar wallpaper
-    const changeWallpaper = useCallback((dataList?: WallpaperImage[]) => {
+    const changeWallpaper = useCallback((dataList?: WallpaperImage[], attempts: number = 0) => {
         const list = dataList || wallpapersRef.current;
         if (list.length === 0 || isChangingRef.current) return;
 
@@ -192,8 +192,13 @@ export const useWallpaper = (providerType: WallpaperProviderType = 'chromecast')
         img.onerror = (err) => {
             console.error('[WallpaperProvider] Error loading wallpaper image:', nextUrl, err);
             isChangingRef.current = false;
-            // Intentar otra imagen
-            changeWallpaper(list);
+            // Intentar otra imagen, con límite de intentos
+            if (attempts < 5) {
+                changeWallpaper(list, attempts + 1);
+            } else {
+                console.error('[WallpaperProvider] Max attempts reached, giving up');
+                setError('Failed to load wallpaper after multiple attempts');
+            }
         };
     }, []);
 

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useConfig } from '@/hooks/useConfig';
 import { useSession } from '@/hooks/useSession';
-import { useWallpaper, WallpaperProviderType } from '@/hooks/useWallpaper';
+import { useWallpaperContext } from '@/contexts/WallpaperContext';
 import { ConfigDefinition } from '@/types/config';
 import { TemplateManager } from '@/components/templates';
 
@@ -80,12 +80,11 @@ export function ConfigurationApp() {
     const [savingKey, setSavingKey] = useState<string | null>(null);
     const [showTemplates, setShowTemplates] = useState(false);
 
-    // Obtener el proveedor de wallpaper actual
+    // Obtener preferences del usuario
     const userPrefs = getUserPreferences();
-    const currentWallpaperProvider = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'chromecast';
-    
-    // Usar el hook para obtener las imágenes del proveedor actual
-    const { wallpapers, isLoading: wallpapersLoading } = useWallpaper(currentWallpaperProvider);
+
+    // Usar el contexto compartido de wallpaper
+    const { wallpapers, isLoading: wallpapersLoading, currentWallpaper: providerCurrentWallpaper } = useWallpaperContext();
 
     // Estado para la navegación lateral (Fluent Sidebar)
     const [activeSectionId, setActiveSectionId] = useState<string>('sistema');
@@ -354,7 +353,7 @@ export function ConfigurationApp() {
                             <div className="mb-8 flex justify-center">
                                 <div className="relative aspect-video w-full max-w-[480px] rounded-xl border-8 border-[#1a1a1a] shadow-2xl overflow-hidden bg-black group">
                                     <img
-                                        src={String(values['wallpaper'] || '/api/placeholder/800/450')}
+                                        src={String(providerCurrentWallpaper || values['wallpaper'] || '/api/placeholder/800/450')}
                                         className="w-full h-full object-cover"
                                         alt="Fondo actual"
                                     />

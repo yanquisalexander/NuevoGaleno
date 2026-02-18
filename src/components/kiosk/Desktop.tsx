@@ -6,6 +6,7 @@ import { AltTabSwitcher } from './AltTabSwitcher';
 import { playSound, UI_SOUNDS } from "@/consts/Sounds";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { useWallpaper, WallpaperProviderType } from "@/hooks/useWallpaper";
+import { useWallpaperContext } from '@/contexts/WallpaperContext';
 import { useSession } from "@/hooks/useSession";
 
 interface DesktopProps {
@@ -21,17 +22,17 @@ export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
     // Obtener preferences del usuario
     const userPrefs = getUserPreferences();
     const layout = (userPrefs.layout_style as string) || defaultLayout;
-    const wallpaperProvider: WallpaperProviderType = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'chromecast';
-
     const isMac = layout === 'macos';
 
-    // Usar el hook de wallpaper
+    // Usar el contexto compartido de wallpaper
     const {
         currentWallpaper,
         prevWallpaper,
         wallpaperInfo,
-        changeWallpaper
-    } = useWallpaper(wallpaperProvider);
+        changeWallpaper,
+        wallpapers,
+        providerType
+    } = useWallpaperContext();
 
     const { addNotification } = useNotifications();
 

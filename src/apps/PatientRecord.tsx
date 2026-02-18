@@ -335,6 +335,8 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                         onUpdateWidget={updateWidget}
                         onSaveLayout={saveLayout}
                         onResetLayout={resetToDefault}
+                        layoutColumns={medicalViewPrefs.layout.gridColumns}
+                        layoutRows={medicalViewPrefs.layout.gridRows}
                     />
                 </div>
             </div>

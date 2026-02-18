@@ -168,15 +168,7 @@ export function LicenseStatusIndicator() {
                                     <span>Sincronizar</span>
                                 </DropdownMenuItem>
 
-                                {isLicensed && (
-                                    <DropdownMenuItem
-                                        onSelect={(e) => { e.preventDefault(); setShowDeactivateAlert(true); }}
-                                        className="cursor-pointer focus:bg-red-500/10 focus:text-red-400 text-white/50 gap-2 rounded-[4px]"
-                                    >
-                                        <LogOut className="w-4 h-4" />
-                                        <span>Desvincular</span>
-                                    </DropdownMenuItem>
-                                )}
+
                             </div>
                         )}
                     </div>

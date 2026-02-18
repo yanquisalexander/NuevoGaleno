@@ -11,6 +11,7 @@ import { Clock } from './Clock';
 import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
 import { TaskbarContextMenu } from './TaskbarContextMenu';
 import { useNotImplemented } from "@/utils/system/NotImplemented";
+import { useGalenoClient } from "@/hooks/useGalenoClient";
 
 
 interface SystemInfo {
@@ -21,7 +22,7 @@ interface SystemInfo {
 
 export function Taskbar() {
     const { windows, apps, openWindow, focusWindow } = useWindowManager();
-    const { currentUser, lockScreen, exitApp } = useSession();
+    const { currentUser, lockScreen, exitApp, logout } = useSession();
     const { notifications } = useNotifications();
     const {
         showStartMenu, setShowStartMenu,
@@ -34,6 +35,9 @@ export function Taskbar() {
         setShowPowerMenu,
         updateAvailable
     } = useShell();
+
+    const client = useGalenoClient();
+
 
     const [systemInfo, setSystemInfo] = useState<SystemInfo>({
         batteryLevel: 100,
@@ -405,7 +409,7 @@ export function Taskbar() {
                                                         </button>
                                                         <button
                                                             onClick={() => {
-                                                                exitApp();
+                                                                logout(client);
                                                                 setShowUserMenu(false);
                                                             }}
                                                             className="w-full flex items-center gap-3 px-4 py-2 text-left text-xs text-white/90 hover:bg-white/10 transition-colors"

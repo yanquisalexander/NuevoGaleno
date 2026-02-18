@@ -10,31 +10,65 @@ export interface UpdateInfo {
     date?: string;
 }
 
-export function useAutoUpdate(enabled: boolean = true) {
-    const { openWindow } = useWindowManager();
-    const { addNotification } = useNotifications();
-    const [updateAvailable, setUpdateAvailable] = useState(false);
-    const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-    const [isChecking, setIsChecking] = useState(false);
-    const [lastChecked, setLastChecked] = useState<Date | null>(() => {
-        // Cargar desde localStorage al inicializar
-        const stored = localStorage.getItem('lastUpdateCheck');
+// --- Manager singleton para compartir estado y evitar duplicados / carreras ---
+type ManagerState = {
+    updateAvailable: boolean;
+    updateInfo: UpdateInfo | null;
+    isChecking: boolean;
+    lastChecked: Date | null;
+};
+
+const LOCAL_KEY = 'lastUpdateCheck';
+
+const initialLastChecked = (() => {
+    try {
+        const stored = localStorage.getItem(LOCAL_KEY);
         return stored ? new Date(stored) : null;
-    });
-    const notificationIdRef = useRef<string | null>(null);
-    const hasCheckedOnMount = useRef(false); // Nuevo ref
+    } catch {
+        return null;
+    }
+})();
 
-    const checkForUpdates = useCallback(async () => {
-        if (isChecking) return;
+const manager = (() => {
+    let state: ManagerState = {
+        updateAvailable: false,
+        updateInfo: null,
+        isChecking: false,
+        lastChecked: initialLastChecked,
+    };
 
-        setIsChecking(true);
-        const now = new Date();
-        setLastChecked(now);
-        // Persistir en localStorage
-        localStorage.setItem('lastUpdateCheck', now.toISOString());
+    const subscribers = new Set<(s: ManagerState) => void>();
+    let inFlight = false; // evita carreras concurrentes
+    let notificationId: string | null = null; // evita notificaciones duplicadas
+
+    const notifyAll = () => subscribers.forEach((cb) => cb(state));
+
+    const subscribe = (cb: (s: ManagerState) => void): () => void => {
+        subscribers.add(cb);
+        cb(state);
+        return () => { subscribers.delete(cb); };
+    };
+
+    const clearNotificationId = () => {
+        notificationId = null;
+    };
+
+    const doCheck = async (opts?: { addNotification?: any; openWindow?: (id: string) => void }) => {
+        if (inFlight) return false;
+        inFlight = true;
+        state.isChecking = true;
+        state.lastChecked = new Date();
+        try {
+            localStorage.setItem(LOCAL_KEY, state.lastChecked.toISOString());
+        } catch {
+            /* ignore */
+        }
+        notifyAll();
+
         try {
             const update = await check();
 
+            // comprobar explicitamente `update?.available`
             if (update) {
                 const info: UpdateInfo = {
                     version: update.version,
@@ -43,83 +77,103 @@ export function useAutoUpdate(enabled: boolean = true) {
                     date: update.date,
                 };
 
-                setUpdateAvailable(true);
-                setUpdateInfo(info);
+                state.updateAvailable = true;
+                state.updateInfo = info;
 
-                if (!notificationIdRef.current) {
-                    notificationIdRef.current = addNotification({
-                        type: 'info',
-                        title: '🎉 Actualización disponible',
-                        message: `Galeno ${update.version} está listo para instalar`,
-                        icon: '📦',
-                        priority: 'high',
-                        duration: 0,
-                        actions: [
-                            {
-                                label: 'Instalar ahora',
-                                onClick: () => {
-                                    openWindow('galeno-update');
-                                    if (notificationIdRef.current) {
-                                        notificationIdRef.current = null;
-                                    }
+                // Notificar al usuario SOLO una vez (guardado en `notificationId`)
+                if (opts?.addNotification && !notificationId) {
+                    try {
+                        notificationId = opts.addNotification({
+                            type: 'info',
+                            title: '🎉 Actualización disponible',
+                            message: `Galeno ${info.version} está listo para instalar`,
+                            icon: '📦',
+                            priority: 'high',
+                            duration: 0,
+                            actions: [
+                                {
+                                    label: 'Instalar ahora',
+                                    onClick: () => {
+                                        opts.openWindow?.('galeno-update');
+                                        clearNotificationId();
+                                    },
                                 },
-                            },
-                            {
-                                label: 'Más tarde',
-                                onClick: () => {
-                                    if (notificationIdRef.current) {
-                                        notificationIdRef.current = null;
-                                    }
+                                {
+                                    label: 'Más tarde',
+                                    onClick: () => {
+                                        clearNotificationId();
+                                    },
                                 },
-                            },
-                        ],
-                    });
+                            ],
+                        });
+                    } catch (err) {
+                        console.error('addNotification failed:', err);
+                        notificationId = null;
+                    }
                 }
 
+                notifyAll();
                 return true;
             } else {
-                setUpdateAvailable(false);
-                setUpdateInfo(null);
+                state.updateAvailable = false;
+                state.updateInfo = null;
+                notifyAll();
                 return false;
             }
         } catch (error) {
-            console.error('Error checking for updates:', error);
+            console.error('Error checking for updates (manager):', error);
             return false;
         } finally {
-            setIsChecking(false);
+            inFlight = false;
+            state.isChecking = false;
+            notifyAll();
         }
-    }, [isChecking, addNotification, openWindow]); // Mantén estas dependencias
+    };
 
-    // Check inicial solo UNA vez
+    return {
+        subscribe,
+        checkForUpdates: doCheck,
+        getState: () => state,
+        clearNotificationId,
+    };
+})();
+
+export function useAutoUpdate(enabled: boolean = true) {
+    const { openWindow } = useWindowManager();
+    const { addNotification } = useNotifications();
+
+    const [state, setState] = useState(manager.getState());
+
+    useEffect(() => {
+        const unsub = manager.subscribe((s) => setState(s));
+        return unsub;
+    }, []);
+
+    const checkForUpdates = useCallback(async () => {
+        return manager.checkForUpdates({ addNotification, openWindow });
+    }, [addNotification, openWindow]);
+
+    // Check inicial (solo si `enabled`)
+    const hasCheckedOnMount = useRef(false);
     useEffect(() => {
         if (!enabled || hasCheckedOnMount.current) return;
-
         hasCheckedOnMount.current = true;
-        const checkTimer = setTimeout(() => {
-            checkForUpdates();
-        }, 5000);
-
-        return () => {
-            clearTimeout(checkTimer);
-        };
-    }, [enabled]); // Quita checkForUpdates de aquí
+        const checkTimer = setTimeout(() => checkForUpdates(), 5000);
+        return () => clearTimeout(checkTimer);
+    }, [enabled, checkForUpdates]);
 
     // Intervalo de 4 horas
     useEffect(() => {
         if (!enabled) return;
-
-        const interval = setInterval(() => {
-            checkForUpdates();
-        }, 4 * 60 * 60 * 1000);
-
+        const interval = setInterval(() => checkForUpdates(), 4 * 60 * 60 * 1000);
         return () => clearInterval(interval);
-    }, [enabled]); // Quita checkForUpdates y lastChecked de aquí
+    }, [enabled, checkForUpdates]);
 
     return {
-        updateAvailable,
-        updateInfo,
-        isChecking,
-        lastChecked,
+        updateAvailable: state.updateAvailable,
+        updateInfo: state.updateInfo,
+        isChecking: state.isChecking,
+        lastChecked: state.lastChecked,
         checkForUpdates,
     };
 }

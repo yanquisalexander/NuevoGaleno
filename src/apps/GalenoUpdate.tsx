@@ -31,7 +31,23 @@ export function GalenoUpdateApp() {
     const [currentVersion, setCurrentVersion] = useState<string>('');
     const toastHelpers = useToast();
     const notImplemented = useNotImplemented();
-    const { lastChecked, checkForUpdates: autoCheckForUpdates } = useAutoUpdate(false);
+    const { updateAvailable, updateInfo, lastChecked, checkForUpdates: autoCheckForUpdates } = useAutoUpdate(false);
+
+    // Sincronizar estado local de la UI con el estado compartido del manager
+    useEffect(() => {
+        if (updateAvailable && updateInfo) {
+            // Sólo actualizar si la UI está en un estado pasivo (evitar pisar descargas/instalaciones en curso)
+            setState((prev) => {
+                if (prev.type === 'idle' || prev.type === 'not-available' || prev.type === 'checking') {
+                    return { type: 'available', info: updateInfo };
+                }
+                return prev;
+            });
+        } else {
+            // si ya no hay update disponible y la UI muestra 'available', actualizar a 'not-available'
+            setState((prev) => (prev.type === 'available' ? { type: 'not-available' } : prev));
+        }
+    }, [updateAvailable, updateInfo]);
 
     // Cargar versión inicial
     useEffect(() => {
@@ -59,24 +75,13 @@ export function GalenoUpdateApp() {
             // Simular un pequeño delay para que se vea la animación de carga
             await new Promise(resolve => setTimeout(resolve, 800));
 
-            // Llamar al check del hook para sincronizar el lastChecked
-            await autoCheckForUpdates();
+            // Llamar al check del manager (compartido) para sincronizar el lastChecked
+            const found = await autoCheckForUpdates();
 
-            const update = await check();
-
-            if (update?.available) {
-                const info: UpdateInfo = {
-                    version: update.version,
-                    currentVersion: update.currentVersion,
-                    body: update.body,
-                    date: update.date,
-                };
-
-                setState({ type: 'available', info });
-                // toastHelpers.info('Nueva versión disponible', `Versión ${update.version} lista para descargar.`);
+            if (found && updateInfo) {
+                setState({ type: 'available', info: updateInfo });
             } else {
                 setState({ type: 'not-available' });
-                // toastHelpers.info('Estás actualizado', 'Ya tienes la última versión instalada.');
             }
         } catch (error: any) {
             const errorMsg = error?.toString() || 'Error desconocido';
