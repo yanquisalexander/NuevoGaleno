@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 10;
+const CURRENT_SCHEMA_VERSION: i32 = 11;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -84,6 +84,51 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
         migrate_v10(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (10)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 11 {
+        migrate_v11(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (11)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// Asegura compatibilidad con esquemas antiguos: agrega columnas que puedan faltar
+pub fn ensure_legacy_columns(conn: &Connection) -> Result<(), String> {
+    // Si la tabla treatments no existe, no hacemos nada
+    let table_exists: Result<i64, _> = conn
+        .query_row(
+            "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='treatments'",
+            [],
+            |row| row.get(0),
+        );
+
+    if table_exists.is_err() || table_exists.unwrap_or(0) == 0 {
+        return Ok(());
+    }
+
+    // Obtener columnas existentes
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(treatments)")
+        .map_err(|e| format!("Error preparando pragma: {}", e))?;
+
+    let cols: Result<Vec<String>, _> = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| format!("Error ejecutando pragma: {}", e))?
+        .collect();
+
+    let cols = cols.map_err(|e| format!("Error leyendo columnas: {}", e))?;
+
+    if !cols.contains(&"start_date".to_string()) {
+        conn.execute("ALTER TABLE treatments ADD COLUMN start_date TEXT", [])
+            .map_err(|e| format!("Error agregando columna start_date: {}", e))?;
+    }
+
+    if !cols.contains(&"completion_date".to_string()) {
+        conn.execute("ALTER TABLE treatments ADD COLUMN completion_date TEXT", [])
+            .map_err(|e| format!("Error agregando columna completion_date: {}", e))?;
     }
 
     Ok(())
@@ -708,4 +753,52 @@ fn migrate_v10(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v10 err: {}", e))
+}
+
+/// Migración v11: Crear tabla para almacenamiento de datos de plugins
+fn migrate_v11(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Tabla para almacenar datos de plugins de forma estructurada
+        CREATE TABLE IF NOT EXISTS plugin_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plugin_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            value_type TEXT NOT NULL DEFAULT 'string',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(plugin_id, key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_plugin_data_plugin_id ON plugin_data(plugin_id);
+        CREATE INDEX IF NOT EXISTS idx_plugin_data_key ON plugin_data(plugin_id, key);
+
+        -- Tabla para metadatos de plugins instalados
+        CREATE TABLE IF NOT EXISTS plugin_metadata (
+            plugin_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            version TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            installed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT,
+            first_party INTEGER NOT NULL DEFAULT 0,
+            settings TEXT
+        );
+
+        -- Tabla para logs/eventos de plugins (opcional, para debugging)
+        CREATE TABLE IF NOT EXISTS plugin_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plugin_id TEXT NOT NULL,
+            level TEXT NOT NULL,
+            message TEXT NOT NULL,
+            metadata TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_plugin_logs_plugin_id ON plugin_logs(plugin_id);
+        CREATE INDEX IF NOT EXISTS idx_plugin_logs_created_at ON plugin_logs(created_at);
+        "#,
+    )
+    .map_err(|e| format!("migration v11 err: {}", e))
 }

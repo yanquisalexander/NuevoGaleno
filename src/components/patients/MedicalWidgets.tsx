@@ -7,6 +7,7 @@ import {
     FileText,
     Calendar,
     Smile,
+    Stethoscope,
     X,
     GripVertical,
     Plus,
@@ -19,11 +20,14 @@ import {
     Settings2
 } from 'lucide-react';
 import { MedicalWidget } from '@/types/medical-view';
-import { Patient } from '@/hooks/usePatients';
+import { Patient, usePatients } from '@/hooks/usePatients';
 import { cn } from '@/lib/utils';
-import { getTreatmentsByPatient } from '@/hooks/useTreatments';
+import { getTreatmentsByPatient, updateTreatmentStatus } from '@/hooks/useTreatments';
 import { getPatientBalance } from '@/hooks/usePayments';
 import { useAppointments } from '@/hooks/useAppointments';
+import { toast } from 'sonner';
+import { useWindowManager } from '@/contexts/WindowManagerContext';
+import { getOdontogramSurfacesByPatient } from '@/hooks/useOdontogram';
 
 interface MedicalWidgetCardProps {
     widget: MedicalWidget;
@@ -66,6 +70,7 @@ export function MedicalWidgetCard({
         switch (widget.type) {
             case 'allergies-alert':
                 return <AllergiesWidget patient={patient} />;
+
             case 'quick-notes':
                 return <QuickNotesWidget patient={patient} onSave={(text) => onUpdate?.(widget.id, { config: { ...widget.config, notes: text } })} />;
             case 'recent-treatments':
@@ -170,9 +175,27 @@ function AllergiesWidget({ patient }: { patient: Patient }) {
     );
 }
 
-// Widget: Notas Rápidas
+// Widget: Notas Rápidas (ahora guarda en DB y en la configuración del widget)
 function QuickNotesWidget({ patient, onSave }: { patient: Patient; onSave?: (text: string) => void }) {
     const [text, setText] = React.useState(patient.medical_notes || '');
+    const [saving, setSaving] = React.useState(false);
+    const { updatePatient } = usePatients();
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            // Persistir nota en el paciente
+            await updatePatient(patient.id, { medical_notes: text });
+            // Actualizar también el estado/ configuración del widget (si se proporcionó)
+            onSave?.(text);
+            toast.success('Nota clínica guardada');
+        } catch (err) {
+            console.error(err);
+            toast.error('Error guardando nota');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="p-4 flex flex-col h-full">
@@ -180,24 +203,59 @@ function QuickNotesWidget({ patient, onSave }: { patient: Patient; onSave?: (tex
                 <StickyNote className="w-4 h-4 text-yellow-400" />
                 <h3 className="text-sm font-semibold text-white/90">Notas Clínicas</h3>
             </div>
-            <textarea value={text} onChange={e => setText(e.target.value)} className="flex-1 bg-transparent resize-none outline-none text-sm text-white/70" />
+            <textarea
+                value={text}
+                onChange={e => setText(e.target.value)}
+                className="flex-1 bg-transparent resize-none outline-none text-sm text-white/70"
+                placeholder="Escribe una nota rápida..."
+            />
             <div className="mt-3 flex justify-end gap-2">
-                <button onClick={() => { setText(patient.medical_notes || ''); onSave?.(patient.medical_notes || '') }} className="px-3 py-1 bg-white/5 rounded">Cancelar</button>
-                <button onClick={() => onSave?.(text)} className="px-3 py-1 bg-blue-500 rounded text-white">Guardar</button>
+                <button
+                    onClick={() => setText(patient.medical_notes || '')}
+                    className="px-3 py-1 bg-white/5 rounded"
+                >Cancelar</button>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-3 py-1 bg-blue-500 rounded text-white disabled:opacity-60"
+                >{saving ? 'Guardando...' : 'Guardar'}</button>
             </div>
         </div>
     );
 }
 
-// Widget: Tratamientos Recientes
+
+
+// Widget: Tratamientos Recientes (acciones rápidas: ver, cambiar estado, pagar)
 function RecentTreatmentsWidget({ patientId }: { patientId: number }) {
     const [treatments, setTreatments] = React.useState<any[]>([]);
+    const [loadingId, setLoadingId] = React.useState<number | null>(null);
+    const { openWindow } = useWindowManager();
 
-    React.useEffect(() => {
-        let mounted = true;
-        getTreatmentsByPatient(patientId).then(res => { if (mounted) setTreatments(res || []); }).catch(() => { });
-        return () => { mounted = false };
-    }, [patientId]);
+    const load = async () => {
+        try {
+            const res: any = await getTreatmentsByPatient(patientId);
+            setTreatments(res || []);
+        } catch (err) {
+            console.error('Error cargando tratamientos:', err);
+        }
+    };
+
+    React.useEffect(() => { load(); }, [patientId]);
+
+    const changeStatus = async (id: number, status: string) => {
+        setLoadingId(id);
+        try {
+            await updateTreatmentStatus(id, status);
+            toast.success('Estado actualizado');
+            await load();
+        } catch (err) {
+            console.error(err);
+            toast.error('No se pudo actualizar el estado');
+        } finally {
+            setLoadingId(null);
+        }
+    };
 
     return (
         <div className="p-4 h-full flex flex-col">
@@ -205,15 +263,42 @@ function RecentTreatmentsWidget({ patientId }: { patientId: number }) {
                 <FileText className="w-4 h-4 text-green-400" />
                 <h3 className="text-sm font-semibold text-white/90">Tratamientos Recientes</h3>
             </div>
+
             <div className="flex-1 overflow-y-auto space-y-2 text-sm text-white/60">
                 {treatments.length === 0 && <p className="text-sm text-white/40">No hay tratamientos</p>}
+
                 {treatments.slice(0, 6).map(t => (
-                    <div key={t.id} className="p-2 bg-white/2 rounded flex justify-between items-center">
-                        <div>
-                            <div className="font-medium text-white/90">{t.name}</div>
-                            <div className="text-xs text-white/50">{t.status} · {t.tooth_number || '—'}</div>
+                    <div key={t.id} className="p-2 bg-white/2 rounded flex justify-between items-center gap-4">
+                        <div style={{ minWidth: 0 }}>
+                            <div className="font-medium text-white/90 truncate">{t.name}</div>
+                            <div className="text-xs text-white/50 truncate">{t.status} · {t.tooth_number || '—'}</div>
                         </div>
-                        <div className="text-sm text-white/80">${t.balance?.toFixed(2) || t.total_cost?.toFixed(2) || '0.00'}</div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="text-sm text-white/80 mr-2">${(t.balance ?? t.total_cost ?? 0).toFixed(2)}</div>
+
+                            <div className="flex gap-2">
+                                <button
+                                    title="Ver tratamientos"
+                                    onClick={() => openWindow('patient-record', { patientId, activeTab: 'treatments' })}
+                                    className="px-2 py-1 bg-white/5 rounded text-xs"
+                                >Ver</button>
+
+                                {t.status !== 'Completed' && (
+                                    <button
+                                        onClick={() => changeStatus(t.id, 'Completed')}
+                                        disabled={loadingId === t.id}
+                                        className="px-2 py-1 bg-green-500 rounded text-xs text-white disabled:opacity-60"
+                                    >{loadingId === t.id ? '...' : 'Marcar terminado'}</button>
+                                )}
+
+                                <button
+                                    title="Registrar pago"
+                                    onClick={() => openWindow('patient-record', { patientId, activeTab: 'payments' })}
+                                    className="px-2 py-1 bg-blue-500 rounded text-xs text-white"
+                                >Pagar</button>
+                            </div>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -221,9 +306,10 @@ function RecentTreatmentsWidget({ patientId }: { patientId: number }) {
     );
 }
 
-// Widget: Pagos Pendientes
+// Widget: Pagos Pendientes (acción rápida para registrar/ver pagos)
 function PendingPaymentsWidget({ patientId }: { patientId: number }) {
     const [balance, setBalance] = React.useState<number | null>(null);
+    const { openWindow } = useWindowManager();
 
     React.useEffect(() => {
         let mounted = true;
@@ -240,15 +326,22 @@ function PendingPaymentsWidget({ patientId }: { patientId: number }) {
             <div className="flex-1 flex items-center justify-center flex-col">
                 <div className="text-2xl font-bold text-orange-400">${(balance ?? 0).toFixed(2)}</div>
                 <p className="text-xs text-white/50 mt-1">Total adeudado</p>
+                <div className="mt-3">
+                    <button
+                        onClick={() => openWindow('patient-record', { patientId, activeTab: 'payments' })}
+                        className="px-3 py-1 bg-blue-500 rounded text-sm text-white"
+                    >Registrar pago / Ver pagos</button>
+                </div>
             </div>
         </div>
     );
 }
 
-// Widget: Próxima Cita
+// Widget: Próxima Cita (ver / crear cita desde el widget)
 function NextAppointmentWidget({ patientId }: { patientId: number }) {
     const { getUpcomingAppointments } = useAppointments();
     const [next, setNext] = React.useState<any | null>(null);
+    const { openWindow } = useWindowManager();
 
     React.useEffect(() => {
         let mounted = true;
@@ -271,10 +364,17 @@ function NextAppointmentWidget({ patientId }: { patientId: number }) {
                 {next ? (
                     <div>
                         <div className="font-medium text-white/90">{next.title || 'Cita'}</div>
-                        <div className="text-sm text-white/60">{new Date(next.start_time || next.appointment_date).toLocaleString()}</div>
+                        <div className="text-sm text-white/60 mb-3">{new Date(next.start_time || next.appointment_date).toLocaleString()}</div>
+                        <div className="flex justify-center gap-2">
+                            <button onClick={() => openWindow('appointments')} className="px-3 py-1 bg-white/5 rounded text-sm">Ver cita</button>
+                            <button onClick={() => openWindow('appointments')} className="px-3 py-1 bg-blue-500 rounded text-sm text-white">Abrir calendario</button>
+                        </div>
                     </div>
                 ) : (
-                    <p className="text-sm">No hay citas programadas</p>
+                    <div>
+                        <p className="text-sm">No hay citas programadas</p>
+                        <div className="mt-3"><button onClick={() => openWindow('appointments')} className="px-3 py-1 bg-blue-500 rounded text-sm text-white">Agendar cita</button></div>
+                    </div>
                 )}
             </div>
         </div>
@@ -296,8 +396,25 @@ function MedicalHistoryWidget({ patient }: { patient: Patient }) {
     );
 }
 
-// Widget: Vista Previa Odontograma
+// Widget: Vista Previa Odontograma (muestra conteo y acceso rápido)
 function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
+    const [count, setCount] = React.useState<number | null>(null);
+    const { openWindow } = useWindowManager();
+
+    React.useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const surfaces: any[] = await getOdontogramSurfacesByPatient(patientId);
+                if (!mounted) return;
+                setCount(surfaces.length || 0);
+            } catch (err) {
+                console.error('Error cargando odontograma:', err);
+            }
+        })();
+        return () => { mounted = false };
+    }, [patientId]);
+
     return (
         <div className="p-4">
             <div className="flex items-center gap-2 mb-4">
@@ -305,7 +422,10 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
                 <h3 className="text-sm font-semibold text-white/90">Odontograma</h3>
             </div>
             <div className="text-center py-4 text-white/50">
-                <p className="text-sm">Vista previa del odontograma (abrir odontograma para detalles)</p>
+                <div className="mb-2 text-sm">Entradas: {count === null ? '–' : count}</div>
+                <div>
+                    <button onClick={() => openWindow('patient-record', { patientId, activeTab: 'odontogram' })} className="px-3 py-1 bg-blue-500 rounded text-sm text-white">Abrir odontograma</button>
+                </div>
             </div>
         </div>
     );

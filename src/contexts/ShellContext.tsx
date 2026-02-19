@@ -15,6 +15,12 @@ interface ShellContextType {
     setShowAltTab: (show: boolean) => void;
     updateAvailable: boolean;
     setUpdateAvailable: (available: boolean) => void;
+
+    // Galeno Companion (panel independiente)
+    showCompanion: boolean;
+    setShowCompanion: (show: boolean) => void;
+    toggleCompanion: () => void;
+
     toggleSearch: () => void;
     toggleNotifications: () => void;
     toggleCalendar: () => void;
@@ -34,6 +40,9 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
     const [showAltTab, setShowAltTab] = useState(false);
     const [updateAvailable, setUpdateAvailable] = useState(false);
 
+    // Companion panel state (independent)
+    const [showCompanion, setShowCompanion] = useState(false);
+
     const closeAll = useCallback(() => {
         setShowSearch(false);
         setShowNotifications(false);
@@ -41,6 +50,7 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
         setShowStartMenu(false);
         setShowPowerMenu(false);
         setShowAltTab(false);
+        // Note: intentionally NOT closing `showCompanion` here — Companion is independent
     }, []);
 
     const toggleSearch = useCallback(() => {
@@ -73,6 +83,11 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
         setShowPowerMenu(next);
     }, [showPowerMenu, closeAll]);
 
+    const toggleCompanion = useCallback(() => {
+        // Companion toggles independently and does NOT call `closeAll`.
+        setShowCompanion(s => !s);
+    }, []);
+
     return (
         <ShellContext.Provider value={{
             showSearch, setShowSearch,
@@ -82,6 +97,10 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
             showPowerMenu, setShowPowerMenu,
             showAltTab, setShowAltTab,
             updateAvailable, setUpdateAvailable,
+
+            // Companion
+            showCompanion, setShowCompanion, toggleCompanion,
+
             toggleSearch,
             toggleNotifications,
             toggleCalendar,

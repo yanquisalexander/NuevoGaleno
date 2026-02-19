@@ -49,7 +49,6 @@ export const TaskManager: React.FC = () => {
 
     const refresh = () => {
         setRefreshTrigger(prev => prev + 1);
-        toast.success('Procesos actualizados');
     };
 
     const handleKill = (windowId: string, e?: React.MouseEvent) => {

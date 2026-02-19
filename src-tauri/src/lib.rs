@@ -8,6 +8,7 @@ mod import_pipeline;
 mod importer;
 mod licensing;
 mod node;
+mod plugins;
 mod pxlib;
 mod services;
 mod session;
@@ -778,6 +779,128 @@ fn stop_node_discovery() -> Result<(), String> {
     Ok(())
 }
 
+// ===== PLUGINS COMMANDS =====
+#[tauri::command]
+fn get_installed_plugins() -> Result<Vec<plugins::InstalledPlugin>, String> {
+    plugins::get_installed_plugins()
+}
+
+#[tauri::command]
+fn load_plugin_manifest(plugin_path: String) -> Result<plugins::PluginManifest, String> {
+    plugins::load_plugin_manifest(&plugin_path)
+}
+
+#[tauri::command]
+fn install_plugin(plugin_path: String, manifest: plugins::PluginManifest) -> Result<(), String> {
+    plugins::install_plugin(&plugin_path, &manifest)
+}
+
+#[tauri::command]
+fn uninstall_plugin(plugin_id: String) -> Result<(), String> {
+    plugins::uninstall_plugin(&plugin_id)
+}
+
+#[tauri::command]
+fn enable_plugin(plugin_id: String) -> Result<(), String> {
+    plugins::update_plugin_status(&plugin_id, true)
+}
+
+#[tauri::command]
+fn disable_plugin(plugin_id: String) -> Result<(), String> {
+    plugins::update_plugin_status(&plugin_id, false)
+}
+
+#[tauri::command]
+fn update_plugin_status(plugin_id: String, enabled: bool) -> Result<(), String> {
+    plugins::update_plugin_status(&plugin_id, enabled)
+}
+
+#[tauri::command]
+fn plugin_storage_get(key: String) -> Result<Option<serde_json::Value>, String> {
+    // TODO: Get current plugin context
+    let plugin_id = "current_plugin"; // This should come from context
+    plugins::plugin_storage_get(plugin_id, &key)
+}
+
+#[tauri::command]
+fn plugin_storage_set(key: String, value: serde_json::Value) -> Result<(), String> {
+    // TODO: Get current plugin context
+    let plugin_id = "current_plugin"; // This should come from context
+    plugins::plugin_storage_set(plugin_id, &key, value)
+}
+
+#[tauri::command]
+fn plugin_storage_remove(key: String) -> Result<(), String> {
+    // TODO: Get current plugin context
+    let plugin_id = "current_plugin"; // This should come from context
+    plugins::plugin_storage_remove(plugin_id, &key)
+}
+
+#[tauri::command]
+fn plugin_storage_clear() -> Result<(), String> {
+    // TODO: Get current plugin context
+    let plugin_id = "current_plugin"; // This should come from context
+    plugins::plugin_storage_clear(plugin_id)
+}
+
+#[tauri::command]
+fn get_store_plugins() -> Result<Vec<plugins::StorePlugin>, String> {
+    plugins::get_store_plugins()
+}
+
+#[tauri::command]
+fn install_plugin_from_store(plugin_id: String) -> Result<(), String> {
+    plugins::install_plugin_from_store(&plugin_id)?;
+    
+    // Save metadata to database
+    let conn = db::get_connection()?;
+    let store_plugins = plugins::get_store_plugins()?;
+    
+    if let Some(plugin) = store_plugins.iter().find(|p| p.manifest.id == plugin_id) {
+        let metadata = db::plugin_data::PluginMetadata {
+            plugin_id: plugin.manifest.id.clone(),
+            name: plugin.manifest.name.clone(),
+            version: plugin.manifest.version.clone(),
+            enabled: true,
+            installed_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: None,
+            first_party: plugin_id.starts_with("com.nuevogaleno."),
+            settings: None,
+        };
+        
+        db::plugin_data::save_plugin_metadata(&conn, &metadata)
+            .map_err(|e| format!("Failed to save plugin metadata: {}", e))?;
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn get_plugin_data_entries(plugin_id: String) -> Result<Vec<db::plugin_data::PluginDataEntry>, String> {
+    let conn = db::get_connection()?;
+    db::plugin_data::get_all_plugin_data(&conn, &plugin_id)
+        .map_err(|e| format!("Failed to get plugin data: {}", e))
+}
+
+#[tauri::command]
+fn get_plugin_logs(plugin_id: String, limit: Option<i64>) -> Result<Vec<db::plugin_data::PluginLog>, String> {
+    let conn = db::get_connection()?;
+    db::plugin_data::get_plugin_logs(&conn, &plugin_id, limit)
+        .map_err(|e| format!("Failed to get plugin logs: {}", e))
+}
+
+#[tauri::command]
+fn add_plugin_log(
+    plugin_id: String,
+    level: String,
+    message: String,
+    metadata: Option<String>,
+) -> Result<i64, String> {
+    let conn = db::get_connection()?;
+    db::plugin_data::add_plugin_log(&conn, &plugin_id, &level, &message, metadata.as_deref())
+        .map_err(|e| format!("Failed to add plugin log: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let logs_dir = db::path::get_app_data_dir()
@@ -1030,6 +1153,23 @@ pub fn run() {
             stop_node_discovery,
             // system stats
             get_system_stats,
+            // plugins
+            get_installed_plugins,
+            load_plugin_manifest,
+            install_plugin,
+            uninstall_plugin,
+            enable_plugin,
+            disable_plugin,
+            update_plugin_status,
+            plugin_storage_get,
+            plugin_storage_set,
+            plugin_storage_remove,
+            plugin_storage_clear,
+            get_store_plugins,
+            install_plugin_from_store,
+            get_plugin_data_entries,
+            get_plugin_logs,
+            add_plugin_log,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

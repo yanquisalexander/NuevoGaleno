@@ -19,15 +19,17 @@ Sistema de vista médica personalizable que permite a los doctores configurar wi
 
 #### Signos Vitales (`vital-signs`)
 - Muestra presión arterial, pulso y temperatura
+- Permite registrar lecturas rápidas y las guarda en el historial del paciente
 - Layout compacto para información rápida
 
 #### Notas Rápidas (`quick-notes`)
-- Visualización de notas clínicas del paciente
+- Visualización y edición de notas clínicas
+- **Persistencia**: las notas se guardan en `patient.medical_notes` (historial) y también en la configuración del widget
 - Área de texto expandible
 
 #### Tratamientos Recientes (`recent-treatments`)
 - Lista de tratamientos recientes
-- Conexión con sistema de tratamientos (pendiente de integración)
+- Acciones rápidas: marcar como terminado, abrir ficha del paciente y registrar pago
 
 #### Pagos Pendientes (`pending-payments`)
 - Balance y estado de cuenta
@@ -41,7 +43,8 @@ Sistema de vista médica personalizable que permite a los doctores configurar wi
 - Resumen del historial médico del paciente
 
 #### Vista Previa Odontograma (`odontogram-preview`)
-- Visualización compacta del odontograma
+- Muestra un resumen/contador de entradas del odontograma
+- Botón rápido para abrir el odontograma del paciente en la ficha (navegación directa)
 
 ### 3. Modo de Edición
 

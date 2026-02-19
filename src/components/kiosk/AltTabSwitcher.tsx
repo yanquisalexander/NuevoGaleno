@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useShell } from '@/contexts/ShellContext';
 import { X } from 'lucide-react';
+import { AppIcon } from './AppIcon';
 import { cn } from "@/lib/utils";
 
 export function AltTabSwitcher() {
@@ -152,10 +153,7 @@ export function AltTabSwitcher() {
                                             "transition-transform duration-200",
                                             isSelected ? "scale-110" : "scale-100 opacity-80"
                                         )}>
-                                            {app.iconComponent
-                                                ? <app.iconComponent className="w-10 h-10 text-white" />
-                                                : <span className="text-4xl">{app.icon}</span>
-                                            }
+                                            <AppIcon iconComponent={app.iconComponent} icon={app.icon} size={40} className={isSelected ? 'text-white' : 'text-white/80'} />
                                         </div>
                                     </div>
 

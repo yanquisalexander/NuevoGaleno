@@ -221,6 +221,14 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
         }
     }, [patientId]);
 
+    // Si la ventana fue abierta con una pestaña por defecto (ej. desde un widget), seleccionarla
+    useEffect(() => {
+        const tab = (data?.activeTab ?? data?.defaultTab) as any;
+        if (tab && ['info', 'history', 'treatments', 'payments', 'odontogram'].includes(tab)) {
+            setActiveTab(tab);
+        }
+    }, [data?.activeTab, data?.defaultTab]);
+
     const loadPatient = async () => {
         if (!patientId) return;
         setIsLoading(true);

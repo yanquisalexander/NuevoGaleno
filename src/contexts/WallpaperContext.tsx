@@ -9,7 +9,7 @@ const WallpaperContext = createContext<WallpaperContextType | undefined>(undefin
 export function WallpaperProvider({ children }: { children: React.ReactNode }) {
     const { getUserPreferences } = useSession();
     const userPrefs = getUserPreferences();
-    const provider = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'chromecast';
+    const provider = (userPrefs.wallpaper_provider as WallpaperProviderType) || 'bing';
 
     const wallpaper = useWallpaper(provider);
 

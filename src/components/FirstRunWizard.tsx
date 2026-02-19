@@ -2,18 +2,255 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from 'sonner';
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileCode, Database, HardDrive, ShieldCheck, UserCircle } from "lucide-react";
-import { useWindowManager } from "@/contexts/WindowManagerContext";
+import { FileCode, Database, HardDrive, ShieldCheck, UserCircle, ChevronRight, ChevronLeft, Check } from "lucide-react";
 import ImportReviewScreen from "./ImportReviewScreen";
 import { useLicense } from "@/hooks/useLicense";
+import { useConfig } from "@/hooks/useConfig";
+
+// ─── Fluent UI v9 Design Tokens ─────────────────────────────────────────────
+const fluent = {
+    // Neutrals
+    bg: "#202020",           // canvas / mica base
+    bgLayer1: "rgba(255,255,255,0.04)",  // elevated surface
+    bgLayer2: "rgba(255,255,255,0.07)",  // card
+    bgLayer3: "rgba(255,255,255,0.10)",  // hover
+    border: "rgba(255,255,255,0.08)",
+    borderFocus: "#60cdff",
+    // Text
+    textPrimary: "rgba(255,255,255,0.955)",
+    textSecondary: "rgba(255,255,255,0.60)",
+    textDisabled: "rgba(255,255,255,0.36)",
+    // Accent
+    accentBase: "#60cdff",
+    accentBg: "rgba(96,205,255,0.15)",
+    accentHover: "#4ec9fb",
+    // Semantic fill
+    fillSubtle: "rgba(255,255,255,0.06)",
+    fillControl: "rgba(255,255,255,0.06)",
+    fillControlHover: "rgba(255,255,255,0.09)",
+    fillAccent: "#0078d4",
+    fillAccentHover: "#006cc1",
+    fillAccentDown: "#005ba1",
+    fillSuccess: "#107c10",
+    fillSuccessHover: "#0f700f",
+    // Stroke
+    strokeCard: "rgba(255,255,255,0.083)",
+    strokeFocus: "rgba(255,255,255,0.54)",
+    // Shadow
+    shadowCard: "0 2px 4px rgba(0,0,0,0.26), 0 0 2px rgba(0,0,0,0.16)",
+    shadowFlyout: "0 8px 16px rgba(0,0,0,0.36)",
+    // Radius
+    radiusMedium: "4px",
+    radiusLarge: "8px",
+    radiusCircle: "50%",
+    // Type ramp
+    caption: "12px",
+    body: "14px",
+    bodyStrong: "14px",
+    subtitle: "20px",
+    title: "28px",
+    titleLarge: "40px",
+    display: "68px",
+};
+
+// ─── Utility: inline style helpers ──────────────────────────────────────────
+const card: React.CSSProperties = {
+    background: fluent.bgLayer2,
+    border: `1px solid ${fluent.strokeCard}`,
+    borderRadius: fluent.radiusLarge,
+    boxShadow: fluent.shadowCard,
+};
+
+const controlInput: React.CSSProperties = {
+    height: 32,
+    background: fluent.fillControl,
+    border: `1px solid ${fluent.strokeCard}`,
+    borderRadius: fluent.radiusMedium,
+    color: fluent.textPrimary,
+    fontSize: fluent.body,
+    fontFamily: "'Segoe UI Variable Text', 'Segoe UI', sans-serif",
+    padding: "0 11px",
+    outline: "none",
+    transition: "border-color 0.1s",
+    width: "100%",
+    boxSizing: "border-box" as const,
+};
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function StepIndicator({ total, current }: { total: number; current: number }) {
+    return (
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {Array.from({ length: total }).map((_, i) => (
+                <div
+                    key={i}
+                    style={{
+                        width: i === current ? 20 : 6,
+                        height: 6,
+                        borderRadius: 3,
+                        background: i === current
+                            ? fluent.accentBase
+                            : i < current
+                                ? "rgba(96,205,255,0.45)"
+                                : "rgba(255,255,255,0.18)",
+                        transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+                    }}
+                />
+            ))}
+        </div>
+    );
+}
+
+function FluentButton({
+    children,
+    onClick,
+    disabled,
+    variant = "primary",
+    style,
+}: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    variant?: "primary" | "secondary" | "subtle" | "success";
+    style?: React.CSSProperties;
+}) {
+    const [hovered, setHovered] = useState(false);
+    const [pressed, setPressed] = useState(false);
+
+    const base: React.CSSProperties = {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        height: 32,
+        padding: "0 12px",
+        borderRadius: fluent.radiusMedium,
+        fontSize: fluent.body,
+        fontFamily: "'Segoe UI Variable Text', 'Segoe UI', sans-serif",
+        fontWeight: 600,
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "background 0.1s, transform 0.1s",
+        border: "1px solid transparent",
+        userSelect: "none",
+        opacity: disabled ? 0.37 : 1,
+        transform: pressed && !disabled ? "scale(0.99)" : "scale(1)",
+        ...style,
+    };
+
+    const variants: Record<string, React.CSSProperties> = {
+        primary: {
+            background: pressed ? fluent.fillAccentDown : hovered ? fluent.fillAccentHover : fluent.fillAccent,
+            color: "#fff",
+            borderColor: "rgba(255,255,255,0.09)",
+            boxShadow: hovered && !pressed ? "0 0 0 1px rgba(96,205,255,0.25)" : "none",
+        },
+        secondary: {
+            background: pressed ? "rgba(255,255,255,0.06)" : hovered ? fluent.bgLayer3 : fluent.bgLayer2,
+            color: fluent.textPrimary,
+            borderColor: fluent.strokeCard,
+        },
+        subtle: {
+            background: hovered ? fluent.fillControlHover : "transparent",
+            color: fluent.textSecondary,
+            borderColor: "transparent",
+        },
+        success: {
+            background: pressed ? "#0a620a" : hovered ? fluent.fillSuccessHover : fluent.fillSuccess,
+            color: "#fff",
+            borderColor: "rgba(255,255,255,0.09)",
+        },
+    };
+
+    return (
+        <button
+            onClick={disabled ? undefined : onClick}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => { setHovered(false); setPressed(false); }}
+            onMouseDown={() => setPressed(true)}
+            onMouseUp={() => setPressed(false)}
+            style={{ ...base, ...variants[variant] }}
+        >
+            {children}
+        </button>
+    );
+}
+
+function FluentInput({
+    label,
+    value,
+    onChange,
+    placeholder,
+    type = "text",
+    hint,
+}: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+    type?: string;
+    hint?: React.ReactNode;
+}) {
+    const [focused, setFocused] = useState(false);
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{
+                fontSize: fluent.caption,
+                fontWeight: 600,
+                color: focused ? fluent.accentBase : fluent.textSecondary,
+                transition: "color 0.1s",
+                fontFamily: "'Segoe UI Variable Text', 'Segoe UI', sans-serif",
+            }}>
+                {label}
+            </label>
+            <div style={{ position: "relative" }}>
+                <input
+                    type={type}
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    style={{
+                        ...controlInput,
+                        borderColor: focused ? fluent.borderFocus : fluent.strokeCard,
+                        boxShadow: focused ? `0 0 0 1px ${fluent.borderFocus}` : "none",
+                    }}
+                />
+                {/* Bottom accent line (Fluent v9 focus indicator) */}
+                <div style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    height: 2,
+                    width: focused ? "100%" : "0%",
+                    background: fluent.accentBase,
+                    borderRadius: "0 0 2px 2px",
+                    transition: "width 0.2s cubic-bezier(0.4,0,0.2,1)",
+                }} />
+            </div>
+            {hint && (
+                <div style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 6,
+                    color: fluent.textSecondary,
+                    fontSize: fluent.caption,
+                    fontFamily: "'Segoe UI Variable Text', 'Segoe UI', sans-serif",
+                }}>
+                    {hint}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
-    const { openWindow } = useWindowManager();
     const { startTrial } = useLicense();
+    const { values, setConfigValue } = useConfig();
+
     const [step, setStep] = useState(0);
     const [name, setName] = useState("");
     const [username, setUsername] = useState("");
@@ -21,7 +258,6 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
     const [extracting, setExtracting] = useState(false);
     const [extractedFiles, setExtractedFiles] = useState<string[]>([]);
-    // const [dbInspections, setDbInspections] = useState<any[]>([]); // Removed unused state
     const [progress, setProgress] = useState(0);
     const [dbTables, setDbTables] = useState<Record<string, string[]>>({});
     const [tableData, setTableData] = useState<Record<string, string[][]>>({});
@@ -29,78 +265,59 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
     const [existingUsers, setExistingUsers] = useState<any[]>([]);
     const [isFirstUser, setIsFirstUser] = useState(true);
-    const [showReview, setShowReview] = useState(false); // New state for embedded review
+    const [showReview, setShowReview] = useState(false);
 
-    const next = () => setStep((s) => s + 1);
-    const back = () => setStep((s) => Math.max(0, s - 1));
+    // New: layout selection (windows | macos)
+    const [selectedLayout, setSelectedLayout] = useState<string>((values.layoutStyle as string) || 'windows');
 
-    // Verificar si ya existen usuarios en el sistema
+    const next = () => setStep(s => s + 1);
+    const back = () => setStep(s => Math.max(0, s - 1));
+
     useState(() => {
-        const checkExistingUsers = async () => {
+        const check = async () => {
             try {
                 const users: any[] = await invoke('list_users');
                 setExistingUsers(users);
                 setIsFirstUser(users.length === 0);
-            } catch (err) {
-                console.error('Error verificando usuarios:', err);
-                setIsFirstUser(true);
-            }
+            } catch { setIsFirstUser(true); }
         };
-        checkExistingUsers();
+        check();
     });
 
-    // Función para mostrar la revisión de importación embebida
-    const handleOpenImportReview = () => {
-        if (!extractedDir) return;
-        setShowReview(true);
-    };
-
-    // Callback cuando termina la revisión (embedded)
+    const handleOpenImportReview = () => { if (extractedDir) setShowReview(true); };
     const handleReviewComplete = () => {
         toast.success("Datos importados correctamente");
-        // Iniciar trial automáticamente al completar el wizard
-        startTrial().catch(err => console.error('Error iniciando trial:', err));
-        setTimeout(() => onFinish(), 1500);
+        startTrial().catch(console.error);
+        setTimeout(() => finishAndPersist(), 1500);
     };
 
-    const handleReviewCancel = () => {
-        setShowReview(false);
-    };
+    // Persistir la interfaz seleccionada y luego cerrar el wizard
+    async function finishAndPersist() {
+        try {
+            await setConfigValue('layoutStyle', selectedLayout);
+        } catch (err) {
+            console.error('No se pudo guardar layoutStyle:', err);
+            toast.error('No se pudo guardar la preferencia de interfaz');
+        } finally {
+            onFinish();
+        }
+    }
+    const handleReviewCancel = () => setShowReview(false);
 
-    // --- Lógica de Handlers ---
     async function handleCreateAdmin() {
         try {
             await invoke("init_app_db");
             const pwBuffer = new TextEncoder().encode(password || "");
             const hashBuf = await crypto.subtle.digest("SHA-256", pwBuffer);
-            const hashHex = Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-
-            // Crear el usuario
-            await invoke("create_user", {
-                username,
-                passwordHash: hashHex,
-                name,
-                role: "admin"
-            });
-
-            // Solo establecer la contraseña del sistema si es el primer usuario
+            const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+            await invoke("create_user", { username, passwordHash: hashHex, name, role: "admin" });
             if (isFirstUser) {
                 await invoke("set_system_password", { passwordHash: hashHex });
                 await invoke("set_config", { key: "first_run_completed", value: "true" });
             }
-
             toast.success(`Usuario ${username} creado correctamente`);
-
-            // Si no es el primer usuario, ir directo al paso de importación o finalizar
-            if (!isFirstUser) {
-                next();
-            } else {
-                next();
-            }
-        } catch (err: any) {
-            toast.error(err.toString());
-            console.error('Error creando usuario:', err);
-        }
+            next();
+        } catch (err: any) { toast.error(err.toString()); }
     }
 
     async function handleSelectGln() {
@@ -116,45 +333,29 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
         setTerminalLogs([]);
         try {
             const jobId: any = await invoke("extract_gln", { glnPath: selectedFile });
-
-            // Listener para logs del backend
             const unlistenLogs = await listen("log://log", (event: any) => {
                 const logMsg = event.payload?.message || JSON.stringify(event.payload);
-                setTerminalLogs(prev => [...prev, logMsg].slice(-50)); // Mantener últimas 50 líneas
+                setTerminalLogs(prev => [...prev, logMsg].slice(-50));
             });
             const unlistenFinished = await listen("import:finished", async (event) => {
                 const payload: any = event.payload;
                 if (payload?.job_id !== jobId) return;
                 setExtracting(false);
                 if (payload.extracted_to) {
-                    setExtractedDir(payload.extracted_to); // Guardar directorio para ImportReviewScreen
+                    setExtractedDir(payload.extracted_to);
                     const list: any = await invoke("list_extracted_files", { dir: payload.extracted_to });
                     setExtractedFiles([...(list.db_files || []), ...(list.documents || [])]);
-
-                    const inspections = [];
-                    for (const db of list.db_files || []) {
-                        const info: any = await invoke("inspect_paradox_db", { path: db });
-                        inspections.push(info);
-                    }
-                    // setDbInspections(inspections);
-
                     const tables: Record<string, string[]> = {};
                     const data: Record<string, string[][]> = {};
                     for (const db of list.db_files || []) {
                         const tbls: any = await invoke("list_tables", { path: db });
                         tables[db] = tbls;
                         try {
-                            // Try new pxlib bindings first
                             const records: any = await invoke("read_table_data_pxlib", { path: db, limit: 5 });
                             data[db] = records;
-                        } catch (e) {
-                            // Fallback to bundled reader if bindings not available or error
-                            try {
-                                const records2: any = await invoke("read_table_data", { path: db, limit: 5 });
-                                data[db] = records2;
-                            } catch (e2) {
-                                data[db] = [];
-                            }
+                        } catch {
+                            try { data[db] = await invoke("read_table_data", { path: db, limit: 5 }); }
+                            catch { data[db] = []; }
                         }
                     }
                     setDbTables(tables);
@@ -164,298 +365,616 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                 if (typeof unlistenLogs === 'function') unlistenLogs();
                 unlistenFinished();
             });
-
             await listen("import:progress", (event: any) => {
                 if (event.payload?.job_id === jobId) setProgress(event.payload.progress);
             });
-        } catch (e) {
+        } catch {
             setExtracting(false);
             toast.error('Error iniciando extracción');
         }
     }
 
-    return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-['Segoe_UI_Variable',_'Segoe_UI',_sans-serif]">
-            {/* Windows 11 Installer Window Frame */}
-            <div className="w-full max-w-[900px] h-[650px] flex flex-col bg-[#202020] text-[#ffffff] rounded-[8px] border border-[#333] shadow-[0_32px_64px_rgba(0,0,0,0.5),0_2px_21px_rgba(0,0,0,0.4)] overflow-hidden ring-1 ring-white/5">
+    // ─── Step titles ──────────────────────────────────────────────────────────
+    const totalSteps = 4;
+    const stepTitles = [
+        isFirstUser ? "Bienvenido" : "Resumen del sistema",
+        "Elige la interfaz",
+        isFirstUser ? "Crear cuenta" : "Nuevo usuario",
+        "Importar datos",
+    ];
+    const stepSubtitles = [
+        isFirstUser ? "Asistente de instalación de Nuevo Galeno" : "Gestión de usuarios del sistema",
+        "Selecciona el estilo de interfaz que prefieres para la aplicación",
+        isFirstUser ? "Configuración de la cuenta administrativa principal" : "Agregar un nuevo usuario al sistema",
+        "Migración de base de datos Paradox (.gln)",
+    ];
 
-                {/* 1. Header Fijo (Draggable area concept) */}
-                <div className="flex-none px-10 pt-10 pb-6 select-none relative">
-                    <div className="flex items-start justify-between">
-                        <div className="space-y-2">
-                            <h1 className="text-3xl font-semibold tracking-tight leading-tight">
-                                {isFirstUser ? 'Configuración de Nuevo Galeno' : 'Gestión de Usuarios'}
-                            </h1>
-                            <p className="text-[#a0a0a0] text-base font-light">
-                                {step === 0 && (isFirstUser ? "Bienvenido al asistente de instalación" : "Resumen del sistema")}
-                                {step === 1 && (isFirstUser ? "Creación de cuenta administrativa" : "Agregar nuevo usuario")}
-                                {step === 2 && "Importación de base de datos Paradox"}
-                            </p>
-                        </div>
-                        {/* Windows Logo / App Icon Placeholder */}
-                        <div className="h-12 w-12 bg-[#0078d4] rounded-[6px] flex items-center justify-center text-white shadow-xl">
-                            <Database className="w-6 h-6" />
-                        </div>
-                    </div>
+    // ─── Render ───────────────────────────────────────────────────────────────
+    return (
+        <div style={{
+            position: "fixed", inset: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.54)",
+            backdropFilter: "blur(24px) saturate(1.6)",
+            fontFamily: "'Segoe UI Variable Text', 'Segoe UI', sans-serif",
+            zIndex: 9999,
+        }}>
+            {/* Window */}
+            <div style={{
+                width: "100%", maxWidth: 880, height: 640,
+                display: "flex", flexDirection: "column",
+                background: "rgba(32,32,32,0.97)",
+                borderRadius: 8,
+                border: `1px solid ${fluent.strokeCard}`,
+                boxShadow: "0 32px 64px rgba(0,0,0,0.62), 0 2px 24px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.07)",
+                overflow: "hidden",
+            }}>
+                {/* ── Title bar ─────────────────────────────────────────────── */}
+                <div style={{
+                    flexShrink: 0,
+                    display: "flex", alignItems: "center",
+                    padding: "0 16px", height: 32,
+                    background: "rgba(0,0,0,0.28)",
+                    borderBottom: `1px solid ${fluent.strokeCard}`,
+                    userSelect: "none",
+                }}>
+                    <Database style={{ width: 14, height: 14, color: fluent.accentBase, marginRight: 8 }} />
+                    <span style={{ fontSize: 12, color: fluent.textSecondary, letterSpacing: 0.1 }}>
+                        Nuevo Galeno — Configuración
+                    </span>
                 </div>
 
-                {/* 2. Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto overflow-x-hidden px-10 py-2 custom-scrollbar relative">
-                    {showReview && extractedDir ? (
-                        <div className="absolute inset-0 bg-[#202020] z-20 px-6">
-                            <ImportReviewScreen
-                                extractedDir={extractedDir}
-                                onComplete={handleReviewComplete}
-                                onCancel={handleReviewCancel}
-                                embedded={true}
-                            />
+                {/* ── Content wrapper ───────────────────────────────────────── */}
+                <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+                    {/* Left sidebar navigation */}
+                    <div style={{
+                        width: 220, flexShrink: 0,
+                        padding: "28px 0",
+                        background: "rgba(0,0,0,0.18)",
+                        borderRight: `1px solid ${fluent.strokeCard}`,
+                        display: "flex", flexDirection: "column", gap: 2,
+                    }}>
+                        {/* App brand */}
+                        <div style={{ padding: "0 20px 20px", borderBottom: `1px solid ${fluent.strokeCard}`, marginBottom: 8 }}>
+                            <div style={{
+                                width: 40, height: 40,
+                                background: "linear-gradient(135deg, #0078d4 0%, #005a9e 100%)",
+                                borderRadius: 8,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                marginBottom: 10,
+                                boxShadow: "0 4px 12px rgba(0,120,212,0.4)",
+                            }}>
+                                <Database style={{ width: 20, height: 20, color: "#fff" }} />
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: fluent.textPrimary, lineHeight: 1.2 }}>Nuevo Galeno</div>
+                            <div style={{ fontSize: 11, color: fluent.textSecondary, marginTop: 2 }}>Instalación inicial</div>
                         </div>
-                    ) : (
-                        <>
-                            {step === 0 && (
-                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-                                    {isFirstUser ? (
-                                        <div className="space-y-4">
-                                            <div className="p-5 bg-[#272727] border border-[#333] rounded-[6px] flex gap-5 hover:bg-[#2c2c2c] transition-colors cursor-default group">
-                                                <div className="p-3 bg-[#333] rounded-full group-hover:bg-[#3d3d3d] transition-colors">
-                                                    <ShieldCheck className="w-6 h-6 text-[#60cdff]" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-semibold text-base mb-1">Comenzar la instalación</h3>
-                                                    <p className="text-sm text-[#bcbcbc] leading-relaxed">
-                                                        Este asistente le guiará a través de la configuración inicial de Nuevo Galeno.
-                                                        Se creará una base de datos local y se configurará el usuario administrador principal.
-                                                    </p>
-                                                </div>
-                                            </div>
+
+                        {/* Steps list */}
+                        {stepTitles.map((title, i) => {
+                            const isDone = i < step;
+                            const isActive = i === step;
+                            return (
+                                <div key={i} style={{
+                                    display: "flex", alignItems: "center", gap: 10,
+                                    padding: "8px 20px",
+                                    background: isActive ? "rgba(96,205,255,0.08)" : "transparent",
+                                    borderLeft: isActive ? `2px solid ${fluent.accentBase}` : "2px solid transparent",
+                                    transition: "all 0.15s",
+                                    cursor: "default",
+                                }}>
+                                    {/* Step circle */}
+                                    <div style={{
+                                        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        background: isDone
+                                            ? "rgba(96,205,255,0.2)"
+                                            : isActive
+                                                ? fluent.accentBase
+                                                : "rgba(255,255,255,0.08)",
+                                        border: isDone
+                                            ? `1px solid rgba(96,205,255,0.45)`
+                                            : isActive
+                                                ? "none"
+                                                : `1px solid rgba(255,255,255,0.15)`,
+                                        fontSize: 11, fontWeight: 700,
+                                        color: isDone ? fluent.accentBase : isActive ? "#fff" : fluent.textDisabled,
+                                        transition: "all 0.2s",
+                                    }}>
+                                        {isDone ? <Check style={{ width: 12, height: 12 }} /> : i + 1}
+                                    </div>
+                                    <div>
+                                        <div style={{
+                                            fontSize: 13, fontWeight: isActive ? 600 : 400,
+                                            color: isActive ? fluent.textPrimary : isDone ? fluent.accentBase : fluent.textSecondary,
+                                            transition: "color 0.15s",
+                                        }}>
+                                            {title}
                                         </div>
-                                    ) : (
-                                        <div className="p-5 bg-[#272727] border border-[#333] rounded-[6px]">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center">
-                                                    <UserCircle className="w-6 h-6 text-[#60cdff]" />
-                                                </div>
-                                                <h3 className="font-semibold text-base">Usuarios del Sistema</h3>
-                                            </div>
-                                            <div className="max-h-[300px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
-                                                {existingUsers.map((user: any) => (
-                                                    <div key={user.id} className="flex items-center gap-4 p-3 rounded-[4px] hover:bg-[#333] transition-colors group cursor-default">
-                                                        <div className="w-9 h-9 rounded-full bg-[#333] group-hover:bg-[#404040] flex items-center justify-center text-sm font-semibold border border-[#404040]">
-                                                            {user.username.substring(0, 2).toUpperCase()}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Main panel */}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: "28px 32px 20px",
+                            borderBottom: `1px solid ${fluent.strokeCard}`,
+                            flexShrink: 0,
+                        }}>
+                            <h1 style={{
+                                margin: 0,
+                                fontSize: fluent.subtitle,
+                                fontWeight: 600,
+                                color: fluent.textPrimary,
+                                fontFamily: "'Segoe UI Variable Display', 'Segoe UI', sans-serif",
+                                letterSpacing: -0.3,
+                                lineHeight: 1.2,
+                            }}>
+                                {stepTitles[step]}
+                            </h1>
+                            <p style={{
+                                margin: "6px 0 0",
+                                fontSize: fluent.caption,
+                                color: fluent.textSecondary,
+                            }}>
+                                {stepSubtitles[step]}
+                            </p>
+                        </div>
+
+                        {/* Scrollable content */}
+                        <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+                            {showReview && extractedDir ? (
+                                <div style={{ position: "absolute", inset: 0, background: fluent.bg, zIndex: 20, padding: 24 }}>
+                                    <ImportReviewScreen
+                                        extractedDir={extractedDir}
+                                        onComplete={handleReviewComplete}
+                                        onCancel={handleReviewCancel}
+                                        embedded={true}
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    {/* ── Step 0 ── */}
+                                    {step === 0 && (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeSlide 0.3s ease-out" }}>
+                                            {isFirstUser ? (
+                                                <>
+                                                    {/* Info card */}
+                                                    <div style={{ ...card, padding: "18px 20px", display: "flex", gap: 16, alignItems: "flex-start" }}>
+                                                        <div style={{
+                                                            width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+                                                            background: fluent.accentBg,
+                                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                                        }}>
+                                                            <ShieldCheck style={{ width: 20, height: 20, color: fluent.accentBase }} />
                                                         </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="text-sm font-medium truncate text-white">{user.name}</div>
-                                                            <div className="text-xs text-[#999] truncate mt-0.5">{user.role} &bull; @{user.username}</div>
+                                                        <div>
+                                                            <div style={{ fontSize: fluent.body, fontWeight: 600, color: fluent.textPrimary, marginBottom: 4 }}>
+                                                                Comenzar la instalación
+                                                            </div>
+                                                            <div style={{ fontSize: fluent.caption, color: fluent.textSecondary, lineHeight: 1.6 }}>
+                                                                Este asistente le guiará a través de la configuración inicial de Nuevo Galeno. Se creará una base de datos local y se configurará el usuario administrador principal.
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                ))}
+
+                                                    {/* Feature chips */}
+                                                    {[
+                                                        { icon: <Database style={{ width: 14, height: 14 }} />, text: "Base de datos local SQLite" },
+                                                        { icon: <ShieldCheck style={{ width: 14, height: 14 }} />, text: "Contraseña cifrada con SHA-256" },
+                                                        { icon: <HardDrive style={{ width: 14, height: 14 }} />, text: "Importación de respaldos .gln" },
+                                                    ].map((f, i) => (
+                                                        <div key={i} style={{
+                                                            display: "flex", alignItems: "center", gap: 10,
+                                                            padding: "10px 14px",
+                                                            background: fluent.fillSubtle,
+                                                            borderRadius: fluent.radiusMedium,
+                                                            border: `1px solid ${fluent.strokeCard}`,
+                                                            color: fluent.textSecondary,
+                                                            fontSize: fluent.caption,
+                                                        }}>
+                                                            <span style={{ color: fluent.accentBase }}>{f.icon}</span>
+                                                            {f.text}
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            ) : (
+                                                <div style={{ ...card, padding: 20 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                                                        <UserCircle style={{ width: 18, height: 18, color: fluent.accentBase }} />
+                                                        <span style={{ fontSize: fluent.body, fontWeight: 600, color: fluent.textPrimary }}>
+                                                            Usuarios del sistema
+                                                        </span>
+                                                        <span style={{
+                                                            marginLeft: "auto",
+                                                            background: fluent.accentBg,
+                                                            color: fluent.accentBase,
+                                                            fontSize: 11, fontWeight: 700,
+                                                            padding: "2px 8px", borderRadius: 99,
+                                                        }}>
+                                                            {existingUsers.length}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 280, overflowY: "auto" }}>
+                                                        {existingUsers.map((user: any) => (
+                                                            <div key={user.id} style={{
+                                                                display: "flex", alignItems: "center", gap: 12,
+                                                                padding: "8px 10px",
+                                                                borderRadius: fluent.radiusMedium,
+                                                                background: "transparent",
+                                                                transition: "background 0.1s",
+                                                                cursor: "default",
+                                                            }}
+                                                                onMouseEnter={e => (e.currentTarget.style.background = fluent.fillControlHover)}
+                                                                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                                                            >
+                                                                <div style={{
+                                                                    width: 32, height: 32, borderRadius: "50%",
+                                                                    background: fluent.accentBg,
+                                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                                    fontSize: 12, fontWeight: 700, color: fluent.accentBase,
+                                                                    border: `1px solid rgba(96,205,255,0.2)`,
+                                                                    flexShrink: 0,
+                                                                }}>
+                                                                    {user.username.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ fontSize: fluent.body, color: fluent.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                        {user.name}
+                                                                    </div>
+                                                                    <div style={{ fontSize: 11, color: fluent.textSecondary, marginTop: 1 }}>
+                                                                        {user.role} · @{user.username}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div style={{
+                                                marginTop: 8, paddingTop: 16,
+                                                borderTop: `1px solid ${fluent.strokeCard}`,
+                                                fontSize: 11, color: fluent.textDisabled,
+                                                lineHeight: 1.8,
+                                            }}>
+                                                <p style={{ margin: 0 }}>Al continuar, acepta los términos de licencia del software médico.</p>
+                                                <p style={{ margin: "2px 0 0" }}>Versión del instalador: 2.0.0 (Build 2026)</p>
                                             </div>
                                         </div>
                                     )}
 
-                                    <div className="text-xs text-[#808080] space-y-2 pt-8 border-t border-[#333]">
-                                        <p>Al continuar, usted acepta los términos de licencia del software médico.</p>
-                                        <p>Versión del instalador: 2.0.0 (Build 2026)</p>
-                                    </div>
-                                </div>
-                            )}
+                                    {/* ── Step 1 ── */}
+                                    {step === 1 && (
+                                        <div style={{
+                                            display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'center',
+                                            animation: 'fadeSlide 0.3s ease-out'
+                                        }}>
+                                            {/* Windows option */}
+                                            <button
+                                                onClick={() => setSelectedLayout('windows')}
+                                                style={{
+                                                    width: 260, padding: 16, borderRadius: 8,
+                                                    background: selectedLayout === 'windows' ? 'rgba(96,205,255,0.06)' : 'transparent',
+                                                    border: selectedLayout === 'windows' ? `1px solid ${fluent.borderFocus}` : `1px solid ${fluent.strokeCard}`,
+                                                    boxShadow: selectedLayout === 'windows' ? '0 6px 20px rgba(0,0,0,0.45)' : 'none',
+                                                    cursor: 'pointer', textAlign: 'left'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <div style={{ width: 56, height: 40, borderRadius: 6, background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 6 }}>
+                                                        <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, marginBottom: 6 }} />
+                                                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                                                            <div style={{ width: 10, height: 10, borderRadius: 3, background: '#00a4ef' }} />
+                                                            <div style={{ width: 10, height: 10, borderRadius: 3, background: '#60cdff' }} />
+                                                            <div style={{ width: 10, height: 10, borderRadius: 3, background: '#a78bfa' }} />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 14, fontWeight: 700, color: fluent.textPrimary }}>Windows</div>
+                                                        <div style={{ fontSize: 12, color: fluent.textSecondary, marginTop: 6, maxWidth: 160 }}>Barra de tareas en la parte inferior con íconos centrados — estilo por defecto.</div>
+                                                    </div>
+                                                </div>
+                                            </button>
 
-                            {step === 1 && (
-                                <div className="space-y-6 py-2 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[480px]">
-                                    <div className="space-y-2 group">
-                                        <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Nombre completo</label>
-                                        <Input
-                                            value={name}
-                                            onChange={(e) => setName(e.target.value)}
-                                            placeholder="Ej. Dr. Juan Pérez"
-                                            className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2 group">
-                                        <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Nombre de usuario</label>
-                                        <Input
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
-                                            placeholder="admin"
-                                            className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2 group">
-                                        <label className="text-sm font-medium text-[#e0e0e0] group-focus-within:text-[#60cdff] transition-colors">Contraseña</label>
-                                        <Input
-                                            type="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="••••••••"
-                                            className="h-[40px] bg-[#272727] border-[#404040] focus:border-[#60cdff] border-b-2 hover:bg-[#2f2f2f] focus:ring-0 rounded-[4px] text-base placeholder:text-[#666] transition-all"
-                                        />
-                                        <div className="flex items-start gap-2 pt-2">
-                                            <ShieldCheck className="w-3 h-3 text-[#60cdff] mt-0.5" />
-                                            <p className="text-xs text-[#a0a0a0]">
-                                                {isFirstUser
-                                                    ? "Esta será la cuenta administrativa principal. Guárdela en un lugar seguro."
-                                                    : "El usuario deberá cambiar su contraseña al primer inicio de sesión."}
-                                            </p>
+                                            {/* macOS option */}
+                                            <button
+                                                onClick={() => setSelectedLayout('macos')}
+                                                style={{
+                                                    width: 260, padding: 16, borderRadius: 8,
+                                                    background: selectedLayout === 'macos' ? 'rgba(96,205,255,0.06)' : 'transparent',
+                                                    border: selectedLayout === 'macos' ? `1px solid ${fluent.borderFocus}` : `1px solid ${fluent.strokeCard}`,
+                                                    boxShadow: selectedLayout === 'macos' ? '0 6px 20px rgba(0,0,0,0.45)' : 'none',
+                                                    cursor: 'pointer', textAlign: 'left'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <div style={{ width: 56, height: 40, borderRadius: 6, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <div style={{ width: '70%', height: 10, borderRadius: 6, background: 'rgba(255,255,255,0.06)', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+                                                            <div style={{ width: 8, height: 8, borderRadius: 8, background: '#00a4ef' }} />
+                                                            <div style={{ width: 8, height: 8, borderRadius: 8, background: '#60cdff' }} />
+                                                            <div style={{ width: 8, height: 8, borderRadius: 8, background: '#a78bfa' }} />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: 14, fontWeight: 700, color: fluent.textPrimary }}>macOS</div>
+                                                        <div style={{ fontSize: 12, color: fluent.textSecondary, marginTop: 6, maxWidth: 160 }}>Dock estilo macOS y barra superior — aspecto alternativo.</div>
+                                                    </div>
+                                                </div>
+                                            </button>
                                         </div>
-                                    </div>
-                                </div>
-                            )}
+                                    )}
 
-                            {step === 2 && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    {/* File Selection Box */}
-                                    <div
-                                        onClick={handleSelectGln}
-                                        className="p-6 bg-[#272727] border border-[#333] hover:border-[#555] hover:bg-[#2f2f2f] rounded-[6px] flex items-center justify-between cursor-pointer transition-all group"
-                                    >
-                                        <div className="flex items-center gap-5 overflow-hidden">
-                                            <div className="p-3 bg-[#333] rounded-full group-hover:bg-[#3d3d3d] transition-colors">
-                                                <HardDrive className="w-6 h-6 text-[#a0a0a0] group-hover:text-[#60cdff] transition-colors" />
+                                    {/* ── Step 2 ── */}
+                                    {step === 2 && (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeSlide 0.3s ease-out" }}>
+                                            <FluentInput
+                                                label="Nombre completo"
+                                                value={name}
+                                                onChange={v => setName(v)}
+                                                placeholder="Ej. Dr. Juan Pérez"
+                                            />
+
+                                            <FluentInput
+                                                label="Nombre de usuario"
+                                                value={username}
+                                                onChange={v => setUsername(v)}
+                                                placeholder="admin"
+                                            />
+
+                                            <FluentInput
+                                                label="Contraseña"
+                                                type="password"
+                                                value={password}
+                                                onChange={v => setPassword(v)}
+                                                placeholder="••••••••"
+                                                hint={
+                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                                        <ShieldCheck style={{ width: 14, height: 14, color: fluent.accentBase, marginTop: 4 }} />
+                                                        <div style={{ fontSize: 12, color: fluent.textSecondary }}>
+                                                            {isFirstUser
+                                                                ? "Esta será la cuenta administrativa principal. Guárdela en un lugar seguro."
+                                                                : "El usuario deberá cambiar su contraseña al primer inicio de sesión."}
+                                                        </div>
+                                                    </div>
+                                                }
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* ── Step 3 (Import) ── */}
+                                    {step === 3 && (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeSlide 0.3s ease-out" }}>
+                                            {/* File picker */}
+                                            <div
+                                                onClick={handleSelectGln}
+                                                style={{
+                                                    ...card,
+                                                    padding: "14px 18px",
+                                                    display: "flex", alignItems: "center", gap: 14,
+                                                    cursor: "pointer",
+                                                    transition: "background 0.1s, border-color 0.1s",
+                                                }}
+                                                onMouseEnter={e => {
+                                                    (e.currentTarget as HTMLDivElement).style.background = fluent.bgLayer3;
+                                                    (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.14)";
+                                                }}
+                                                onMouseLeave={e => {
+                                                    (e.currentTarget as HTMLDivElement).style.background = fluent.bgLayer2;
+                                                    (e.currentTarget as HTMLDivElement).style.borderColor = fluent.strokeCard;
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: 36, height: 36, borderRadius: 6, flexShrink: 0,
+                                                    background: selectedFile ? fluent.accentBg : fluent.fillSubtle,
+                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                    border: `1px solid ${selectedFile ? "rgba(96,205,255,0.3)" : fluent.strokeCard}`,
+                                                }}>
+                                                    <HardDrive style={{ width: 18, height: 18, color: selectedFile ? fluent.accentBase : fluent.textSecondary }} />
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: fluent.body, color: fluent.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        {selectedFile || "Seleccionar archivo de respaldo (.gln)"}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: fluent.textSecondary, marginTop: 2 }}>
+                                                        {selectedFile ? "Archivo cargado y listo" : "Haga clic para examinar su equipo"}
+                                                    </div>
+                                                </div>
+                                                <div style={{
+                                                    padding: "5px 12px",
+                                                    background: fluent.fillSubtle,
+                                                    border: `1px solid ${fluent.strokeCard}`,
+                                                    borderRadius: fluent.radiusMedium,
+                                                    fontSize: 12, color: fluent.textSecondary,
+                                                    flexShrink: 0,
+                                                }}>
+                                                    Examinar
+                                                </div>
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="text-base font-medium truncate text-[#f0f0f0]">
-                                                    {selectedFile || "Seleccionar archivo de respaldo (.gln)"}
-                                                </p>
-                                                <p className="text-sm text-[#808080] mt-0.5">
-                                                    {selectedFile ? "Archivo cargado y listo" : "Haga clic para examinar su equipo"}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="bg-[#383838] px-4 py-2 rounded-[4px] text-xs font-medium text-[#d0d0d0] group-hover:bg-[#454545] transition-colors">
-                                            Examinar
-                                        </div>
-                                    </div>
 
-                                    {/* Processing Status */}
-                                    {selectedFile && !extractedFiles.length && (
-                                        <div className="space-y-4">
-                                            {extracting ? (
-                                                <>
-                                                    <div className="flex justify-between text-xs text-[#d0d0d0] font-medium tracking-wide uppercase">
-                                                        <span>Procesando...</span>
-                                                        <span>{progress}%</span>
-                                                    </div>
-                                                    <div className="h-1 w-full bg-[#333] rounded-full overflow-hidden">
-                                                        <div className="h-full bg-[#60cdff] transition-all duration-300" style={{ width: `${progress}%` }} />
-                                                    </div>
+                                            {/* Import trigger / progress */}
+                                            {selectedFile && !extractedFiles.length && (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                                    {extracting ? (
+                                                        <>
+                                                            {/* Progress bar */}
+                                                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: fluent.textSecondary, marginBottom: 2 }}>
+                                                                <span style={{ textTransform: "uppercase", letterSpacing: 0.5 }}>Procesando</span>
+                                                                <span style={{ color: fluent.accentBase, fontWeight: 600 }}>{progress}%</span>
+                                                            </div>
+                                                            <div style={{ height: 2, background: "rgba(255,255,255,0.08)", borderRadius: 1, overflow: "hidden" }}>
+                                                                <div style={{
+                                                                    height: "100%",
+                                                                    width: `${progress}%`,
+                                                                    background: fluent.accentBase,
+                                                                    borderRadius: 1,
+                                                                    transition: "width 0.3s ease-out",
+                                                                    boxShadow: `0 0 8px ${fluent.accentBase}`,
+                                                                }} />
+                                                            </div>
 
-                                                    {/* Terminal Output */}
-                                                    <div className="bg-[#1e1e1e] rounded-[6px] border border-[#333] h-56 overflow-hidden font-mono text-xs p-4 shadow-inner">
-                                                        <ScrollArea className="h-full">
-                                                            {terminalLogs.length === 0 ? (
-                                                                <span className="text-[#666]">Iniciando motor de migración Paradox...</span>
-                                                            ) : (
-                                                                terminalLogs.map((log, i) => (
-                                                                    <div key={i} className="text-[#cccccc] py-0.5 border-l-2 border-transparent hover:border-[#60cdff] hover:bg-[#252525] pl-2 font-['Consolas']">
-                                                                        <span className="text-[#60cdff] mr-2">➜</span>
-                                                                        {log}
-                                                                    </div>
-                                                                ))
-                                                            )}
-                                                        </ScrollArea>
+                                                            {/* Terminal */}
+                                                            <div style={{
+                                                                background: "#0c0c0c",
+                                                                border: `1px solid ${fluent.strokeCard}`,
+                                                                borderRadius: fluent.radiusLarge,
+                                                                height: 200,
+                                                                overflow: "hidden",
+                                                                fontFamily: "'Cascadia Code', 'Consolas', monospace",
+                                                                fontSize: 12,
+                                                                padding: "12px 16px",
+                                                            }}>
+                                                                <div style={{ overflowY: "auto", height: "100%" }}>
+                                                                    {terminalLogs.length === 0 ? (
+                                                                        <span style={{ color: "#444" }}>Iniciando motor de migración Paradox...</span>
+                                                                    ) : terminalLogs.map((log, i) => (
+                                                                        <div key={i} style={{ color: "#ccc", padding: "1px 0", display: "flex", gap: 8 }}>
+                                                                            <span style={{ color: fluent.accentBase, flexShrink: 0 }}>›</span>
+                                                                            <span>{log}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 4 }}>
+                                                            <FluentButton onClick={handleImport} variant="primary" style={{ height: 36, padding: "0 20px", fontSize: fluent.body }}>
+                                                                Iniciar importación de datos
+                                                            </FluentButton>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Results */}
+                                            {extractedFiles.length > 0 && (
+                                                <div style={{ ...card, overflow: "hidden" }}>
+                                                    <div style={{
+                                                        padding: "10px 16px",
+                                                        borderBottom: `1px solid ${fluent.strokeCard}`,
+                                                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                                                        background: "rgba(0,0,0,0.14)",
+                                                    }}>
+                                                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6, color: fluent.textSecondary }}>
+                                                            Tablas importadas
+                                                        </span>
+                                                        <span style={{
+                                                            background: fluent.accentBg,
+                                                            color: fluent.accentBase,
+                                                            fontSize: 11, fontWeight: 700,
+                                                            padding: "2px 8px", borderRadius: 99,
+                                                        }}>
+                                                            {Object.keys(dbTables).length} archivos
+                                                        </span>
                                                     </div>
-                                                </>
-                                            ) : (
-                                                <div className="flex justify-end pt-2">
-                                                    <Button
-                                                        onClick={handleImport}
-                                                        className="bg-[#0078d4] hover:bg-[#006cc1] text-white px-8 py-6 text-base font-semibold rounded-[4px] shadow-lg shadow-blue-900/20 w-auto"
-                                                    >
-                                                        Iniciar Importación de Datos
-                                                    </Button>
+                                                    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                                                        {Object.entries(dbTables).map(([path, _]) => (
+                                                            <div key={path} style={{
+                                                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                                padding: "9px 16px",
+                                                                borderBottom: `1px solid ${fluent.strokeCard}`,
+                                                                transition: "background 0.1s",
+                                                                cursor: "default",
+                                                            }}
+                                                                onMouseEnter={e => (e.currentTarget.style.background = fluent.fillControlHover)}
+                                                                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                                                            >
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                                                    <FileCode style={{ width: 14, height: 14, color: fluent.accentBase, flexShrink: 0 }} />
+                                                                    <span style={{ fontSize: 13, fontFamily: "'Cascadia Code', monospace", color: fluent.textPrimary }}>
+                                                                        {path.split(/[\\/]/).pop()}
+                                                                    </span>
+                                                                </div>
+                                                                <span style={{ fontSize: 11, color: fluent.textSecondary, fontFamily: "'Cascadia Code', monospace" }}>
+                                                                    {tableData[path]?.length || Object.keys(tableData[path] || {}).length || 0} reg
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     )}
-
-                                    {/* Results Grid */}
-                                    {extractedFiles.length > 0 && (
-                                        <div className="bg-[#272727] border border-[#333] rounded-[6px] overflow-hidden">
-                                            <div className="px-4 py-3 border-b border-[#333] flex justify-between items-center bg-[#2c2c2c]">
-                                                <h3 className="text-xs font-bold uppercase tracking-wider text-[#a0a0a0]">Tablas Importadas</h3>
-                                                <span className="text-xs bg-[#0078d4] text-white px-2 py-0.5 rounded-full font-medium">{Object.keys(dbTables).length} Archivos</span>
-                                            </div>
-                                            <div className="grid grid-cols-1 gap-[1px] bg-[#333] max-h-[300px] overflow-y-auto custom-scrollbar">
-                                                {Object.entries(dbTables).map(([path, _]) => (
-                                                    <div key={path} className="flex items-center justify-between p-3 bg-[#252525] hover:bg-[#2f2f2f] group">
-                                                        <div className="flex items-center gap-3">
-                                                            <FileCode className="w-4 h-4 text-[#60cdff]" />
-                                                            <span className="text-sm text-[#e0e0e0] font-mono">{path.split(/[\\/]/).pop()}</span>
-                                                        </div>
-                                                        <div className="text-xs text-[#666] group-hover:text-[#a0a0a0] font-mono">
-                                                            {tableData[path]?.length || Object.keys(tableData[path] || {}).length || 0} reg
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-
-                {/* 3. Footer Fijo */}
-                {!showReview && (
-                    <div className="flex-none px-10 py-8 bg-[#202020] border-t border-[#333] flex justify-between items-center">
-                        {step > 0 ? (
-                            <Button
-                                variant="ghost"
-                                onClick={back}
-                                className="text-[#d0d0d0] hover:bg-[#2b2b2b] hover:text-white h-[36px] px-6 rounded-[4px] text-sm"
-                            >
-                                Atrás
-                            </Button>
-                        ) : (
-                            <div />
-                        )}
-
-                        <div className="flex gap-4">
-                            {/* Mostrar Omitir en step 2 sin archivos, o Cancelar si no es primer usuario */}
-                            {((step === 2 && extractedFiles.length === 0) || !isFirstUser) && (
-                                <Button
-                                    variant="secondary"
-                                    onClick={onFinish}
-                                    className="bg-[#333] hover:bg-[#3d3d3d] text-white border border-white/5 h-[36px] px-6 rounded-[4px] text-sm"
-                                >
-                                    {step === 2 && extractedFiles.length === 0 ? "Omitir" : "Cancelar"}
-                                </Button>
-                            )}
-
-                            {(step < 2) && (
-                                <Button
-                                    onClick={step === 1 ? handleCreateAdmin : next}
-                                    disabled={step === 1 && (!username || !password || !name)}
-                                    className="bg-[#0078d4] hover:bg-[#006cc1] text-white shadow-md h-[36px] px-8 rounded-[4px] font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
-                                >
-                                    {step === 1 ? (isFirstUser ? "Crear y Continuar" : "Crear Usuario") : "Siguiente"}
-                                </Button>
-                            )}
-
-                            {step === 2 && extractedFiles.length > 0 && (
-                                <>
-                                    <Button
-                                        onClick={handleOpenImportReview}
-                                        variant="secondary"
-                                        className="bg-[#2b2b2b] hover:bg-[#333] text-white border border-[#444] h-[36px] px-4 rounded-[4px] text-sm"
-                                    >
-                                        Revisar Detalles
-                                    </Button>
-                                    <Button
-                                        onClick={onFinish}
-                                        className="bg-[#107c10] hover:bg-[#0f700f] text-white shadow-md h-[36px] px-8 rounded-[4px] font-medium text-sm"
-                                    >
-                                        Finalizar
-                                    </Button>
                                 </>
                             )}
                         </div>
+
+                        {/* ── Footer ─────────────────────────────────────────── */}
+                        {!showReview && (
+                            <div style={{
+                                flexShrink: 0,
+                                padding: "14px 32px",
+                                borderTop: `1px solid ${fluent.strokeCard}`,
+                                display: "flex", justifyContent: "space-between", alignItems: "center",
+                                background: "rgba(0,0,0,0.12)",
+                            }}>
+                                {/* Left: step indicator */}
+                                <StepIndicator total={totalSteps} current={step} />
+
+                                {/* Right: action buttons */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    {step > 0 && (
+                                        <FluentButton variant="subtle" onClick={back}>
+                                            <ChevronLeft style={{ width: 14, height: 14 }} />
+                                            Atrás
+                                        </FluentButton>
+                                    )}
+
+                                    {(step === 3 && extractedFiles.length === 0) && (
+                                        <FluentButton variant="secondary" onClick={finishAndPersist}>
+                                            Omitir
+                                        </FluentButton>
+                                    )}
+                                    {!isFirstUser && (
+                                        <FluentButton variant="secondary" onClick={onFinish}>
+                                            Cancelar
+                                        </FluentButton>
+                                    )}
+
+                                    {step < 3 && (
+                                        <FluentButton
+                                            variant="primary"
+                                            onClick={step === 2 ? handleCreateAdmin : next}
+                                            disabled={step === 2 && (!username || !password || !name)}
+                                        >
+                                            {step === 2 ? (isFirstUser ? "Crear y continuar" : "Crear usuario") : "Siguiente"}
+                                            <ChevronRight style={{ width: 14, height: 14 }} />
+                                        </FluentButton>
+                                    )}
+
+                                    {step === 3 && extractedFiles.length > 0 && (
+                                        <>
+                                            <FluentButton variant="secondary" onClick={handleOpenImportReview}>
+                                                Revisar detalles
+                                            </FluentButton>
+                                            <FluentButton variant="success" onClick={finishAndPersist}>
+                                                <Check style={{ width: 14, height: 14 }} />
+                                                Finalizar
+                                            </FluentButton>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
+
+            {/* CSS animations */}
+            <style>{`
+                @keyframes fadeSlide {
+                    from { opacity: 0; transform: translateY(8px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+                ::-webkit-scrollbar { width: 6px; background: transparent; }
+                ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+                ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+            `}</style>
         </div>
     );
 }

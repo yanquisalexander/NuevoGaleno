@@ -7,6 +7,7 @@ pub mod odontograms;
 pub mod path;
 pub mod patients;
 pub mod payments;
+pub mod plugin_data;
 pub mod templates;
 pub mod treatment_catalog;
 pub mod treatments;
@@ -27,5 +28,7 @@ pub fn get_connection() -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(|e| format!("sqlite open err: {}", e))?;
 
     migrations::run_migrations(&conn)?;
+    // Safety: ensure compatibility with older/inconsistent DB files (adds missing columns)
+    migrations::ensure_legacy_columns(&conn)?;
     Ok(conn)
 }

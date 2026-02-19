@@ -2,13 +2,45 @@ import { useState, useEffect } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, AlertCircle, RefreshCw, Package, Sparkles, Clock, Pause, RotateCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import {
+    CheckCircle2, AlertCircle, RefreshCw, Sparkles,
+    Clock, Pause, RotateCw, ChevronRight, Package
+} from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import { getVersion } from '@tauri-apps/api/app';
-import { useNotImplemented } from "@/utils/system/NotImplemented";
+import { useNotImplemented } from '@/utils/system/NotImplemented';
 import { useAutoUpdate } from '@/hooks/useAutoUpdate';
 
+// ─── Fluent UI v9 tokens (shared) ────────────────────────────────────────────
+const tokens = {
+    colorNeutralBackground1: '#1c1c1c',
+    colorNeutralBackground2: '#242424',
+    colorNeutralBackground3: '#2e2e2e',
+    colorNeutralBackground4: '#383838',
+    colorNeutralForeground1: '#ffffff',
+    colorNeutralForeground2: 'rgba(255,255,255,0.72)',
+    colorNeutralForeground3: 'rgba(255,255,255,0.48)',
+    colorNeutralForeground4: 'rgba(255,255,255,0.28)',
+    colorNeutralStroke1: 'rgba(255,255,255,0.10)',
+    colorNeutralStroke2: 'rgba(255,255,255,0.06)',
+    colorBrandBackground: '#0078d4',
+    colorBrandBackgroundHover: '#106ebe',
+    colorBrandForeground: '#4da6ff',
+    colorPaletteGreenForeground: '#73c765',
+    colorPaletteGreenBackground: 'rgba(107,191,89,0.12)',
+    colorPaletteGreenBorder: 'rgba(107,191,89,0.25)',
+    colorPaletteRedForeground: '#f1707a',
+    colorPaletteRedBackground: 'rgba(232,17,35,0.12)',
+    colorPaletteRedBorder: 'rgba(232,17,35,0.25)',
+    colorPaletteYellowForeground: '#ffb900',
+    borderRadiusMedium: '6px',
+    borderRadiusLarge: '8px',
+    borderRadiusXLarge: '12px',
+    durationNormal: '150ms',
+    curveEasyEase: 'cubic-bezier(0.33,0,0.67,1)',
+} as const;
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 interface UpdateInfo {
     version: string;
     currentVersion: string;
@@ -26,6 +58,67 @@ type UpdateState =
     | { type: 'done' }
     | { type: 'error'; message: string };
 
+// ─── Small reusable atoms ─────────────────────────────────────────────────────
+function StatusIcon({
+    bg, color, children,
+}: { bg: string; color: string; children: React.ReactNode }) {
+    return (
+        <div style={{
+            width: 44, height: 44, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '50%', background: bg, color,
+        }}>
+            {children}
+        </div>
+    );
+}
+
+function PrimaryButton({ onClick, children, disabled }: {
+    onClick: () => void; children: React.ReactNode; disabled?: boolean;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 18px', fontSize: 13, fontWeight: 500,
+                borderRadius: tokens.borderRadiusMedium,
+                border: 'none',
+                background: disabled ? 'rgba(0,120,212,0.4)' : tokens.colorBrandBackground,
+                color: '#fff', cursor: disabled ? 'not-allowed' : 'pointer',
+                transition: `background ${tokens.durationNormal}`,
+            }}
+            onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = tokens.colorBrandBackgroundHover; }}
+            onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = tokens.colorBrandBackground; }}
+        >
+            {children}
+        </button>
+    );
+}
+
+function OutlineButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 18px', fontSize: 13, fontWeight: 500,
+                borderRadius: tokens.borderRadiusMedium,
+                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                background: tokens.colorNeutralBackground3,
+                color: tokens.colorNeutralForeground2, cursor: 'pointer',
+                transition: `background ${tokens.durationNormal}`,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = tokens.colorNeutralBackground4}
+            onMouseLeave={e => e.currentTarget.style.background = tokens.colorNeutralBackground3}
+        >
+            {children}
+        </button>
+    );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export function GalenoUpdateApp() {
     const [state, setState] = useState<UpdateState>({ type: 'idle' });
     const [currentVersion, setCurrentVersion] = useState<string>('');
@@ -33,23 +126,19 @@ export function GalenoUpdateApp() {
     const notImplemented = useNotImplemented();
     const { updateAvailable, updateInfo, lastChecked, checkForUpdates: autoCheckForUpdates } = useAutoUpdate(false);
 
-    // Sincronizar estado local de la UI con el estado compartido del manager
     useEffect(() => {
         if (updateAvailable && updateInfo) {
-            // Sólo actualizar si la UI está en un estado pasivo (evitar pisar descargas/instalaciones en curso)
-            setState((prev) => {
+            setState(prev => {
                 if (prev.type === 'idle' || prev.type === 'not-available' || prev.type === 'checking') {
                     return { type: 'available', info: updateInfo };
                 }
                 return prev;
             });
         } else {
-            // si ya no hay update disponible y la UI muestra 'available', actualizar a 'not-available'
-            setState((prev) => (prev.type === 'available' ? { type: 'not-available' } : prev));
+            setState(prev => (prev.type === 'available' ? { type: 'not-available' } : prev));
         }
     }, [updateAvailable, updateInfo]);
 
-    // Cargar versión inicial
     useEffect(() => {
         getVersion().then(setCurrentVersion).catch(console.error);
     }, []);
@@ -65,114 +154,88 @@ export function GalenoUpdateApp() {
 
     const handleCheckForUpdates = async () => {
         setState({ type: 'checking' });
-
         try {
-            if (!currentVersion) {
-                const version = await getVersion();
-                setCurrentVersion(version);
-            }
-
-            // Simular un pequeño delay para que se vea la animación de carga
-            await new Promise(resolve => setTimeout(resolve, 800));
-
-            // Llamar al check del manager (compartido) para sincronizar el lastChecked
+            if (!currentVersion) setCurrentVersion(await getVersion());
+            await new Promise(r => setTimeout(r, 800));
             const found = await autoCheckForUpdates();
-
-            if (found && updateInfo) {
-                setState({ type: 'available', info: updateInfo });
-            } else {
-                setState({ type: 'not-available' });
-            }
+            setState(found && updateInfo ? { type: 'available', info: updateInfo } : { type: 'not-available' });
         } catch (error: any) {
-            const errorMsg = error?.toString() || 'Error desconocido';
-            setState({ type: 'error', message: errorMsg });
-            toastHelpers.error('Error', errorMsg);
+            const msg = error?.toString() || 'Error desconocido';
+            setState({ type: 'error', message: msg });
+            toastHelpers.error('Error', msg);
         }
     };
 
     const handleInstallUpdate = async () => {
         if (state.type !== 'available') return;
-
         try {
             setState({ type: 'downloading', progress: 0 });
-
             const update = await check();
-            if (!update?.available) {
-                throw new Error('No hay actualización disponible');
-            }
-
-            let downloaded = 0;
-            let contentLength = 0;
-
-            await update.downloadAndInstall((event) => {
+            if (!update?.available) throw new Error('No hay actualización disponible');
+            let downloaded = 0, contentLength = 0;
+            await update.downloadAndInstall(event => {
                 switch (event.event) {
                     case 'Started':
                         contentLength = event.data.contentLength || 0;
                         setState({ type: 'downloading', progress: 0 });
                         break;
-
                     case 'Progress':
                         downloaded += event.data.chunkLength;
                         if (contentLength > 0) {
-                            const percentage = Math.round((downloaded / contentLength) * 100);
-                            setState({ type: 'downloading', progress: percentage });
+                            setState({ type: 'downloading', progress: Math.round((downloaded / contentLength) * 100) });
                         }
                         break;
-
                     case 'Finished':
                         setState({ type: 'installing' });
                         break;
                 }
             });
-
             setState({ type: 'done' });
-
-            // Relaunch the app after a short delay
-            setTimeout(async () => {
-                await relaunch();
-            }, 1000);
-
+            setTimeout(() => relaunch(), 1000);
         } catch (error: any) {
-            const errorMsg = error?.toString() || 'Error durante la instalación';
-            setState({ type: 'error', message: errorMsg });
-            toastHelpers.error('Error', errorMsg);
+            const msg = error?.toString() || 'Error durante la instalación';
+            setState({ type: 'error', message: msg });
+            toastHelpers.error('Error', msg);
         }
     };
 
-    // Renderizado del contenido principal de la tarjeta
+    // ─── Card content per state ────────────────────────────────────────────
     const renderCardContent = () => {
         switch (state.type) {
+
             case 'idle':
             case 'not-available':
                 return (
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 text-green-500 shrink-0">
-                            <CheckCircle2 size={28} />
-                        </div>
-                        <div className="flex-1 pt-1">
-                            <h2 className="text-xl font-semibold mb-1">Todo está actualizado</h2>
-                            <p className="text-sm text-white/60 mb-6">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                        <StatusIcon bg={tokens.colorPaletteGreenBackground} color={tokens.colorPaletteGreenForeground}>
+                            <CheckCircle2 size={22} />
+                        </StatusIcon>
+                        <div style={{ flex: 1 }}>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                Todo está actualizado
+                            </h2>
+                            <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: '0 0 20px' }}>
                                 Última comprobación: {formatLastChecked(lastChecked)}
                             </p>
-                            <Button
-                                onClick={handleCheckForUpdates}
-                                className="bg-[#0067C0] hover:bg-[#0067C0]/90 text-white rounded-[4px] px-6 h-9 text-sm font-normal"
-                            >
+                            <PrimaryButton onClick={handleCheckForUpdates}>
+                                <RefreshCw style={{ width: 13, height: 13 }} />
                                 Buscar actualizaciones
-                            </Button>
+                            </PrimaryButton>
                         </div>
                     </div>
                 );
 
             case 'checking':
                 return (
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-12 w-12 items-center justify-center shrink-0">
-                            <RefreshCw className="animate-spin text-blue-400" size={28} />
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                        <div style={{ width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <RefreshCw className="animate-spin" size={22} style={{ color: tokens.colorBrandForeground }} />
                         </div>
-                        <div className="flex-1 pt-1">
-                            <h2 className="text-xl font-semibold mb-1">Buscando actualizaciones...</h2>
-                            <p className="text-sm text-white/60">
+                        <div style={{ flex: 1, paddingTop: 2 }}>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                Buscando actualizaciones...
+                            </h2>
+                            <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: 0 }}>
                                 Esto puede tardar unos segundos.
                             </p>
                         </div>
@@ -181,62 +244,86 @@ export function GalenoUpdateApp() {
 
             case 'available':
                 return (
-                    <div className="flex flex-col gap-6">
-                        <div className="flex items-start gap-5">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 shrink-0">
-                                <Sparkles size={28} />
-                            </div>
-                            <div className="flex-1 pt-1">
-                                <h2 className="text-xl font-semibold mb-1">Actualización disponible</h2>
-                                <p className="text-sm text-white/60">
-                                    Nuevo Galeno {state.info.version} está listo para instalar.
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                            <StatusIcon bg="rgba(77,166,255,0.12)" color={tokens.colorBrandForeground}>
+                                <Sparkles size={22} />
+                            </StatusIcon>
+                            <div style={{ flex: 1 }}>
+                                <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                    Actualización disponible
+                                </h2>
+                                <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: 0 }}>
+                                    Galeno {state.info.version} está listo para instalar.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Detalle de la actualización en un bloque anidado estilo Windows */}
-                        <div className="bg-[#202020]/50 border border-white/5 rounded-lg p-4 ml-[68px]">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="space-y-1">
-                                    <h3 className="text-sm font-semibold">Actualización de características a Nuevo Galeno {state.info.version}</h3>
-                                    <p className="text-xs text-white/50">
-                                        Versión actual: {state.info.currentVersion}
-                                    </p>
-                                    {state.info.body && (
-                                        <div className="mt-3 text-xs text-white/70 max-h-32 overflow-y-auto custom-scrollbar whitespace-pre-wrap font-mono bg-black/20 p-2 rounded">
-                                            {state.info.body}
-                                        </div>
-                                    )}
-                                </div>
-                                <Button
-                                    onClick={handleInstallUpdate}
-                                    className="shrink-0 bg-[#0067C0] hover:bg-[#0067C0]/90 text-white rounded-[4px] px-5 h-8 text-sm"
-                                >
-                                    Descargar e instalar
-                                </Button>
+                        {/* Update detail block */}
+                        <div style={{
+                            marginLeft: 62,
+                            padding: '14px 16px',
+                            background: tokens.colorNeutralBackground1,
+                            border: `1px solid ${tokens.colorNeutralStroke1}`,
+                            borderRadius: tokens.borderRadiusLarge,
+                            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+                        }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 13, fontWeight: 500, color: tokens.colorNeutralForeground1, margin: '0 0 3px' }}>
+                                    Galeno {state.info.version}
+                                </p>
+                                <p style={{ fontSize: 11, color: tokens.colorNeutralForeground4, margin: '0 0 10px' }}>
+                                    Versión actual: {state.info.currentVersion}
+                                    {state.info.date && ` · ${new Date(state.info.date).toLocaleDateString()}`}
+                                </p>
+                                {state.info.body && (
+                                    <pre style={{
+                                        fontSize: 11, color: tokens.colorNeutralForeground3,
+                                        background: tokens.colorNeutralBackground2,
+                                        border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                        borderRadius: tokens.borderRadiusMedium,
+                                        padding: '8px 10px', margin: 0,
+                                        maxHeight: 120, overflowY: 'auto',
+                                        whiteSpace: 'pre-wrap', fontFamily: 'inherit',
+                                        lineHeight: 1.5,
+                                    }}>
+                                        {state.info.body}
+                                    </pre>
+                                )}
                             </div>
+                            <PrimaryButton onClick={handleInstallUpdate}>
+                                Descargar e instalar
+                            </PrimaryButton>
                         </div>
                     </div>
                 );
 
             case 'downloading':
                 return (
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-12 w-12 items-center justify-center shrink-0">
-                            {/* Spinner circular simple */}
-                            <div className="h-6 w-6 rounded-full border-2 border-t-transparent border-blue-400 animate-spin" />
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                        <div style={{ width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{
+                                width: 22, height: 22, borderRadius: '50%',
+                                border: `2px solid ${tokens.colorNeutralStroke1}`,
+                                borderTopColor: tokens.colorBrandForeground,
+                                animation: 'spin 0.8s linear infinite',
+                            }} />
                         </div>
-                        <div className="flex-1 pt-1 space-y-4">
-                            <div>
-                                <h2 className="text-xl font-semibold mb-1">Descargando actualizaciones</h2>
-                                <p className="text-sm text-white/60">
-                                    {state.progress}% completado
-                                </p>
-                            </div>
-                            {/* Barra de progreso estilo Windows */}
-                            <div className="h-[2px] w-full bg-[#3d3d3d] rounded-full overflow-hidden">
+                        <div style={{ flex: 1, paddingTop: 2 }}>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                Descargando actualización
+                            </h2>
+                            <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: '0 0 14px' }}>
+                                {state.progress}% completado
+                            </p>
+                            {/* Progress bar */}
+                            <div style={{
+                                height: 2, width: '100%', maxWidth: 360,
+                                background: tokens.colorNeutralBackground4,
+                                borderRadius: 2, overflow: 'hidden',
+                            }}>
                                 <motion.div
-                                    className="h-full bg-blue-400"
+                                    style={{ height: '100%', background: tokens.colorBrandForeground, borderRadius: 2 }}
                                     initial={{ width: 0 }}
                                     animate={{ width: `${state.progress}%` }}
                                     transition={{ duration: 0.2 }}
@@ -248,13 +335,15 @@ export function GalenoUpdateApp() {
 
             case 'installing':
                 return (
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-12 w-12 items-center justify-center shrink-0">
-                            <RotateCw className="animate-spin text-blue-400" size={28} />
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                        <div style={{ width: 44, height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <RotateCw className="animate-spin" size={22} style={{ color: tokens.colorBrandForeground }} />
                         </div>
-                        <div className="flex-1 pt-1">
-                            <h2 className="text-xl font-semibold mb-1">Instalando...</h2>
-                            <p className="text-sm text-white/60">
+                        <div style={{ flex: 1, paddingTop: 2 }}>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                Instalando...
+                            </h2>
+                            <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: 0 }}>
                                 La aplicación se reiniciará automáticamente cuando termine.
                             </p>
                         </div>
@@ -263,14 +352,16 @@ export function GalenoUpdateApp() {
 
             case 'done':
                 return (
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20 text-green-500 shrink-0">
-                            <CheckCircle2 size={28} />
-                        </div>
-                        <div className="flex-1 pt-1">
-                            <h2 className="text-xl font-semibold mb-1">¡Listo!</h2>
-                            <p className="text-sm text-white/60">
-                                Reiniciando Nuevo Galeno...
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                        <StatusIcon bg={tokens.colorPaletteGreenBackground} color={tokens.colorPaletteGreenForeground}>
+                            <CheckCircle2 size={22} />
+                        </StatusIcon>
+                        <div style={{ flex: 1, paddingTop: 2 }}>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                ¡Listo!
+                            </h2>
+                            <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: 0 }}>
+                                Reiniciando Galeno...
                             </p>
                         </div>
                     </div>
@@ -278,57 +369,89 @@ export function GalenoUpdateApp() {
 
             case 'error':
                 return (
-                    <div className="flex items-start gap-5">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20 text-red-500 shrink-0">
-                            <AlertCircle size={28} />
-                        </div>
-                        <div className="flex-1 pt-1">
-                            <h2 className="text-xl font-semibold mb-1">Algo salió mal</h2>
-                            <p className="text-sm text-white/60 mb-6">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                        <StatusIcon bg={tokens.colorPaletteRedBackground} color={tokens.colorPaletteRedForeground}>
+                            <AlertCircle size={22} />
+                        </StatusIcon>
+                        <div style={{ flex: 1, paddingTop: 2 }}>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, color: tokens.colorNeutralForeground1, margin: '0 0 4px' }}>
+                                Algo salió mal
+                            </h2>
+                            <p style={{ fontSize: 13, color: tokens.colorNeutralForeground3, margin: '0 0 18px' }}>
                                 {state.message}
                             </p>
-                            <Button
-                                onClick={handleCheckForUpdates}
-                                variant="outline"
-                                className="border-[#3d3d3d] bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white rounded-[4px] px-6 h-9 text-sm"
-                            >
+                            <OutlineButton onClick={handleCheckForUpdates}>
+                                <RefreshCw style={{ width: 13, height: 13 }} />
                                 Reintentar
-                            </Button>
+                            </OutlineButton>
                         </div>
                     </div>
                 );
         }
     };
 
+    // ─── Shell ─────────────────────────────────────────────────────────────
     return (
-        <div className="h-full bg-[#202020] text-white flex flex-col font-sans select-none overflow-hidden">
+        <div style={{
+            height: '100%', display: 'flex', flexDirection: 'column',
+            background: tokens.colorNeutralBackground1, color: tokens.colorNeutralForeground1,
+            fontFamily: 'inherit', userSelect: 'none', overflow: 'hidden',
+        }}>
             {/* Header */}
-            <div className="px-8 pt-8 pb-4">
-                <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-2xl font-semibold tracking-tight">Galeno Update</h1>
+            <div style={{ padding: '28px 32px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <Package style={{ width: 20, height: 20, color: tokens.colorBrandForeground }} />
+                    <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>
+                        Galeno Update
+                    </h1>
                 </div>
-                {/* Breadcrumbs / Info opcional */}
-                <div className="text-sm text-blue-400 cursor-pointer hover:underline mb-6 flex items-center gap-1">
-                    <span>Opciones avanzadas</span>
-                </div>
+                {currentVersion && (
+                    <p style={{ fontSize: 12, color: tokens.colorNeutralForeground4, margin: '0 0 4px', paddingLeft: 30 }}>
+                        Versión {currentVersion}
+                    </p>
+                )}
+                <button
+                    onClick={notImplemented}
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 12, color: tokens.colorBrandForeground,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
+                        marginLeft: 30,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                    onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                >
+                    Opciones avanzadas
+                    <ChevronRight style={{ width: 12, height: 12 }} />
+                </button>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 px-8 overflow-y-auto custom-scrollbar">
+            {/* Scrollable content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 32px' }}>
 
-                {/* Hero Card - Estilo Windows 11 Settings */}
-                <div className="bg-[#2c2c2c] rounded-xl border border-white/5 p-6 mb-6 shadow-sm relative overflow-hidden">
-                    {/* Mica effect overlay (simulado) */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
-
-                    <div className="relative z-10">
+                {/* Hero card */}
+                <div style={{
+                    background: tokens.colorNeutralBackground2,
+                    border: `1px solid ${tokens.colorNeutralStroke1}`,
+                    borderRadius: tokens.borderRadiusXLarge,
+                    padding: '20px 24px',
+                    marginBottom: 16,
+                    position: 'relative', overflow: 'hidden',
+                }}>
+                    {/* Subtle mica gradient */}
+                    <div style={{
+                        position: 'absolute', inset: 0,
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.025) 0%, transparent 60%)',
+                        pointerEvents: 'none',
+                    }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={state.type}
                                 initial={{ opacity: 0, y: 5 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -5 }}
-                                transition={{ duration: 0.2 }}
+                                transition={{ duration: 0.18 }}
                             >
                                 {renderCardContent()}
                             </motion.div>
@@ -336,45 +459,83 @@ export function GalenoUpdateApp() {
                     </div>
                 </div>
 
-                {/* Additional Settings List */}
-                <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-white/70 px-1 mb-2">Más opciones</h3>
-
-                    <div className="bg-[#272727] rounded-xl border border-white/5 overflow-hidden">
-                        <button
-                            onClick={notImplemented}
-                            className="w-full flex items-center justify-between p-4 hover:bg-[#323232] transition-colors text-left group border-b border-white/5 last:border-0">
-                            <div className="flex items-center gap-4">
-                                <Pause size={18} className="text-white/50 group-hover:text-white/80" />
-                                <div>
-                                    <div className="text-sm font-medium">Pausar actualizaciones</div>
-                                    <div className="text-xs text-white/50">Pausar temporalmente las descargas automáticas</div>
+                {/* More options list */}
+                <div>
+                    <p style={{
+                        fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                        textTransform: 'uppercase', color: tokens.colorNeutralForeground4,
+                        margin: '0 0 8px 2px',
+                    }}>
+                        Más opciones
+                    </p>
+                    <div style={{
+                        background: tokens.colorNeutralBackground2,
+                        border: `1px solid ${tokens.colorNeutralStroke1}`,
+                        borderRadius: tokens.borderRadiusXLarge,
+                        overflow: 'hidden',
+                    }}>
+                        {[
+                            {
+                                icon: <Pause style={{ width: 16, height: 16 }} />,
+                                label: 'Pausar actualizaciones',
+                                description: 'Pausar temporalmente las descargas automáticas',
+                                badge: 'Por 1 semana',
+                            },
+                            {
+                                icon: <Clock style={{ width: 16, height: 16 }} />,
+                                label: 'Historial de actualizaciones',
+                                description: 'Ver qué se ha instalado recientemente',
+                                badge: null,
+                            },
+                        ].map((item, i, arr) => (
+                            <button
+                                key={item.label}
+                                onClick={notImplemented}
+                                style={{
+                                    width: '100%', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'space-between', gap: 12,
+                                    padding: '14px 18px', textAlign: 'left',
+                                    background: 'transparent', border: 'none',
+                                    borderBottom: i < arr.length - 1 ? `1px solid ${tokens.colorNeutralStroke2}` : 'none',
+                                    cursor: 'pointer',
+                                    transition: `background ${tokens.durationNormal}`,
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = tokens.colorNeutralBackground3}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    <span style={{ color: tokens.colorNeutralForeground3 }}>{item.icon}</span>
+                                    <div>
+                                        <p style={{ fontSize: 13, fontWeight: 500, color: tokens.colorNeutralForeground1, margin: '0 0 2px' }}>
+                                            {item.label}
+                                        </p>
+                                        <p style={{ fontSize: 11, color: tokens.colorNeutralForeground4, margin: 0 }}>
+                                            {item.description}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="px-3 py-1 rounded bg-[#2c2c2c] border border-white/10 text-xs text-white/70 group-hover:bg-[#3a3a3a]">
-                                Por 1 semana
-                            </div>
-                        </button>
-
-                        <button
-                            onClick={notImplemented}
-                            className="w-full flex items-center justify-between p-4 hover:bg-[#323232] transition-colors text-left group border-b border-white/5 last:border-0">
-                            <div className="flex items-center gap-4">
-                                <Clock size={18} className="text-white/50 group-hover:text-white/80" />
-                                <div>
-                                    <div className="text-sm font-medium">Historial de actualizaciones</div>
-                                    <div className="text-xs text-white/50">Ver qué se ha instalado recientemente</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                    {item.badge && (
+                                        <span style={{
+                                            fontSize: 11, padding: '2px 8px',
+                                            background: tokens.colorNeutralBackground3,
+                                            border: `1px solid ${tokens.colorNeutralStroke1}`,
+                                            borderRadius: tokens.borderRadiusMedium,
+                                            color: tokens.colorNeutralForeground3,
+                                        }}>
+                                            {item.badge}
+                                        </span>
+                                    )}
+                                    <ChevronRight style={{ width: 14, height: 14, color: tokens.colorNeutralForeground4 }} />
                                 </div>
-                            </div>
-                        </button>
-
-
+                            </button>
+                        ))}
                     </div>
                 </div>
-
-
-
             </div>
-        </div >
+
+            {/* CSS for spin animation */}
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
     );
 }

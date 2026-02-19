@@ -7,6 +7,25 @@ import { PatientForm } from '../components/patients/PatientForm';
 import { Patient, usePatients } from '../hooks/usePatients';
 import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
+import { UserPlus } from 'lucide-react';
+
+const tokens = {
+    colorNeutralBackground2: '#1f1f1f',
+    colorNeutralBackground3: '#141414',
+    colorNeutralForeground1: '#ffffff',
+    colorNeutralForeground3: '#adadad',
+    colorNeutralStroke2: '#404040',
+    colorBrandBackground: '#0078D4',
+    colorBrandBackgroundHover: '#106EBE',
+    colorBrandBackgroundPressed: '#00529E',
+    fontFamilyBase: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+    fontSizeBase300: '12px',
+    fontSizeBase400: '14px',
+    fontSizeBase700: '24px',
+    fontWeightRegular: 400,
+    fontWeightSemibold: 600,
+    borderRadiusMedium: '4px',
+};
 
 export function PatientsApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
     useAppRuntime('patients', 'Pacientes');
@@ -39,43 +58,90 @@ export function PatientsApp({ windowId: _windowId }: { windowId: WindowId; data?
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#202020] font-sans selection:bg-blue-500/30 relative">
-            {/* Header */}
-            <div className="pt-6 px-6 pb-2 flex items-center justify-between">
+        <div style={{
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            background: tokens.colorNeutralBackground2,
+            fontFamily: tokens.fontFamilyBase,
+            position: 'relative',
+        }}>
+            {/* ── Header ── */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                padding: '20px 20px 0',
+            }}>
                 <div>
-                    <h2 className="text-2xl font-semibold text-white/90 tracking-tight">Pacientes</h2>
-                    <p className="text-sm text-white/50 mt-1">Gestiona el padrón de pacientes</p>
+                    <h2 style={{
+                        margin: 0,
+                        fontSize: tokens.fontSizeBase700,
+                        fontWeight: tokens.fontWeightSemibold,
+                        color: tokens.colorNeutralForeground1,
+                        letterSpacing: '-0.01em',
+                        lineHeight: 1.2,
+                    }}>
+                        Pacientes
+                    </h2>
+                    <p style={{
+                        margin: '3px 0 0',
+                        fontSize: tokens.fontSizeBase300,
+                        color: tokens.colorNeutralForeground3,
+                    }}>
+                        Gestiona el padrón de pacientes
+                    </p>
                 </div>
+
                 <button
                     onClick={() => setShowForm(true)}
-                    className="px-4 py-2 bg-[#005FB8] hover:bg-[#1874D0] active:bg-[#00529E] text-white rounded-[4px] text-sm font-medium transition-colors border-t border-white/10 shadow-sm flex items-center gap-2"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '5px 14px',
+                        background: tokens.colorBrandBackground,
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: tokens.borderRadiusMedium,
+                        color: '#ffffff',
+                        fontSize: tokens.fontSizeBase400,
+                        fontWeight: tokens.fontWeightSemibold,
+                        fontFamily: tokens.fontFamilyBase,
+                        cursor: 'pointer',
+                        transition: 'background 0.08s',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.background = tokens.colorBrandBackgroundHover)}
+                    onMouseOut={e => (e.currentTarget.style.background = tokens.colorBrandBackground)}
+                    onMouseDown={e => (e.currentTarget.style.background = tokens.colorBrandBackgroundPressed)}
+                    onMouseUp={e => (e.currentTarget.style.background = tokens.colorBrandBackgroundHover)}
                 >
-                    <span>Nuevo Paciente</span>
+                    <UserPlus size={15} />
+                    Nuevo paciente
                 </button>
             </div>
 
-            {/* Buscador */}
-            <div className="px-6 py-4">
+            {/* ── Search ── */}
+            <div style={{ padding: '16px 20px 10px' }}>
                 <PatientSearch onSelectPatient={handleSelectPatient} />
             </div>
 
-            {/* Lista */}
-            <div className="flex-1 overflow-hidden px-6">
+            {/* ── Divider ── */}
+            <div style={{ height: 1, background: tokens.colorNeutralStroke2, margin: '0 20px' }} />
+
+            {/* ── List ── */}
+            <div style={{ flex: 1, overflow: 'hidden', padding: '4px 12px' }}>
                 <PatientList
                     onSelectPatient={handleSelectPatient}
                     refreshTrigger={refreshTrigger}
                 />
             </div>
 
-            {/* Form Modal */}
+            {/* ── Modal ── */}
             {showForm && (
                 <PatientForm
                     patient={selectedPatient || undefined}
                     onSave={handleSavePatient}
-                    onCancel={() => {
-                        setShowForm(false);
-                        setSelectedPatient(null);
-                    }}
+                    onCancel={() => { setShowForm(false); setSelectedPatient(null); }}
                 />
             )}
         </div>

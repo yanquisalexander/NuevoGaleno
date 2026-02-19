@@ -1,0 +1,30 @@
+{
+    "id": "com.nuevogaleno.backup",
+    "name": "Backup & Restore",
+    "version": "1.0.0",
+    "author": "Nuevo Galeno",
+    "description": "Sistema de respaldo y restauración de datos de la clínica",
+    "icon": "💾",
+    "entry": "index.tsx",
+    "permissions": [
+        "patients:read",
+        "treatments:read",
+        "appointments:read",
+        "payments:read",
+        "system:commands"
+    ],
+    "menuItems": [
+        {
+            "label": "Backup & Restore",
+            "icon": "💾",
+            "action": "openMainWindow"
+        }
+    ],
+    "defaultSize": {
+        "width": 800,
+        "height": 600
+    },
+    "allowMultipleInstances": false,
+    "minVersion": "1.0.0",
+    "license": "Proprietary"
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     OdontogramSurface,
     SurfaceHistoryEntry,
@@ -25,44 +25,272 @@ import {
 } from '../../hooks/useTreatmentCatalog';
 import { createTreatment } from '../../hooks/useTreatments';
 import { motion, AnimatePresence } from 'motion/react';
-import { Baby, User as UserIcon, Save, X, CheckCircle2, Clock, Loader2, XCircle, Eye, Trash2 } from 'lucide-react';
+import {
+    Baby, User as UserIcon, Save, X, CheckCircle2, Clock,
+    Loader2, XCircle, Eye, Trash2, Edit3, EyeOff, Plus,
+    ChevronRight, AlertCircle, Info
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { IndependentTreatments } from './IndependentTreatments';
+
+// ─── Fluent UI v9 Design Tokens ─────────────────────────────────────────────
+const tokens = {
+    // Neutrals
+    colorNeutralBackground1: '#1c1c1c',
+    colorNeutralBackground2: '#242424',
+    colorNeutralBackground3: '#2e2e2e',
+    colorNeutralBackground4: '#383838',
+    colorNeutralForeground1: '#ffffff',
+    colorNeutralForeground2: 'rgba(255,255,255,0.72)',
+    colorNeutralForeground3: 'rgba(255,255,255,0.48)',
+    colorNeutralForeground4: 'rgba(255,255,255,0.28)',
+    colorNeutralStroke1: 'rgba(255,255,255,0.10)',
+    colorNeutralStroke2: 'rgba(255,255,255,0.06)',
+    colorNeutralShadow: '0 2px 8px rgba(0,0,0,0.40)',
+
+    // Brand / Accent
+    colorBrandBackground: '#0078d4',
+    colorBrandBackgroundHover: '#106ebe',
+    colorBrandBackgroundPressed: '#005a9e',
+    colorBrandForeground: '#4da6ff',
+
+    // Status
+    colorPaletteGreenBackground: 'rgba(107,191,89,0.12)',
+    colorPaletteGreenForeground: '#73c765',
+    colorPaletteRedBackground: 'rgba(232,17,35,0.12)',
+    colorPaletteRedForeground: '#f1707a',
+    colorPaletteYellowBackground: 'rgba(255,185,0,0.12)',
+    colorPaletteYellowForeground: '#ffb900',
+    colorPaletteMarigoldBackground: 'rgba(224,140,0,0.14)',
+    colorPaletteMarigoldForeground: '#e08c00',
+
+    // Border radius
+    borderRadiusMedium: '6px',
+    borderRadiusLarge: '8px',
+    borderRadiusXLarge: '12px',
+
+    // Transitions
+    durationNormal: '150ms',
+    curveEasyEase: 'cubic-bezier(0.33,0,0.67,1)',
+} as const;
 
 interface OdontogramProps {
     patientId: number;
 }
 
-// Notación FDI para dientes permanentes (adultos)
 const TEETH_FDI_PERMANENT = {
     upper: [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28],
     lower: [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38],
 };
 
-// Notación para dentición decidua (niños) 
 const TEETH_FDI_DECIDUOUS = {
     upper: [55, 54, 53, 52, 51, 61, 62, 63, 64, 65],
     lower: [85, 84, 83, 82, 81, 71, 72, 73, 74, 75],
 };
 
-// Caras del diente (palatina para superiores, lingual para inferiores)
 const TOOTH_SURFACES = ['whole_tooth', 'mesial', 'distal', 'vestibular', 'palatina', 'lingual', 'oclusal'] as const;
 type Surface = typeof TOOTH_SURFACES[number];
 
-// Determinar si un diente es superior o inferior
-const isUpperTooth = (toothNumber: number): boolean => {
-    return (toothNumber >= 11 && toothNumber <= 28) || (toothNumber >= 51 && toothNumber <= 65);
+type ViewMode = 'view' | 'edit';
+
+const isUpperTooth = (n: number) => (n >= 11 && n <= 28) || (n >= 51 && n <= 65);
+const isRightSideTooth = (n: number) =>
+    (n >= 11 && n <= 18) || (n >= 41 && n <= 48) || (n >= 51 && n <= 55) || (n >= 81 && n <= 85);
+const isDeciduousTooth = (n: number) => n >= 51 && n <= 85;
+
+const SURFACE_LABELS: Record<Surface, string> = {
+    whole_tooth: 'Diente Completo',
+    mesial: 'Mesial',
+    distal: 'Distal',
+    vestibular: 'Vestibular',
+    palatina: 'Palatina',
+    lingual: 'Lingual',
+    oclusal: 'Oclusal',
 };
 
-// Determinar si un diente está en el lado derecho del paciente (cuadrantes 1 y 4)
-const isRightSideTooth = (toothNumber: number): boolean => {
-    return (toothNumber >= 11 && toothNumber <= 18) || // Cuadrante 1
-        (toothNumber >= 41 && toothNumber <= 48) || // Cuadrante 4
-        (toothNumber >= 51 && toothNumber <= 55) || // Temporal superior derecho
-        (toothNumber >= 81 && toothNumber <= 85);   // Temporal inferior derecho
-};
+const STATUS_CONFIG = {
+    Pending: { label: 'Pendiente', icon: Clock, color: tokens.colorPaletteYellowForeground, bg: tokens.colorPaletteYellowBackground },
+    InProgress: { label: 'En Proceso', icon: Loader2, color: tokens.colorBrandForeground, bg: 'rgba(77,166,255,0.12)' },
+    Completed: { label: 'Completado', icon: CheckCircle2, color: tokens.colorPaletteGreenForeground, bg: tokens.colorPaletteGreenBackground },
+    Cancelled: { label: 'Cancelado', icon: XCircle, color: tokens.colorPaletteRedForeground, bg: tokens.colorPaletteRedBackground },
+} as const;
 
+// ─── Tooth SVG Component ─────────────────────────────────────────────────────
+interface ToothSVGProps {
+    toothNumber: number;
+    isSelected: boolean;
+    isDeciduous: boolean;
+    getSurfaceColor: (t: number, s: Surface) => string;
+    visualEffect: string | null;
+    onSurfaceClick: (e: React.MouseEvent, t: number, s: Surface) => void;
+    selectedSurface: Surface | null;
+    isEditMode: boolean;
+    bridgeColor?: string;
+}
 
+function ToothSVG({
+    toothNumber, isSelected, isDeciduous, getSurfaceColor, visualEffect,
+    onSurfaceClick, selectedSurface, isEditMode, bridgeColor
+}: ToothSVGProps) {
+    const isUpper = isUpperTooth(toothNumber);
+    const isRight = isRightSideTooth(toothNumber);
+    const W = 36, H = 54;
+    const cx = W / 2, cy = H / 2;
+    const r = 8; // oclusal radius
+
+    // Surface hit areas
+    const topSurface: Surface = isUpper ? 'vestibular' : 'lingual';
+    const bottomSurface: Surface = isUpper ? 'palatina' : 'vestibular';
+    const leftSurface: Surface = isRight ? 'distal' : 'mesial';
+    const rightSurface: Surface = isRight ? 'mesial' : 'distal';
+
+    const surfaceSelected = (s: Surface) => isSelected && selectedSurface === s;
+
+    const highlightStroke = (s: Surface) =>
+        surfaceSelected(s) ? 'rgba(255,255,255,0.9)' : 'transparent';
+
+    return (
+        <svg
+            width={W} height={H} viewBox={`0 0 ${W} ${H}`}
+            style={{ cursor: isEditMode ? 'pointer' : 'default', overflow: 'visible' }}
+        >
+            {/* Bridge indicator bar above tooth */}
+            {bridgeColor && (
+                <rect x={-2} y={-6} width={W + 4} height={4} rx={2}
+                    fill={bridgeColor} opacity={0.85}
+                />
+            )}
+
+            {/* Outer tooth shape */}
+            <rect x={1} y={1} width={W - 2} height={H - 2} rx={4}
+                fill={tokens.colorNeutralBackground3}
+                stroke={isSelected ? tokens.colorBrandForeground : tokens.colorNeutralStroke1}
+                strokeWidth={isSelected ? 1.5 : 1}
+            />
+
+            {/* Top surface */}
+            <rect
+                x={1} y={1} width={W - 2} height={10} rx={4}
+                fill={getSurfaceColor(toothNumber, topSurface)}
+                stroke={highlightStroke(topSurface)}
+                strokeWidth={1.5}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, topSurface)}
+                style={{ cursor: isEditMode ? 'pointer' : 'default' }}
+            />
+            {/* clip top corners */}
+            <rect x={1} y={7} width={W - 2} height={4}
+                fill={getSurfaceColor(toothNumber, topSurface)}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, topSurface)}
+            />
+
+            {/* Bottom surface */}
+            <rect
+                x={1} y={H - 11} width={W - 2} height={10} rx={4}
+                fill={getSurfaceColor(toothNumber, bottomSurface)}
+                stroke={highlightStroke(bottomSurface)}
+                strokeWidth={1.5}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, bottomSurface)}
+                style={{ cursor: isEditMode ? 'pointer' : 'default' }}
+            />
+            <rect x={1} y={H - 11} width={W - 2} height={4}
+                fill={getSurfaceColor(toothNumber, bottomSurface)}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, bottomSurface)}
+            />
+
+            {/* Left surface */}
+            <rect
+                x={1} y={11} width={9} height={H - 22}
+                fill={getSurfaceColor(toothNumber, leftSurface)}
+                stroke={highlightStroke(leftSurface)}
+                strokeWidth={1.5}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, leftSurface)}
+                style={{ cursor: isEditMode ? 'pointer' : 'default' }}
+            />
+
+            {/* Right surface */}
+            <rect
+                x={W - 10} y={11} width={9} height={H - 22}
+                fill={getSurfaceColor(toothNumber, rightSurface)}
+                stroke={highlightStroke(rightSurface)}
+                strokeWidth={1.5}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, rightSurface)}
+                style={{ cursor: isEditMode ? 'pointer' : 'default' }}
+            />
+
+            {/* Oclusal center */}
+            <rect
+                x={10} y={11} width={W - 20} height={H - 22}
+                rx={3}
+                fill={getSurfaceColor(toothNumber, 'oclusal')}
+                stroke={highlightStroke('oclusal')}
+                strokeWidth={1.5}
+                onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, 'oclusal')}
+                style={{ cursor: isEditMode ? 'pointer' : 'default' }}
+            />
+
+            {/* Tooth number label */}
+            <text
+                x={cx} y={cy + 3}
+                textAnchor="middle"
+                fontSize={7}
+                fontFamily="'Geist Mono', monospace"
+                fontWeight="600"
+                fill="rgba(255,255,255,0.25)"
+                pointerEvents="none"
+            >
+                {toothNumber}
+            </text>
+
+            {/* Visual effects overlay */}
+            {visualEffect === 'absent' && (
+                <>
+                    <rect x={1} y={1} width={W - 2} height={H - 2} rx={4}
+                        fill="rgba(0,0,0,0.55)" pointerEvents="none" />
+                    <line x1={6} y1={6} x2={W - 6} y2={H - 6}
+                        stroke="#f1707a" strokeWidth={2.5} strokeLinecap="round" pointerEvents="none" />
+                    <line x1={W - 6} y1={6} x2={6} y2={H - 6}
+                        stroke="#f1707a" strokeWidth={2.5} strokeLinecap="round" pointerEvents="none" />
+                </>
+            )}
+            {visualEffect === 'darken' && (
+                <rect x={1} y={1} width={W - 2} height={H - 2} rx={4}
+                    fill="rgba(0,0,0,0.48)" pointerEvents="none" />
+            )}
+            {visualEffect === 'implant' && (
+                <>
+                    <rect x={cx - 1.5} y={4} width={3} height={H - 8} rx={1.5}
+                        fill="url(#implantGrad)" pointerEvents="none" />
+                    <defs>
+                        <linearGradient id="implantGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#c8c8c8" />
+                            <stop offset="50%" stopColor="#8a8a8a" />
+                            <stop offset="100%" stopColor="#5a5a5a" />
+                        </linearGradient>
+                    </defs>
+                </>
+            )}
+
+            {/* Deciduous indicator */}
+            {isDeciduous && (
+                <circle cx={W - 5} cy={5} r={3.5}
+                    fill="rgba(77,166,255,0.6)" pointerEvents="none" />
+            )}
+
+            {/* Selection ring */}
+            {isSelected && (
+                <rect x={0} y={0} width={W} height={H} rx={5}
+                    fill="none"
+                    stroke={tokens.colorBrandForeground}
+                    strokeWidth={2}
+                    opacity={0.7}
+                    pointerEvents="none"
+                />
+            )}
+        </svg>
+    );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [surfaces, setSurfaces] = useState<OdontogramSurface[]>([]);
     const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
@@ -72,12 +300,11 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [showHistory, setShowHistory] = useState(false);
     const [toothLevelTreatments, setToothLevelTreatments] = useState<OdontogramToothTreatment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<ViewMode>('view');
 
-    // Tratamientos a nivel de diente completo y puentes
     const [toothTreatments, setToothTreatments] = useState<OdontogramToothTreatment[]>([]);
     const [bridges, setBridges] = useState<OdontogramBridge[]>([]);
 
-    // Catálogo de tratamientos
     const [catalog, setCatalog] = useState<TreatmentCatalogEntry[]>([]);
     const [catalogItems, setCatalogItems] = useState<TreatmentCatalogItem[]>([]);
     const [selectedTreatment, setSelectedTreatment] = useState<number | null>(null);
@@ -87,7 +314,6 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [createTreatmentRecord, setCreateTreatmentRecord] = useState(true);
     const [customCost, setCustomCost] = useState<number>(0);
 
-    // Estados para puentes dentales
     const [showBridgeDialog, setShowBridgeDialog] = useState(false);
     const [bridgeName, setBridgeName] = useState('');
     const [bridgeStart, setBridgeStart] = useState('');
@@ -95,7 +321,6 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [bridgeTreatment, setBridgeTreatment] = useState<number | null>(null);
     const [bridgeNotes, setBridgeNotes] = useState('');
 
-    // Estados para diálogo de confirmación de eliminación
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<{
         type: 'surface' | 'tooth' | 'bridge';
@@ -104,9 +329,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         name?: string;
     } | null>(null);
 
-    useEffect(() => {
-        loadData();
-    }, [patientId]);
+    useEffect(() => { loadData(); }, [patientId]);
 
     useEffect(() => {
         if (selectedTreatment) {
@@ -121,9 +344,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     useEffect(() => {
         if (selectedTreatmentItem) {
             const item = catalogItems.find((i) => i.id === selectedTreatmentItem);
-            if (item) {
-                setCustomCost(item.default_cost);
-            }
+            if (item) setCustomCost(item.default_cost);
         } else {
             setCustomCost(0);
         }
@@ -158,8 +379,7 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
             setCatalog(catalogData);
             setToothTreatments(toothTreatmentsData);
             setBridges(bridgesData);
-        } catch (error) {
-            console.error('Error cargando datos:', error);
+        } catch {
             toast.error('Error al cargar el odontograma');
         } finally {
             setIsLoading(false);
@@ -170,15 +390,10 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         try {
             const items = await getTreatmentCatalogItems(treatmentId);
             setCatalogItems(items);
-        } catch (error) {
-            console.error('Error cargando items:', error);
-        }
+        } catch { /* noop */ }
     };
 
     const loadSurfaceData = async () => {
-        if (!selectedTooth || !selectedSurface) return;
-
-        // Resetear formulario
         setSelectedTreatment(null);
         setSelectedTreatmentItem(null);
         setNotes('');
@@ -186,145 +401,101 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
 
     const loadSurfaceTreatments = async () => {
         if (!selectedTooth || !selectedSurface) return;
-
         try {
-            const treatments = await getSurfaceTreatments(
-                patientId,
-                selectedTooth.toString(),
-                selectedSurface
-            );
+            const treatments = await getSurfaceTreatments(patientId, selectedTooth.toString(), selectedSurface);
             setSurfaceTreatments(treatments);
-        } catch (error) {
-            console.error('Error cargando tratamientos de superficie:', error);
-        }
+        } catch { /* noop */ }
     };
 
     const loadToothLevelTreatments = async () => {
         if (!selectedTooth) return;
-
         try {
-            const treatments = await getToothTreatments(
-                patientId,
-                selectedTooth.toString()
-            );
+            const treatments = await getToothTreatments(patientId, selectedTooth.toString());
             setToothLevelTreatments(treatments);
-        } catch (error) {
-            console.error('Error cargando tratamientos de diente completo:', error);
-        }
+        } catch { /* noop */ }
     };
 
     const loadSurfaceHistoryData = async () => {
         if (!selectedTooth || !selectedSurface) return;
-
         try {
-            const history = await getSurfaceHistory(
-                patientId,
-                selectedTooth.toString(),
-                selectedSurface
-            );
+            const history = await getSurfaceHistory(patientId, selectedTooth.toString(), selectedSurface);
             setSurfaceHistory(history);
             setShowHistory(true);
-        } catch (error) {
-            console.error('Error cargando historial:', error);
+        } catch {
             toast.error('Error al cargar el historial');
         }
     };
 
-    const getSurfaceData = (toothNumber: number, surface: Surface): OdontogramSurface[] => {
-        return surfaces.filter(
-            (s) => s.tooth_number === toothNumber.toString() && s.surface === surface && s.is_active
-        );
-    };
+    const getSurfaceData = (toothNumber: number, surface: Surface): OdontogramSurface[] =>
+        surfaces.filter(s => s.tooth_number === toothNumber.toString() && s.surface === surface && s.is_active);
 
-    // Obtener tratamientos de diente completo para un diente específico
-    const getToothTreatmentsForTooth = (toothNumber: number): OdontogramToothTreatment[] => {
-        return toothTreatments.filter(
-            (t) => t.tooth_number === toothNumber.toString() && t.is_active
-        );
-    };
+    const getToothTreatmentsForTooth = (toothNumber: number): OdontogramToothTreatment[] =>
+        toothTreatments.filter(t => t.tooth_number === toothNumber.toString() && t.is_active);
 
-    // Obtener el efecto visual de un diente basado en sus tratamientos
     const getToothVisualEffect = (toothNumber: number): string | null => {
         const treatments = getToothTreatmentsForTooth(toothNumber);
         if (treatments.length === 0) return null;
-
-        // El tratamiento más reciente determina el efecto visual
         const mostRecent = treatments[0];
-
-        // Buscar efecto visual en el item del catálogo primero
         if (mostRecent.treatment_catalog_item_id) {
-            const item = catalogItems.find((i) => i.id === mostRecent.treatment_catalog_item_id);
+            const item = catalogItems.find(i => i.id === mostRecent.treatment_catalog_item_id);
             if (item?.visual_effect) return item.visual_effect;
         }
-
-        // Luego buscar en el catálogo principal
         if (mostRecent.treatment_catalog_id) {
-            const treatment = catalog.find((t) => t.id === mostRecent.treatment_catalog_id);
+            const treatment = catalog.find(t => t.id === mostRecent.treatment_catalog_id);
             if (treatment?.visual_effect) return treatment.visual_effect;
         }
-
         return null;
     };
 
-    // Verificar si un diente está en un puente
-    const getToothBridges = (toothNumber: number): OdontogramBridge[] => {
-        return bridges.filter((bridge) => {
+    const getToothBridge = (toothNumber: number): OdontogramBridge | null => {
+        return bridges.find(bridge => {
             const start = parseInt(bridge.tooth_start);
             const end = parseInt(bridge.tooth_end);
-            const tooth = toothNumber;
-            return tooth >= Math.min(start, end) && tooth <= Math.max(start, end);
-        });
+            return toothNumber >= Math.min(start, end) && toothNumber <= Math.max(start, end);
+        }) || null;
     };
 
     const getSurfaceColor = (toothNumber: number, surface: Surface): string => {
         const surfaceData = getSurfaceData(toothNumber, surface);
-        if (surfaceData.length === 0) return '#4b5563'; // Sin tratamiento
-
-        // Si hay múltiples tratamientos, usar el más reciente
+        if (surfaceData.length === 0) return tokens.colorNeutralBackground4;
         const mostRecent = surfaceData[0];
-
         if (mostRecent.treatment_catalog_id) {
-            const treatment = catalog.find((t) => t.id === mostRecent.treatment_catalog_id);
+            const treatment = catalog.find(t => t.id === mostRecent.treatment_catalog_id);
             if (treatment?.color) return treatment.color;
-
             if (mostRecent.treatment_catalog_item_id) {
-                const item = catalogItems.find((i) => i.id === mostRecent.treatment_catalog_item_id);
+                const item = catalogItems.find(i => i.id === mostRecent.treatment_catalog_item_id);
                 if (item?.color) return item.color;
             }
         }
-
-        return '#4ade80'; // healthy
+        return '#4ade80';
     };
 
     const handleSurfaceClick = (e: React.MouseEvent, toothNumber: number, surface: Surface) => {
         e.stopPropagation();
+        if (viewMode !== 'edit') return;
         setSelectedTooth(toothNumber);
         setSelectedSurface(surface);
     };
 
+    const handleToothClick = (toothNumber: number) => {
+        if (viewMode !== 'edit') return;
+        setSelectedTooth(toothNumber);
+        setSelectedSurface('whole_tooth');
+    };
+
     const handleAddTreatment = async () => {
         if (!selectedTooth || !selectedSurface) return;
-        if (!selectedTreatment) {
-            toast.error('Seleccione un tratamiento');
-            return;
-        }
-        // Solo requerir sub-tratamiento si hay items disponibles
-        if (catalogItems.length > 0 && !selectedTreatmentItem) {
-            toast.error('Seleccione un sub-tratamiento');
-            return;
-        }
+        if (!selectedTreatment) { toast.error('Seleccione un tratamiento'); return; }
+        if (catalogItems.length > 0 && !selectedTreatmentItem) { toast.error('Seleccione un sub-tratamiento'); return; }
 
         try {
-            // Crear tratamiento si está habilitado
             let treatmentId: number | undefined;
             if (createTreatmentRecord) {
-                const treatment = catalog.find((t) => t.id === selectedTreatment);
-                const item = selectedTreatmentItem ? catalogItems.find((i) => i.id === selectedTreatmentItem) : null;
-
+                const treatment = catalog.find(t => t.id === selectedTreatment);
+                const item = selectedTreatmentItem ? catalogItems.find(i => i.id === selectedTreatmentItem) : null;
                 if (treatment) {
                     const treatmentName = item ? `${treatment.name} - ${item.name}` : treatment.name;
                     const treatmentCost = customCost > 0 ? customCost : (item?.default_cost || treatment.default_cost);
-
                     treatmentId = await createTreatment({
                         patient_id: patientId,
                         name: treatmentName,
@@ -333,40 +504,27 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                         total_cost: treatmentCost,
                         notes: notes || `${treatment.name} ${selectedSurface === 'whole_tooth' ? 'en diente completo' : `en superficie ${selectedSurface}`}`,
                     });
-
-                    // Actualizar estado si no es pending
                     if (treatmentStatus !== 'Pending') {
                         const { updateTreatmentStatus } = await import('../../hooks/useTreatments');
                         await updateTreatmentStatus(treatmentId, treatmentStatus);
                     }
-
                     toast.success('Tratamiento creado');
                 }
             }
 
-            // Añadir tratamiento según el tipo seleccionado
             if (selectedSurface === 'whole_tooth') {
-                // Tratamiento a nivel de diente completo
                 await addToothTreatment({
-                    patient_id: patientId,
-                    tooth_number: selectedTooth.toString(),
+                    patient_id: patientId, tooth_number: selectedTooth.toString(),
                     treatment_catalog_id: selectedTreatment,
                     treatment_catalog_item_id: selectedTreatmentItem || undefined,
-                    condition: 'treatment',
-                    notes: notes || undefined,
-                    treatment_id: treatmentId,
+                    condition: 'treatment', notes: notes || undefined, treatment_id: treatmentId,
                 });
             } else {
-                // Tratamiento a nivel de superficie
                 await addToothSurfaceTreatment({
-                    patient_id: patientId,
-                    tooth_number: selectedTooth.toString(),
-                    surface: selectedSurface,
+                    patient_id: patientId, tooth_number: selectedTooth.toString(), surface: selectedSurface,
                     treatment_catalog_id: selectedTreatment,
                     treatment_catalog_item_id: selectedTreatmentItem || undefined,
-                    condition: 'treatment',
-                    notes: notes || undefined,
-                    treatment_id: treatmentId,
+                    condition: 'treatment', notes: notes || undefined, treatment_id: treatmentId,
                 });
             }
 
@@ -374,52 +532,15 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
             await loadSurfaceTreatments();
             await loadToothLevelTreatments();
             toast.success('Tratamiento añadido al odontograma');
-
-            // Reset form but keep surface selected
-            setSelectedTreatment(null);
-            setSelectedTreatmentItem(null);
-            setNotes('');
-        } catch (error) {
-            console.error('Error añadiendo tratamiento:', error);
+            setSelectedTreatment(null); setSelectedTreatmentItem(null); setNotes('');
+        } catch {
             toast.error('Error al añadir tratamiento');
         }
     };
 
-    const handleDeactivateTreatment = async (surfaceId: number) => {
-        const treatment = surfaceTreatments.find(t => t.id === surfaceId);
-        const catalogEntry = catalog.find((c) => c.id === treatment?.treatment_catalog_id);
-        const itemEntry = catalogItems.find((i) => i.id === treatment?.treatment_catalog_item_id);
-        const treatmentName = itemEntry?.name || catalogEntry?.name || 'Sin nombre';
-
-        setDeleteTarget({
-            type: 'surface',
-            id: surfaceId,
-            treatmentId: treatment?.treatment_id,
-            name: treatmentName,
-        });
-        setShowDeleteDialog(true);
-    };
-
-    const handleDeactivateToothTreatment = async (toothTreatmentId: number) => {
-        const treatment = toothLevelTreatments.find(t => t.id === toothTreatmentId);
-        const catalogEntry = catalog.find((c) => c.id === treatment?.treatment_catalog_id);
-        const itemEntry = catalogItems.find((i) => i.id === treatment?.treatment_catalog_item_id);
-        const treatmentName = itemEntry?.name || catalogEntry?.name || 'Sin nombre';
-
-        setDeleteTarget({
-            type: 'tooth',
-            id: toothTreatmentId,
-            treatmentId: treatment?.treatment_id,
-            name: treatmentName,
-        });
-        setShowDeleteDialog(true);
-    };
-
     const confirmDelete = async (alsoDeleteTreatment: boolean) => {
         if (!deleteTarget) return;
-
         try {
-            // Eliminar del odontograma
             if (deleteTarget.type === 'surface') {
                 await deactivateSurfaceTreatment(deleteTarget.id);
                 await loadSurfaceTreatments();
@@ -429,20 +550,13 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
             } else if (deleteTarget.type === 'bridge') {
                 await deactivateBridge(deleteTarget.id);
             }
-
-            // Eliminar el registro de tratamiento si el usuario lo confirmó
             if (alsoDeleteTreatment && deleteTarget.treatmentId) {
                 const { deleteTreatment } = await import('../../hooks/useTreatments');
                 await deleteTreatment(deleteTarget.treatmentId);
             }
-
             await loadData();
-            toast.success(alsoDeleteTreatment
-                ? 'Tratamiento eliminado del odontograma y de registros'
-                : 'Tratamiento eliminado del odontograma'
-            );
-        } catch (error) {
-            console.error('Error eliminando tratamiento:', error);
+            toast.success(alsoDeleteTreatment ? 'Eliminado del odontograma y registros' : 'Eliminado del odontograma');
+        } catch {
             toast.error('Error al eliminar tratamiento');
         } finally {
             setShowDeleteDialog(false);
@@ -450,901 +564,777 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         }
     };
 
-    const isDeciduousTooth = (toothNumber: number): boolean => {
-        return toothNumber >= 51 && toothNumber <= 85;
-    };
-
     const handleCreateBridge = async () => {
-        if (!bridgeName || !bridgeStart || !bridgeEnd) {
-            toast.error('Complete todos los campos requeridos');
-            return;
-        }
-
+        if (!bridgeName || !bridgeStart || !bridgeEnd) { toast.error('Complete todos los campos requeridos'); return; }
         try {
-            // Crear tratamiento si está habilitado y hay un tratamiento seleccionado
             let treatmentId: number | undefined;
             if (createTreatmentRecord && bridgeTreatment) {
-                const treatment = catalog.find((t) => t.id === bridgeTreatment);
-
+                const treatment = catalog.find(t => t.id === bridgeTreatment);
                 if (treatment) {
                     treatmentId = await createTreatment({
-                        patient_id: patientId,
-                        name: `${treatment.name} - ${bridgeName}`,
-                        tooth_number: `${bridgeStart}-${bridgeEnd}`,
-                        sector: 'Puente dental',
+                        patient_id: patientId, name: `${treatment.name} - ${bridgeName}`,
+                        tooth_number: `${bridgeStart}-${bridgeEnd}`, sector: 'Puente dental',
                         total_cost: treatment.default_cost,
                         notes: bridgeNotes || `Puente dental: ${bridgeName} (piezas ${bridgeStart} a ${bridgeEnd})`,
                     });
-
-                    // Actualizar estado si no es pending
                     if (treatmentStatus !== 'Pending') {
                         const { updateTreatmentStatus } = await import('../../hooks/useTreatments');
                         await updateTreatmentStatus(treatmentId, treatmentStatus);
                     }
-
-                    toast.success('Registro de tratamiento creado');
                 }
             }
-
             await addBridge({
-                patient_id: patientId,
-                bridge_name: bridgeName,
-                tooth_start: bridgeStart,
-                tooth_end: bridgeEnd,
+                patient_id: patientId, bridge_name: bridgeName,
+                tooth_start: bridgeStart, tooth_end: bridgeEnd,
                 treatment_catalog_id: bridgeTreatment || undefined,
-                notes: bridgeNotes || undefined,
-                treatment_id: treatmentId,
+                notes: bridgeNotes || undefined, treatment_id: treatmentId,
             });
-
             await loadData();
             toast.success('Puente dental creado');
-
-            // Reset form
-            setShowBridgeDialog(false);
-            setBridgeName('');
-            setBridgeStart('');
-            setBridgeEnd('');
-            setBridgeTreatment(null);
-            setBridgeNotes('');
-        } catch (error) {
-            console.error('Error creando puente:', error);
+            setShowBridgeDialog(false); setBridgeName(''); setBridgeStart(''); setBridgeEnd('');
+            setBridgeTreatment(null); setBridgeNotes('');
+        } catch {
             toast.error('Error al crear el puente');
         }
     };
 
-    const handleDeleteBridge = async (bridgeId: number) => {
-        const bridge = bridges.find(b => b.id === bridgeId);
-        setDeleteTarget({
-            type: 'bridge',
-            id: bridgeId,
-            treatmentId: bridge?.treatment_id,
-            name: bridge?.bridge_name || 'Puente',
-        });
-        setShowDeleteDialog(true);
-    };
-
-    const renderTooth = (toothNumber: number) => {
+    // ─── Render helpers ────────────────────────────────────────────────────
+    const renderToothWrapper = (toothNumber: number) => {
         const isDeciduous = isDeciduousTooth(toothNumber);
         const isSelected = selectedTooth === toothNumber;
         const visualEffect = getToothVisualEffect(toothNumber);
-        const toothBridges = getToothBridges(toothNumber);
+        const bridge = getToothBridge(toothNumber);
+        const bridgeColor = bridge ? '#e08c00' : undefined;
 
         return (
-            <div key={toothNumber} className="relative flex flex-col items-center gap-1">
-                {/* Tooth number label with type indicator */}
-                <div className="flex items-center gap-1">
-                    <span className="text-[9px] text-white/40 font-mono">{toothNumber}</span>
-                    {isDeciduous && (
-                        <Baby className="w-2.5 h-2.5 text-blue-400/60" />
-                    )}
-                </div>
-
-                {/* Tooth visualization with surfaces */}
-                <div
-                    className={cn(
-                        'relative w-11 h-16 rounded-[3px] transition-all overflow-hidden',
-                        isSelected && 'ring-2 ring-blue-400 ring-offset-2 ring-offset-[#202020] shadow-lg',
-                        isDeciduous && 'opacity-90 border border-blue-400/30'
-                    )}
-                    style={{ backgroundColor: '#2a2a2a' }}
-                >
-                    {/* Top surface - Vestibular (superiores) o Lingual (inferiores) */}
-                    {(() => {
-                        const isUpper = isUpperTooth(toothNumber);
-                        const topSurface: Surface = isUpper ? 'vestibular' : 'lingual';
-                        return (
-                            <motion.button
-                                whileHover={{ opacity: 0.8 }}
-                                onClick={(e) => handleSurfaceClick(e, toothNumber, topSurface)}
-                                className={cn(
-                                    'absolute top-0 left-0 right-0 h-1/5 border-b border-black/20 transition-all',
-                                    selectedTooth === toothNumber && selectedSurface === topSurface && 'ring-1 ring-white ring-inset'
-                                )}
-                                style={{ backgroundColor: getSurfaceColor(toothNumber, topSurface) }}
-                            />
-                        );
-                    })()}
-
-                    {/* Middle row: Orden correcto de superficies según cuadrante */}
-                    <div className="absolute top-1/5 left-0 right-0 bottom-1/5 flex">
-                        {(() => {
-                            const isRightSide = isRightSideTooth(toothNumber);
-                            // Para dientes del lado derecho: Distal (izq) | Oclusal | Mesial (der)
-                            // Para dientes del lado izquierdo: Mesial (izq) | Oclusal | Distal (der)
-                            const leftSurface: Surface = isRightSide ? 'distal' : 'mesial';
-                            const rightSurface: Surface = isRightSide ? 'mesial' : 'distal';
-
-                            return (
-                                <>
-                                    {/* Superficie izquierda en pantalla */}
-                                    <motion.button
-                                        whileHover={{ opacity: 0.8 }}
-                                        onClick={(e) => handleSurfaceClick(e, toothNumber, leftSurface)}
-                                        className={cn(
-                                            'w-1/3 border-r border-black/20 transition-all',
-                                            selectedTooth === toothNumber && selectedSurface === leftSurface && 'ring-1 ring-white ring-inset'
-                                        )}
-                                        style={{ backgroundColor: getSurfaceColor(toothNumber, leftSurface) }}
-                                    />
-                                    {/* Center - Oclusal (clickeable) */}
-                                    <motion.button
-                                        whileHover={{ opacity: 0.8 }}
-                                        onClick={(e) => handleSurfaceClick(e, toothNumber, 'oclusal')}
-                                        className={cn(
-                                            'w-1/3 flex items-center justify-center transition-all',
-                                            selectedTooth === toothNumber && selectedSurface === 'oclusal' && 'ring-1 ring-white ring-inset'
-                                        )}
-                                        style={{ backgroundColor: getSurfaceColor(toothNumber, 'oclusal') }}
-                                    >
-                                        <span className="text-[9px] font-semibold text-white/30">
-                                            {toothNumber}
-                                        </span>
-                                    </motion.button>
-                                    {/* Superficie derecha en pantalla */}
-                                    <motion.button
-                                        whileHover={{ opacity: 0.8 }}
-                                        onClick={(e) => handleSurfaceClick(e, toothNumber, rightSurface)}
-                                        className={cn(
-                                            'w-1/3 border-l border-black/20 transition-all',
-                                            selectedTooth === toothNumber && selectedSurface === rightSurface && 'ring-1 ring-white ring-inset'
-                                        )}
-                                        style={{ backgroundColor: getSurfaceColor(toothNumber, rightSurface) }}
-                                    />
-                                </>
-                            );
-                        })()}
-                    </div>
-
-                    {/* Bottom surface - Palatina (superiores) o Vestibular (inferiores) */}
-                    {(() => {
-                        const isUpper = isUpperTooth(toothNumber);
-                        const bottomSurface: Surface = isUpper ? 'palatina' : 'vestibular';
-                        return (
-                            <motion.button
-                                whileHover={{ opacity: 0.8 }}
-                                onClick={(e) => handleSurfaceClick(e, toothNumber, bottomSurface)}
-                                className={cn(
-                                    'absolute bottom-0 left-0 right-0 h-1/5 border-t border-black/20 transition-all',
-                                    selectedTooth === toothNumber && selectedSurface === bottomSurface && 'ring-1 ring-white ring-inset'
-                                )}
-                                style={{ backgroundColor: getSurfaceColor(toothNumber, bottomSurface) }}
-                            />
-                        );
-                    })()}
-
-                    {/* Efectos visuales sobre el diente */}
-                    {visualEffect === 'absent' && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                            <div className="relative w-full h-full">
-                                <div className="absolute inset-0 bg-black/40" />
-                                <X className="absolute inset-0 m-auto w-8 h-8 text-red-500 stroke-[3]" />
-                            </div>
-                        </div>
-                    )}
-                    {visualEffect === 'darken' && (
-                        <div className="absolute inset-0 bg-black/50 pointer-events-none z-10" />
-                    )}
-                    {visualEffect === 'implant' && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                            <div className="w-1 h-full bg-gradient-to-b from-gray-300 via-gray-400 to-gray-500" />
-                        </div>
-                    )}
-                </div>
-
-                {/* Indicador de puente */}
-                {toothBridges.length > 0 && (
-                    <div className="absolute -top-2 left-0 right-0 flex justify-center">
-                        <div className="h-1 bg-amber-500/80 w-full" />
-                    </div>
-                )}
-            </div>
+            <motion.div
+                key={toothNumber}
+                className="flex flex-col items-center gap-1"
+                whileHover={viewMode === 'edit' ? { scale: 1.06 } : {}}
+                transition={{ duration: 0.12 }}
+                onClick={() => handleToothClick(toothNumber)}
+            >
+                <ToothSVG
+                    toothNumber={toothNumber}
+                    isSelected={isSelected}
+                    isDeciduous={isDeciduous}
+                    getSurfaceColor={getSurfaceColor}
+                    visualEffect={visualEffect}
+                    onSurfaceClick={handleSurfaceClick}
+                    selectedSurface={selectedSurface}
+                    isEditMode={viewMode === 'edit'}
+                    bridgeColor={bridgeColor}
+                />
+            </motion.div>
         );
     };
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-12">
-                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px', gap: '12px' }}>
+                <Loader2 className="animate-spin" style={{ color: tokens.colorBrandForeground, width: 20, height: 20 }} />
+                <span style={{ color: tokens.colorNeutralForeground3, fontSize: 14 }}>Cargando odontograma...</span>
             </div>
         );
     }
 
+    // Count treatments for badge
+    const activeTreatmentCount = toothTreatments.filter(t => t.is_active).length
+        + surfaces.filter(s => s.is_active).length;
+
     return (
-        <div className="space-y-6">
-            {/* Información de dentición mixta y orientación */}
-            <div className="space-y-3">
-                <div className="flex items-center justify-center gap-6 p-3 bg-[#272727] rounded-lg border border-white/5">
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                        <UserIcon className="w-4 h-4 text-white/50" />
-                        <span>Permanentes (11-48)</span>
-                    </div>
-                    <div className="w-px h-4 bg-white/10" />
-                    <div className="flex items-center gap-2 text-sm text-blue-400/80">
-                        <Baby className="w-4 h-4" />
-                        <span>Temporales (51-85)</span>
-                    </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── Header bar ─────────────────────────────────────── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: tokens.colorNeutralBackground2,
+                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                borderRadius: tokens.borderRadiusLarge,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: tokens.colorNeutralForeground1 }}>
+                        Odontograma
+                    </span>
+                    {activeTreatmentCount > 0 && (
+                        <span style={{
+                            fontSize: 11, fontWeight: 600, padding: '2px 8px',
+                            background: 'rgba(77,166,255,0.15)',
+                            color: tokens.colorBrandForeground,
+                            borderRadius: 20, border: `1px solid rgba(77,166,255,0.25)`,
+                        }}>
+                            {activeTreatmentCount} tratamientos
+                        </span>
+                    )}
+                    {bridges.length > 0 && (
+                        <span style={{
+                            fontSize: 11, fontWeight: 600, padding: '2px 8px',
+                            background: tokens.colorPaletteMarigoldBackground,
+                            color: tokens.colorPaletteMarigoldForeground,
+                            borderRadius: 20, border: `1px solid rgba(224,140,0,0.25)`,
+                        }}>
+                            {bridges.length} puentes
+                        </span>
+                    )}
                 </div>
 
-                {/* Indicadores de orientación desde la perspectiva del odontólogo */}
-                <div className="flex items-center justify-between px-8 text-xs text-white/40">
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-400/50" />
-                        <span>Derecha del Paciente</span>
-                    </div>
-                    <div className="text-center">
-                        <div className="font-semibold text-white/50">Vista del Odontólogo</div>
-                        <div className="text-[10px] mt-0.5">Palatina (sup.) / Lingual (inf.)</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span>Izquierda del Paciente</span>
-                        <div className="w-2 h-2 rounded-full bg-blue-400/50" />
-                    </div>
+                {/* View/Edit toggle */}
+                <div style={{
+                    display: 'flex', padding: 3,
+                    background: tokens.colorNeutralBackground3,
+                    borderRadius: tokens.borderRadiusLarge,
+                    border: `1px solid ${tokens.colorNeutralStroke1}`,
+                }}>
+                    {(['view', 'edit'] as ViewMode[]).map(mode => (
+                        <button
+                            key={mode}
+                            onClick={() => {
+                                setViewMode(mode);
+                                if (mode === 'view') { setSelectedTooth(null); setSelectedSurface(null); }
+                            }}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 6,
+                                padding: '5px 12px', borderRadius: 6, border: 'none',
+                                fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                                transition: `all ${tokens.durationNormal} ${tokens.curveEasyEase}`,
+                                background: viewMode === mode ? tokens.colorBrandBackground : 'transparent',
+                                color: viewMode === mode ? '#fff' : tokens.colorNeutralForeground3,
+                            }}
+                        >
+                            {mode === 'view' ? <Eye style={{ width: 13, height: 13 }} /> : <Edit3 style={{ width: 13, height: 13 }} />}
+                            {mode === 'view' ? 'Visualizar' : 'Editar'}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* Odontograma Mixto Completo */}
-            <div className="flex flex-col items-center gap-8 py-6 bg-[#202020] rounded-lg border border-white/5">
-                {/* Arcada Superior - Permanentes y Temporales */}
-                <div className="w-full px-6 space-y-4">
-                    <div className="text-xs text-white/40 mb-4 text-center uppercase tracking-widest font-semibold">
+            {/* ── Legend ─────────────────────────────────────────── */}
+            <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 8, padding: '10px 14px',
+                background: tokens.colorNeutralBackground2,
+                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                borderRadius: tokens.borderRadiusLarge,
+                fontSize: 12,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tokens.colorNeutralForeground2 }}>
+                    <UserIcon style={{ width: 13, height: 13, color: tokens.colorNeutralForeground3 }} />
+                    Permanentes (11-48)
+                </div>
+                <div style={{ width: 1, height: 14, background: tokens.colorNeutralStroke1, alignSelf: 'center' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tokens.colorBrandForeground }}>
+                    <Baby style={{ width: 13, height: 13 }} />
+                    Temporales (51-85)
+                </div>
+                <div style={{ width: 1, height: 14, background: tokens.colorNeutralStroke1, alignSelf: 'center' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tokens.colorPaletteMarigoldForeground }}>
+                    <div style={{ width: 20, height: 4, background: tokens.colorPaletteMarigoldForeground, borderRadius: 2, opacity: 0.85 }} />
+                    Puente dental
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, color: tokens.colorNeutralForeground4, fontSize: 11 }}>
+                    <span>← Derecha del paciente</span>
+                    <span>Izquierda del paciente →</span>
+                </div>
+            </div>
+
+            {/* ── Odontogram grid ────────────────────────────────── */}
+            <div style={{
+                background: tokens.colorNeutralBackground2,
+                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                borderRadius: tokens.borderRadiusXLarge,
+                padding: '24px 16px',
+                display: 'flex', flexDirection: 'column', gap: 24,
+            }}>
+                {/* Upper arch */}
+                <div>
+                    <div style={{
+                        textAlign: 'center', fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.12em', textTransform: 'uppercase',
+                        color: tokens.colorNeutralForeground4, marginBottom: 14,
+                    }}>
                         Arcada Superior
                     </div>
-
-                    {/* Dientes permanentes superiores */}
-                    <div className="flex flex-wrap justify-center gap-3">
-                        {TEETH_FDI_PERMANENT.upper.map(renderTooth)}
+                    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                        {TEETH_FDI_PERMANENT.upper.map(renderToothWrapper)}
                     </div>
-
-                    {/* Dientes temporales superiores - Encima de permanentes */}
-                    <div className="flex flex-wrap justify-center gap-3 pt-2 border-t border-white/5">
-                        {TEETH_FDI_DECIDUOUS.upper.map(renderTooth)}
+                    <div style={{
+                        borderTop: `1px dashed ${tokens.colorNeutralStroke1}`,
+                        paddingTop: 10,
+                        display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 4,
+                    }}>
+                        {TEETH_FDI_DECIDUOUS.upper.map(renderToothWrapper)}
                     </div>
                 </div>
 
-                {/* Separator */}
-                <div className="w-40 h-px bg-white/10" />
+                {/* Midline */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ flex: 1, height: 1, background: tokens.colorNeutralStroke1 }} />
+                    <span style={{ fontSize: 10, color: tokens.colorNeutralForeground4, letterSpacing: '0.08em' }}>LÍNEA MEDIA</span>
+                    <div style={{ flex: 1, height: 1, background: tokens.colorNeutralStroke1 }} />
+                </div>
 
-                {/* Arcada Inferior - Permanentes y Temporales */}
-                <div className="w-full px-6 space-y-4">
-                    <div className="text-xs text-white/40 mb-4 text-center uppercase tracking-widest font-semibold">
+                {/* Lower arch */}
+                <div>
+                    <div style={{
+                        textAlign: 'center', fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.12em', textTransform: 'uppercase',
+                        color: tokens.colorNeutralForeground4, marginBottom: 14,
+                    }}>
                         Arcada Inferior
                     </div>
-
-                    {/* Dientes temporales inferiores - Encima de permanentes */}
-                    <div className="flex flex-wrap justify-center gap-3 pb-2 border-b border-white/5">
-                        {TEETH_FDI_DECIDUOUS.lower.map(renderTooth)}
+                    <div style={{
+                        borderBottom: `1px dashed ${tokens.colorNeutralStroke1}`,
+                        paddingBottom: 10, marginBottom: 10,
+                        display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 4,
+                    }}>
+                        {TEETH_FDI_DECIDUOUS.lower.map(renderToothWrapper)}
                     </div>
-
-                    {/* Dientes permanentes inferiores */}
-                    <div className="flex flex-wrap justify-center gap-3">
-                        {TEETH_FDI_PERMANENT.lower.map(renderTooth)}
+                    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 4 }}>
+                        {TEETH_FDI_PERMANENT.lower.map(renderToothWrapper)}
                     </div>
                 </div>
             </div>
 
-            {/* Panel de edición */}
+            {/* ── Edit panel (animated side panel / bottom panel) ── */}
             <AnimatePresence>
-                {selectedTooth && (
+                {selectedTooth && viewMode === 'edit' && (
                     <motion.div
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="bg-[#272727] border border-white/5 rounded-lg p-6 space-y-6"
+                        exit={{ opacity: 0, y: 12 }}
+                        transition={{ duration: 0.18, ease: [0.33, 0, 0.67, 1] }}
+                        style={{
+                            background: tokens.colorNeutralBackground2,
+                            border: `1px solid ${tokens.colorNeutralStroke1}`,
+                            borderRadius: tokens.borderRadiusXLarge,
+                            overflow: 'hidden',
+                        }}
                     >
-                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                        {/* Panel header */}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '14px 20px',
+                            background: tokens.colorNeutralBackground3,
+                            borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+                        }}>
                             <div>
-                                <h3 className="text-lg font-semibold">
-                                    Pieza Dental {selectedTooth}
-                                </h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 14, fontWeight: 600, color: tokens.colorNeutralForeground1 }}>
+                                        Pieza {selectedTooth}
+                                    </span>
+                                    {isDeciduousTooth(selectedTooth) && (
+                                        <span style={{
+                                            fontSize: 10, padding: '1px 6px',
+                                            background: 'rgba(77,166,255,0.12)',
+                                            color: tokens.colorBrandForeground,
+                                            borderRadius: 10, border: `1px solid rgba(77,166,255,0.2)`,
+                                        }}>Temporal</span>
+                                    )}
+                                </div>
                                 {selectedSurface && (
-                                    <p className="text-sm text-white/60 mt-1">
-                                        {selectedSurface === 'whole_tooth' ? (
-                                            <span className="font-medium text-white/80">🦷 Diente Completo</span>
-                                        ) : (
-                                            <>
-                                                Superficie: <span className="capitalize font-medium text-white/80">{selectedSurface}</span>
-                                                {(selectedSurface === 'palatina' || selectedSurface === 'lingual') && (
-                                                    <span className="ml-2 text-xs text-white/40">
-                                                        ({selectedSurface === 'palatina' ? 'Superior - Paladar' : 'Inferior - Lengua'})
-                                                    </span>
-                                                )}
-                                            </>
-                                        )}
-                                    </p>
+                                    <span style={{ fontSize: 12, color: tokens.colorNeutralForeground3, marginTop: 2, display: 'block' }}>
+                                        {SURFACE_LABELS[selectedSurface]}
+                                    </span>
                                 )}
                             </div>
                             <button
-                                onClick={() => {
-                                    setSelectedTooth(null);
-                                    setSelectedSurface(null);
+                                onClick={() => { setSelectedTooth(null); setSelectedSurface(null); }}
+                                style={{
+                                    width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+                                    color: tokens.colorNeutralForeground3,
+                                    transition: `background ${tokens.durationNormal}`,
                                 }}
-                                className="p-2 hover:bg-white/5 rounded-md transition-colors"
+                                onMouseEnter={e => (e.currentTarget.style.background = tokens.colorNeutralBackground4)}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             >
-                                <X className="w-4 h-4" />
+                                <X style={{ width: 15, height: 15 }} />
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Selector de superficie */}
+                        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                            {/* Surface selector */}
                             <div>
-                                <label className="block text-sm font-medium text-white/70 mb-3">
-                                    Superficie Dental
+                                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: tokens.colorNeutralForeground2, marginBottom: 8 }}>
+                                    Superficie
                                 </label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {TOOTH_SURFACES.map((surface) => {
-                                        const getSurfaceLabel = (s: Surface): string => {
-                                            if (s === 'whole_tooth') return '🦷 Diente Completo';
-                                            return s.charAt(0).toUpperCase() + s.slice(1);
-                                        };
-
-                                        return (
-                                            <button
-                                                key={surface}
-                                                onClick={() => setSelectedSurface(surface)}
-                                                className={cn(
-                                                    'px-4 py-2 rounded-md text-sm font-medium transition-all',
-                                                    surface === 'whole_tooth' && 'col-span-2 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30',
-                                                    selectedSurface === surface
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'bg-white/5 text-white/70 hover:bg-white/10'
-                                                )}
-                                            >
-                                                {getSurfaceLabel(surface)}
-                                            </button>
-                                        );
-                                    })}
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {TOOTH_SURFACES.map(surface => (
+                                        <button
+                                            key={surface}
+                                            onClick={() => setSelectedSurface(surface)}
+                                            style={{
+                                                padding: surface === 'whole_tooth' ? '6px 14px' : '5px 10px',
+                                                fontSize: 12, fontWeight: 500, borderRadius: 6,
+                                                border: selectedSurface === surface
+                                                    ? `1px solid ${tokens.colorBrandForeground}`
+                                                    : `1px solid ${tokens.colorNeutralStroke1}`,
+                                                background: selectedSurface === surface
+                                                    ? `rgba(77,166,255,0.16)`
+                                                    : tokens.colorNeutralBackground3,
+                                                color: selectedSurface === surface
+                                                    ? tokens.colorBrandForeground
+                                                    : tokens.colorNeutralForeground2,
+                                                cursor: 'pointer',
+                                                transition: `all ${tokens.durationNormal}`,
+                                            }}
+                                        >
+                                            {surface === 'whole_tooth' ? '🦷 Diente Completo' : SURFACE_LABELS[surface]}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
-                            {/* Selector de tratamiento */}
-                            <div>
-                                <label className="block text-sm font-medium text-white/70 mb-3">
-                                    Tratamiento
-                                </label>
-                                <select
-                                    value={selectedTreatment || ''}
-                                    onChange={(e) =>
-                                        setSelectedTreatment(e.target.value ? parseInt(e.target.value) : null)
-                                    }
-                                    className="w-full h-9 bg-[#1a1a1a] border border-white/10 rounded-md px-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                                >
-                                    <option value="">Sin tratamiento</option>
-                                    {catalog.map((treatment) => (
-                                        <option key={treatment.id} value={treatment.id}>
-                                            {treatment.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Selector de sub-tratamiento */}
-                            {selectedTreatment && catalogItems.length > 0 && (
+                            {/* Treatment form */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                                {/* Treatment catalog */}
                                 <div>
-                                    <label className="block text-sm font-medium text-white/70 mb-3">
-                                        Sub-tratamiento
-                                    </label>
+                                    <label style={labelStyle}>Tratamiento</label>
                                     <select
-                                        value={selectedTreatmentItem || ''}
-                                        onChange={(e) =>
-                                            setSelectedTreatmentItem(
-                                                e.target.value ? parseInt(e.target.value) : null
-                                            )
-                                        }
-                                        className="w-full h-9 bg-[#1a1a1a] border border-white/10 rounded-md px-3 text-sm text-white focus:outline-none focus:border-blue-500"
+                                        value={selectedTreatment || ''}
+                                        onChange={e => setSelectedTreatment(e.target.value ? parseInt(e.target.value) : null)}
+                                        style={selectStyle}
                                     >
-                                        <option value="">Seleccionar...</option>
-                                        {catalogItems.map((item) => (
-                                            <option key={item.id} value={item.id}>
-                                                {item.name} (${item.default_cost})
-                                            </option>
-                                        ))}
+                                        <option value="">Sin tratamiento</option>
+                                        {catalog.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                 </div>
-                            )}
 
-                            {/* Campo de Costo Personalizado */}
-                            {selectedTreatment && selectedTreatmentItem && (
-                                <div>
-                                    <label className="block text-sm font-medium text-white/70 mb-3">
-                                        Costo del Tratamiento
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 text-sm">$</span>
-                                        <input
-                                            type="number"
-                                            value={customCost}
-                                            onChange={(e) => setCustomCost(parseFloat(e.target.value) || 0)}
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full h-9 pl-7 pr-3 bg-[#1a1a1a] border border-white/10 rounded-md text-sm text-white focus:outline-none focus:border-blue-500"
-                                            placeholder="0.00"
-                                        />
+                                {/* Sub-treatment */}
+                                {selectedTreatment && catalogItems.length > 0 && (
+                                    <div>
+                                        <label style={labelStyle}>Sub-tratamiento</label>
+                                        <select
+                                            value={selectedTreatmentItem || ''}
+                                            onChange={e => setSelectedTreatmentItem(e.target.value ? parseInt(e.target.value) : null)}
+                                            style={selectStyle}
+                                        >
+                                            <option value="">Seleccionar...</option>
+                                            {catalogItems.map(i => <option key={i.id} value={i.id}>{i.name} (${i.default_cost})</option>)}
+                                        </select>
                                     </div>
-                                    <p className="text-xs text-white/40 mt-1.5">Modifica el costo según sea necesario</p>
+                                )}
+
+                                {/* Cost */}
+                                {selectedTreatment && selectedTreatmentItem && (
+                                    <div>
+                                        <label style={labelStyle}>Costo</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: tokens.colorNeutralForeground3, fontSize: 13 }}>$</span>
+                                            <input
+                                                type="number" value={customCost}
+                                                onChange={e => setCustomCost(parseFloat(e.target.value) || 0)}
+                                                min="0" step="0.01"
+                                                style={{ ...inputStyle, paddingLeft: 24 }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Create treatment record toggle */}
+                            {selectedTreatment && selectedTreatmentItem && (
+                                <div style={{
+                                    padding: '10px 14px',
+                                    background: 'rgba(77,166,255,0.06)',
+                                    border: `1px solid rgba(77,166,255,0.16)`,
+                                    borderRadius: tokens.borderRadiusMedium,
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                }}>
+                                    <input
+                                        type="checkbox" id="createTreatmentRec"
+                                        checked={createTreatmentRecord}
+                                        onChange={e => setCreateTreatmentRecord(e.target.checked)}
+                                        style={{ width: 14, height: 14, accentColor: tokens.colorBrandBackground }}
+                                    />
+                                    <label htmlFor="createTreatmentRec" style={{ fontSize: 12, color: tokens.colorNeutralForeground2, cursor: 'pointer' }}>
+                                        Crear registro de tratamiento automáticamente
+                                    </label>
                                 </div>
                             )}
 
-                            {/* Crear registro de tratamiento */}
-                            {selectedTreatment && selectedTreatmentItem && (
-                                <>
-                                    <div className="lg:col-span-2 flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                                        <input
-                                            type="checkbox"
-                                            id="createTreatment"
-                                            checked={createTreatmentRecord}
-                                            onChange={(e) => setCreateTreatmentRecord(e.target.checked)}
-                                            className="w-4 h-4 rounded border-white/20"
-                                        />
-                                        <label htmlFor="createTreatment" className="text-sm text-white/90">
-                                            Crear registro de tratamiento automáticamente
-                                        </label>
+                            {/* Status buttons */}
+                            {selectedTreatment && selectedTreatmentItem && createTreatmentRecord && (
+                                <div>
+                                    <label style={labelStyle}>Estado</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {(Object.entries(STATUS_CONFIG) as [keyof typeof STATUS_CONFIG, typeof STATUS_CONFIG[keyof typeof STATUS_CONFIG]][]).map(([key, cfg]) => {
+                                            const Icon = cfg.icon;
+                                            const isActive = treatmentStatus === key;
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => setTreatmentStatus(key)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 6,
+                                                        padding: '5px 12px', fontSize: 12, fontWeight: 500,
+                                                        borderRadius: 6, border: `1px solid`,
+                                                        borderColor: isActive ? cfg.color : tokens.colorNeutralStroke1,
+                                                        background: isActive ? cfg.bg : tokens.colorNeutralBackground3,
+                                                        color: isActive ? cfg.color : tokens.colorNeutralForeground3,
+                                                        cursor: 'pointer',
+                                                        transition: `all ${tokens.durationNormal}`,
+                                                    }}
+                                                >
+                                                    <Icon style={{ width: 12, height: 12 }} />
+                                                    {cfg.label}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-
-                                    {/* Estado del tratamiento */}
-                                    {createTreatmentRecord && (
-                                        <div className="lg:col-span-2">
-                                            <label className="block text-sm font-medium text-white/70 mb-3">
-                                                Estado del Tratamiento
-                                            </label>
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                                <button
-                                                    onClick={() => setTreatmentStatus('Pending')}
-                                                    className={cn(
-                                                        'flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all',
-                                                        treatmentStatus === 'Pending'
-                                                            ? 'bg-yellow-600 text-white'
-                                                            : 'bg-white/5 text-white/70 hover:bg-white/10'
-                                                    )}
-                                                >
-                                                    <Clock className="w-3.5 h-3.5" />
-                                                    Por Hacer
-                                                </button>
-                                                <button
-                                                    onClick={() => setTreatmentStatus('InProgress')}
-                                                    className={cn(
-                                                        'flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all',
-                                                        treatmentStatus === 'InProgress'
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-white/5 text-white/70 hover:bg-white/10'
-                                                    )}
-                                                >
-                                                    <Loader2 className="w-3.5 h-3.5" />
-                                                    En Proceso
-                                                </button>
-                                                <button
-                                                    onClick={() => setTreatmentStatus('Completed')}
-                                                    className={cn(
-                                                        'flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all',
-                                                        treatmentStatus === 'Completed'
-                                                            ? 'bg-green-600 text-white'
-                                                            : 'bg-white/5 text-white/70 hover:bg-white/10'
-                                                    )}
-                                                >
-                                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                                    Finalizado
-                                                </button>
-                                                <button
-                                                    onClick={() => setTreatmentStatus('Cancelled')}
-                                                    className={cn(
-                                                        'flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all',
-                                                        treatmentStatus === 'Cancelled'
-                                                            ? 'bg-red-600 text-white'
-                                                            : 'bg-white/5 text-white/70 hover:bg-white/10'
-                                                    )}
-                                                >
-                                                    <XCircle className="w-3.5 h-3.5" />
-                                                    Cancelado
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
+                                </div>
                             )}
 
-                            {/* Notas */}
-                            <div className="lg:col-span-2">
-                                <label className="block text-sm font-medium text-white/70 mb-3">
-                                    Observaciones
-                                </label>
+                            {/* Notes */}
+                            <div>
+                                <label style={labelStyle}>Observaciones</label>
                                 <textarea
                                     value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
+                                    onChange={e => setNotes(e.target.value)}
                                     rows={3}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 resize-none"
                                     placeholder="Detalles adicionales..."
+                                    style={{
+                                        ...inputStyle,
+                                        resize: 'none', height: 'auto', fontFamily: 'inherit',
+                                    }}
                                 />
                             </div>
-                        </div>
 
-                        <div className="flex gap-3 pt-4">
-                            <button
-                                onClick={handleAddTreatment}
-                                disabled={!selectedTreatment || (catalogItems.length > 0 && !selectedTreatmentItem)}
-                                className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed rounded-md transition-colors text-sm font-medium"
-                            >
-                                <Save className="w-4 h-4" />
-                                Añadir Tratamiento
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setSelectedTooth(null);
-                                    setSelectedSurface(null);
-                                }}
-                                className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-md transition-colors text-sm font-medium"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-
-                        {/* Lista de tratamientos activos en la superficie seleccionada */}
-                        {selectedSurface && selectedSurface !== 'whole_tooth' && surfaceTreatments.length > 0 && (
-                            <div className="border-t border-white/5 pt-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-sm font-semibold text-white/90">
-                                        Tratamientos Activos - {selectedSurface}
-                                    </h4>
-                                    <button
-                                        onClick={loadSurfaceHistoryData}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md transition-colors text-xs"
-                                    >
-                                        <Eye className="w-3.5 h-3.5" />
-                                        Ver Historial
-                                    </button>
-                                </div>
-                                <div className="space-y-2">
-                                    {surfaceTreatments.map((treatment) => {
-                                        const catalogEntry = catalog.find((c) => c.id === treatment.treatment_catalog_id);
-                                        const itemEntry = catalogItems.find((i) => i.id === treatment.treatment_catalog_item_id);
-
-                                        return (
-                                            <div
-                                                key={treatment.id}
-                                                className="flex items-center justify-between p-3 bg-white/5 rounded-md border border-white/5 hover:bg-white/10 transition-colors"
-                                            >
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="w-3 h-3 rounded-full"
-                                                            style={{ backgroundColor: catalogEntry?.color || '#4ade80' }}
-                                                        />
-                                                        <span className="text-sm font-medium text-white">
-                                                            {itemEntry?.name || catalogEntry?.name || 'Sin nombre'}
-                                                        </span>
-                                                    </div>
-                                                    {treatment.notes && (
-                                                        <p className="text-xs text-white/50 mt-1 ml-5">{treatment.notes}</p>
-                                                    )}
-                                                    <p className="text-xs text-white/40 mt-1 ml-5">
-                                                        Fecha: {new Date(treatment.applied_date).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleDeactivateTreatment(treatment.id)}
-                                                    className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
-                                                    title="Desactivar tratamiento"
-                                                >
-                                                    <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                            {/* Action buttons */}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                    onClick={handleAddTreatment}
+                                    disabled={!selectedTreatment || (catalogItems.length > 0 && !selectedTreatmentItem)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                        padding: '7px 16px', fontSize: 13, fontWeight: 500,
+                                        borderRadius: tokens.borderRadiusMedium, border: 'none',
+                                        background: (!selectedTreatment || (catalogItems.length > 0 && !selectedTreatmentItem))
+                                            ? 'rgba(0,120,212,0.35)' : tokens.colorBrandBackground,
+                                        color: '#fff', cursor: (!selectedTreatment || (catalogItems.length > 0 && !selectedTreatmentItem)) ? 'not-allowed' : 'pointer',
+                                        transition: `background ${tokens.durationNormal}`,
+                                    }}
+                                >
+                                    <Save style={{ width: 13, height: 13 }} />
+                                    Añadir Tratamiento
+                                </button>
                             </div>
-                        )}
 
-                        {/* Lista de tratamientos activos en el diente completo */}
-                        {selectedSurface === 'whole_tooth' && toothLevelTreatments.length > 0 && (
-                            <div className="border-t border-white/5 pt-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-sm font-semibold text-white/90">
-                                        Tratamientos Activos - Diente Completo
-                                    </h4>
-                                </div>
-                                <div className="space-y-2">
-                                    {toothLevelTreatments.map((treatment) => {
-                                        const catalogEntry = catalog.find((c) => c.id === treatment.treatment_catalog_id);
-                                        const itemEntry = catalogItems.find((i) => i.id === treatment.treatment_catalog_item_id);
-
-                                        return (
-                                            <div
-                                                key={treatment.id}
-                                                className="flex items-center justify-between p-3 bg-white/5 rounded-md border border-white/5 hover:bg-white/10 transition-colors"
-                                            >
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="w-3 h-3 rounded-full"
-                                                            style={{ backgroundColor: catalogEntry?.color || '#4ade80' }}
-                                                        />
-                                                        <span className="text-sm font-medium text-white">
-                                                            {itemEntry?.name || catalogEntry?.name || 'Sin nombre'}
-                                                        </span>
-                                                        {catalogEntry?.visual_effect && (
-                                                            <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded">
-                                                                {catalogEntry.visual_effect === 'absent' && '❌ Ausente'}
-                                                                {catalogEntry.visual_effect === 'darken' && '🔲 Oscurecido'}
-                                                                {catalogEntry.visual_effect === 'implant' && '🦾 Implante'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {treatment.notes && (
-                                                        <p className="text-xs text-white/50 mt-1 ml-5">{treatment.notes}</p>
-                                                    )}
-                                                    <p className="text-xs text-white/40 mt-1 ml-5">
-                                                        Fecha: {new Date(treatment.applied_date).toLocaleDateString()}
-                                                    </p>
-                                                </div>
+                            {/* Active treatments list */}
+                            {(() => {
+                                const treatmentList = selectedSurface === 'whole_tooth' ? toothLevelTreatments : surfaceTreatments;
+                                if (treatmentList.length === 0) return null;
+                                return (
+                                    <div style={{ borderTop: `1px solid ${tokens.colorNeutralStroke2}`, paddingTop: 16 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: tokens.colorNeutralForeground2 }}>
+                                                Tratamientos Activos
+                                            </span>
+                                            {selectedSurface !== 'whole_tooth' && (
                                                 <button
-                                                    onClick={() => handleDeactivateToothTreatment(treatment.id)}
-                                                    className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
-                                                    title="Quitar tratamiento de diente completo"
+                                                    onClick={loadSurfaceHistoryData}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 5,
+                                                        padding: '4px 10px', fontSize: 11, borderRadius: 5,
+                                                        border: `1px solid ${tokens.colorNeutralStroke1}`,
+                                                        background: 'transparent', color: tokens.colorNeutralForeground3,
+                                                        cursor: 'pointer',
+                                                    }}
                                                 >
-                                                    <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
+                                                    <Eye style={{ width: 11, height: 11 }} />
+                                                    Historial
                                                 </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Historial de la superficie */}
-                        {showHistory && surfaceHistory.length > 0 && (
-                            <div className="border-t border-white/5 pt-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-sm font-semibold text-white/90">
-                                        Historial - {selectedSurface}
-                                    </h4>
-                                    <button
-                                        onClick={() => setShowHistory(false)}
-                                        className="p-1.5 hover:bg-white/5 rounded-md transition-colors"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                                    {surfaceHistory.map((entry) => {
-                                        const catalogEntry = catalog.find((c) => c.id === entry.treatment_catalog_id);
-                                        const itemEntry = catalogItems.find((i) => i.id === entry.treatment_catalog_item_id);
-
-                                        const actionColors = {
-                                            created: 'text-green-400',
-                                            updated: 'text-blue-400',
-                                            deactivated: 'text-red-400',
-                                        };
-
-                                        return (
-                                            <div
-                                                key={entry.id}
-                                                className="p-3 bg-white/5 rounded-md border border-white/5"
-                                            >
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={`text-xs font-semibold uppercase ${actionColors[entry.action as keyof typeof actionColors] || 'text-white/60'}`}>
-                                                                {entry.action}
-                                                            </span>
-                                                            <span className="text-xs text-white/40">
-                                                                {new Date(entry.recorded_at).toLocaleString()}
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            {treatmentList.map((treatment: any) => {
+                                                const catalogEntry = catalog.find(c => c.id === treatment.treatment_catalog_id);
+                                                const itemEntry = catalogItems.find(i => i.id === treatment.treatment_catalog_item_id);
+                                                return (
+                                                    <div key={treatment.id} style={{
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                        padding: '8px 12px',
+                                                        background: tokens.colorNeutralBackground3,
+                                                        border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                                        borderRadius: tokens.borderRadiusMedium,
+                                                    }}>
+                                                        <div style={{ flex: 1 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div style={{
+                                                                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                                                    background: catalogEntry?.color || '#4ade80',
+                                                                }} />
+                                                                <span style={{ fontSize: 12, fontWeight: 500, color: tokens.colorNeutralForeground1 }}>
+                                                                    {itemEntry?.name || catalogEntry?.name || 'Sin nombre'}
+                                                                </span>
+                                                            </div>
+                                                            <span style={{ fontSize: 10, color: tokens.colorNeutralForeground4, marginLeft: 16 }}>
+                                                                {new Date(treatment.applied_date).toLocaleDateString()}
                                                             </span>
                                                         </div>
-                                                        <div className="text-sm text-white mt-1">
+                                                        <button
+                                                            onClick={() => {
+                                                                setDeleteTarget({
+                                                                    type: selectedSurface === 'whole_tooth' ? 'tooth' : 'surface',
+                                                                    id: treatment.id,
+                                                                    treatmentId: treatment.treatment_id,
+                                                                    name: itemEntry?.name || catalogEntry?.name || 'Sin nombre',
+                                                                });
+                                                                setShowDeleteDialog(true);
+                                                            }}
+                                                            style={{
+                                                                width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                border: 'none', background: 'transparent', borderRadius: 5, cursor: 'pointer',
+                                                                color: tokens.colorNeutralForeground4,
+                                                                transition: `all ${tokens.durationNormal}`,
+                                                            }}
+                                                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(241,112,122,0.14)'; e.currentTarget.style.color = tokens.colorPaletteRedForeground; }}
+                                                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = tokens.colorNeutralForeground4; }}
+                                                        >
+                                                            <Trash2 style={{ width: 13, height: 13 }} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* History */}
+                            <AnimatePresence>
+                                {showHistory && surfaceHistory.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        style={{ borderTop: `1px solid ${tokens.colorNeutralStroke2}`, paddingTop: 14 }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: tokens.colorNeutralForeground2 }}>
+                                                Historial — {selectedSurface}
+                                            </span>
+                                            <button onClick={() => setShowHistory(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: tokens.colorNeutralForeground3 }}>
+                                                <X style={{ width: 13, height: 13 }} />
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                                            {surfaceHistory.map(entry => {
+                                                const catalogEntry = catalog.find(c => c.id === entry.treatment_catalog_id);
+                                                const itemEntry = catalogItems.find(i => i.id === entry.treatment_catalog_item_id);
+                                                const actionColor = { created: tokens.colorPaletteGreenForeground, updated: tokens.colorBrandForeground, deactivated: tokens.colorPaletteRedForeground }[entry.action] || tokens.colorNeutralForeground3;
+                                                return (
+                                                    <div key={entry.id} style={{
+                                                        padding: '7px 10px',
+                                                        background: tokens.colorNeutralBackground3,
+                                                        borderRadius: tokens.borderRadiusMedium,
+                                                        border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                                    }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: actionColor, textTransform: 'uppercase' }}>{entry.action}</span>
+                                                            <span style={{ fontSize: 10, color: tokens.colorNeutralForeground4 }}>{new Date(entry.recorded_at).toLocaleString()}</span>
+                                                        </div>
+                                                        <div style={{ fontSize: 12, color: tokens.colorNeutralForeground2, marginTop: 2 }}>
                                                             {itemEntry?.name || catalogEntry?.name || entry.condition}
                                                         </div>
-                                                        {entry.notes && (
-                                                            <p className="text-xs text-white/50 mt-1">{entry.notes}</p>
-                                                        )}
                                                     </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Puentes Dentales */}
-            <div className="bg-[#272727] border border-white/5 rounded-lg p-6 space-y-4">
-                <div className="flex items-center justify-between">
+            {/* ── Bridges section ─────────────────────────────────── */}
+            <div style={{
+                background: tokens.colorNeutralBackground2,
+                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                borderRadius: tokens.borderRadiusXLarge,
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 20px',
+                    background: tokens.colorNeutralBackground3,
+                    borderBottom: bridges.length > 0 ? `1px solid ${tokens.colorNeutralStroke1}` : 'none',
+                }}>
                     <div>
-                        <h3 className="text-lg font-semibold text-white/95">Puentes Dentales</h3>
-                        <p className="text-sm text-white/50 mt-1">Prótesis fijas que conectan múltiples piezas</p>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: tokens.colorNeutralForeground1 }}>Puentes Dentales</span>
+                        <p style={{ fontSize: 12, color: tokens.colorNeutralForeground3, marginTop: 2 }}>
+                            Prótesis fijas que conectan múltiples piezas
+                        </p>
                     </div>
                     <button
                         onClick={() => setShowBridgeDialog(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                            borderRadius: tokens.borderRadiusMedium, border: `1px solid rgba(224,140,0,0.3)`,
+                            background: tokens.colorPaletteMarigoldBackground,
+                            color: tokens.colorPaletteMarigoldForeground, cursor: 'pointer',
+                            transition: `all ${tokens.durationNormal}`,
+                        }}
                     >
-                        <Save className="w-4 h-4" />
+                        <Plus style={{ width: 13, height: 13 }} />
                         Nuevo Puente
                     </button>
                 </div>
 
                 {bridges.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {bridges.map((bridge) => {
-                            const treatment = catalog.find((t) => t.id === bridge.treatment_catalog_id);
+                    <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+                        {bridges.map(bridge => {
+                            const treatment = catalog.find(t => t.id === bridge.treatment_catalog_id);
                             return (
-                                <div
-                                    key={bridge.id}
-                                    className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/15 transition-colors"
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <div className="text-lg">🌉</div>
-                                                <h4 className="font-semibold text-white">{bridge.bridge_name}</h4>
-                                            </div>
-                                            <div className="mt-2 flex items-center gap-2 text-sm text-white/70">
-                                                <span className="px-2 py-1 bg-amber-500/20 rounded text-amber-300 font-mono">
-                                                    {bridge.tooth_start}
-                                                </span>
-                                                <span className="text-white/40">→</span>
-                                                <span className="px-2 py-1 bg-amber-500/20 rounded text-amber-300 font-mono">
-                                                    {bridge.tooth_end}
-                                                </span>
-                                            </div>
-                                            {treatment && (
-                                                <p className="text-xs text-white/50 mt-2">{treatment.name}</p>
-                                            )}
-                                            {bridge.notes && (
-                                                <p className="text-xs text-white/40 mt-1 italic">{bridge.notes}</p>
-                                            )}
+                                <div key={bridge.id} style={{
+                                    padding: '12px 14px',
+                                    background: tokens.colorPaletteMarigoldBackground,
+                                    border: `1px solid rgba(224,140,0,0.2)`,
+                                    borderRadius: tokens.borderRadiusLarge,
+                                    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                                }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                            <span style={{ fontSize: 15 }}>🌉</span>
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: tokens.colorNeutralForeground1 }}>{bridge.bridge_name}</span>
                                         </div>
-                                        <button
-                                            onClick={() => handleDeleteBridge(bridge.id)}
-                                            className="p-2 hover:bg-red-500/20 rounded-md transition-colors group"
-                                            title="Eliminar puente"
-                                        >
-                                            <Trash2 className="w-4 h-4 text-white/40 group-hover:text-red-400" />
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                            <span style={{
+                                                padding: '2px 8px', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
+                                                background: 'rgba(224,140,0,0.2)', color: tokens.colorPaletteMarigoldForeground,
+                                                borderRadius: 5,
+                                            }}>{bridge.tooth_start}</span>
+                                            <ChevronRight style={{ width: 10, height: 10, color: tokens.colorNeutralForeground4 }} />
+                                            <span style={{
+                                                padding: '2px 8px', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
+                                                background: 'rgba(224,140,0,0.2)', color: tokens.colorPaletteMarigoldForeground,
+                                                borderRadius: 5,
+                                            }}>{bridge.tooth_end}</span>
+                                        </div>
+                                        {treatment && (
+                                            <span style={{ fontSize: 11, color: tokens.colorNeutralForeground3 }}>{treatment.name}</span>
+                                        )}
+                                        {bridge.notes && (
+                                            <p style={{ fontSize: 11, color: tokens.colorNeutralForeground4, marginTop: 2, fontStyle: 'italic' }}>{bridge.notes}</p>
+                                        )}
                                     </div>
+                                    <button
+                                        onClick={() => {
+                                            setDeleteTarget({ type: 'bridge', id: bridge.id, treatmentId: bridge.treatment_id, name: bridge.bridge_name });
+                                            setShowDeleteDialog(true);
+                                        }}
+                                        style={{
+                                            width: 26, height: 26, flexShrink: 0, marginLeft: 8,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            border: 'none', background: 'transparent', borderRadius: 5, cursor: 'pointer',
+                                            color: tokens.colorNeutralForeground4,
+                                            transition: `all ${tokens.durationNormal}`,
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(241,112,122,0.14)'; e.currentTarget.style.color = tokens.colorPaletteRedForeground; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = tokens.colorNeutralForeground4; }}
+                                    >
+                                        <Trash2 style={{ width: 13, height: 13 }} />
+                                    </button>
                                 </div>
                             );
                         })}
                     </div>
                 ) : (
-                    <div className="text-center py-8 text-white/40 text-sm">
+                    <div style={{ padding: '28px 20px', textAlign: 'center', color: tokens.colorNeutralForeground4, fontSize: 13 }}>
                         No hay puentes dentales registrados
                     </div>
                 )}
             </div>
 
-            {/* Diálogo para crear puente */}
+            {/* ── Bridge dialog ────────────────────────────────────── */}
             <AnimatePresence>
                 {showBridgeDialog && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 50,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+                        }}
                         onClick={() => setShowBridgeDialog(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-md bg-[#1e1e1e] rounded-xl shadow-2xl border border-white/10 overflow-hidden"
+                            initial={{ scale: 0.93, opacity: 0, y: 8 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.93, opacity: 0, y: 8 }}
+                            transition={{ duration: 0.18 }}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                width: '100%', maxWidth: 440,
+                                background: tokens.colorNeutralBackground1,
+                                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                                borderRadius: tokens.borderRadiusXLarge,
+                                boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+                                overflow: 'hidden',
+                            }}
                         >
-                            <div className="flex items-center justify-between p-6 border-b border-white/10 bg-gradient-to-r from-amber-500/10 to-orange-500/10">
-                                <h2 className="text-xl font-semibold text-white">Crear Puente Dental</h2>
-                                <button
-                                    onClick={() => setShowBridgeDialog(false)}
-                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
-                                >
-                                    <X className="w-5 h-5" />
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '16px 20px',
+                                background: tokens.colorNeutralBackground2,
+                                borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+                            }}>
+                                <span style={{ fontSize: 15, fontWeight: 600, color: tokens.colorNeutralForeground1 }}>
+                                    🌉 Crear Puente Dental
+                                </span>
+                                <button onClick={() => setShowBridgeDialog(false)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: tokens.colorNeutralForeground3 }}>
+                                    <X style={{ width: 16, height: 16 }} />
                                 </button>
                             </div>
-
-                            <div className="p-6 space-y-4">
+                            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
                                 <div>
-                                    <label className="block text-sm font-medium text-white/80 mb-2">
-                                        Nombre del Puente *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={bridgeName}
-                                        onChange={(e) => setBridgeName(e.target.value)}
-                                        placeholder="Ej: Puente anterior superior"
-                                        className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
-                                    />
+                                    <label style={labelStyle}>Nombre del Puente *</label>
+                                    <input type="text" value={bridgeName} onChange={e => setBridgeName(e.target.value)}
+                                        placeholder="Ej: Puente anterior superior" style={inputStyle} />
                                 </div>
-
-                                <div className="grid grid-cols-2 gap-3">
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                     <div>
-                                        <label className="block text-sm font-medium text-white/80 mb-2">
-                                            Pieza Inicial *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={bridgeStart}
-                                            onChange={(e) => setBridgeStart(e.target.value)}
-                                            placeholder="Ej: 11"
-                                            className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
-                                        />
+                                        <label style={labelStyle}>Pieza Inicial *</label>
+                                        <input type="text" value={bridgeStart} onChange={e => setBridgeStart(e.target.value)}
+                                            placeholder="Ej: 11" style={inputStyle} />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-white/80 mb-2">
-                                            Pieza Final *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={bridgeEnd}
-                                            onChange={(e) => setBridgeEnd(e.target.value)}
-                                            placeholder="Ej: 14"
-                                            className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
-                                        />
+                                        <label style={labelStyle}>Pieza Final *</label>
+                                        <input type="text" value={bridgeEnd} onChange={e => setBridgeEnd(e.target.value)}
+                                            placeholder="Ej: 14" style={inputStyle} />
                                     </div>
                                 </div>
-
                                 <div>
-                                    <label className="block text-sm font-medium text-white/80 mb-2">
-                                        Tratamiento Asociado (Opcional)
-                                    </label>
-                                    <select
-                                        value={bridgeTreatment || ''}
-                                        onChange={(e) => setBridgeTreatment(e.target.value ? parseInt(e.target.value) : null)}
-                                        className="w-full bg-white/5 border border-white/10 text-white focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg h-10 px-3"
-                                    >
+                                    <label style={labelStyle}>Tratamiento Asociado</label>
+                                    <select value={bridgeTreatment || ''} onChange={e => setBridgeTreatment(e.target.value ? parseInt(e.target.value) : null)} style={selectStyle}>
                                         <option value="">Sin tratamiento</option>
-                                        {catalog.filter(t => t.is_bridge_component).map((treatment) => (
-                                            <option key={treatment.id} value={treatment.id}>
-                                                {treatment.name}
-                                            </option>
-                                        ))}
+                                        {catalog.filter(t => t.is_bridge_component).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                     </select>
                                 </div>
-
                                 <div>
-                                    <label className="block text-sm font-medium text-white/80 mb-2">
-                                        Notas
-                                    </label>
-                                    <textarea
-                                        value={bridgeNotes}
-                                        onChange={(e) => setBridgeNotes(e.target.value)}
-                                        placeholder="Detalles adicionales..."
-                                        rows={3}
-                                        className="w-full bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 rounded-lg px-3 py-2 resize-none"
-                                    />
+                                    <label style={labelStyle}>Notas</label>
+                                    <textarea value={bridgeNotes} onChange={e => setBridgeNotes(e.target.value)}
+                                        placeholder="Detalles adicionales..." rows={3}
+                                        style={{ ...inputStyle, resize: 'none', height: 'auto', fontFamily: 'inherit' }} />
                                 </div>
                             </div>
-
-                            <div className="flex items-center justify-end gap-3 p-6 border-t border-white/10 bg-white/5">
-                                <button
-                                    onClick={() => setShowBridgeDialog(false)}
-                                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
-                                >
+                            <div style={{
+                                display: 'flex', justifyContent: 'flex-end', gap: 8,
+                                padding: '12px 20px',
+                                background: tokens.colorNeutralBackground2,
+                                borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
+                            }}>
+                                <button onClick={() => setShowBridgeDialog(false)} style={{ ...secondaryBtnStyle }}>
                                     Cancelar
                                 </button>
-                                <button
-                                    onClick={handleCreateBridge}
-                                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors flex items-center gap-2"
-                                >
-                                    <Save className="w-4 h-4" />
+                                <button onClick={handleCreateBridge} style={{ ...primaryBtnStyle, background: '#c47f00' }}>
+                                    <Save style={{ width: 13, height: 13 }} />
                                     Crear Puente
                                 </button>
                             </div>
@@ -1353,82 +1343,84 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                 )}
             </AnimatePresence>
 
-            {/* Diálogo de Confirmación de Eliminación */}
+            {/* ── Delete confirmation dialog ───────────────────────── */}
             <AnimatePresence>
                 {showDeleteDialog && deleteTarget && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-                        onClick={() => {
-                            setShowDeleteDialog(false);
-                            setDeleteTarget(null);
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 100,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
                         }}
+                        onClick={() => { setShowDeleteDialog(false); setDeleteTarget(null); }}
                     >
                         <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
+                            initial={{ scale: 0.94, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl max-w-md w-full p-6"
+                            exit={{ scale: 0.94, opacity: 0 }}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                width: '100%', maxWidth: 400,
+                                background: tokens.colorNeutralBackground1,
+                                border: `1px solid ${tokens.colorNeutralStroke1}`,
+                                borderRadius: tokens.borderRadiusXLarge,
+                                boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+                                padding: 24,
+                            }}
                         >
-                            <div className="flex items-start gap-4 mb-6">
-                                <div className="p-3 bg-red-500/10 rounded-lg">
-                                    <Trash2 className="w-6 h-6 text-red-400" />
+                            <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
+                                <div style={{
+                                    width: 40, height: 40, flexShrink: 0,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: tokens.colorPaletteRedBackground,
+                                    borderRadius: tokens.borderRadiusLarge,
+                                }}>
+                                    <AlertCircle style={{ width: 18, height: 18, color: tokens.colorPaletteRedForeground }} />
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-white mb-2">
+                                <div>
+                                    <p style={{ fontSize: 14, fontWeight: 600, color: tokens.colorNeutralForeground1, marginBottom: 2 }}>
                                         Eliminar {deleteTarget.type === 'bridge' ? 'Puente' : 'Tratamiento'}
-                                    </h3>
-                                    <p className="text-sm text-white/70">
-                                        {deleteTarget.name}
+                                    </p>
+                                    <p style={{ fontSize: 12, color: tokens.colorNeutralForeground3 }}>{deleteTarget.name}</p>
+                                </div>
+                            </div>
+
+                            {deleteTarget.treatmentId && (
+                                <div style={{
+                                    padding: '10px 12px', marginBottom: 16,
+                                    background: tokens.colorPaletteYellowBackground,
+                                    border: `1px solid rgba(255,185,0,0.2)`,
+                                    borderRadius: tokens.borderRadiusMedium,
+                                }}>
+                                    <p style={{ fontSize: 12, color: tokens.colorPaletteYellowForeground, fontWeight: 500, marginBottom: 2 }}>
+                                        Este elemento tiene un registro asociado
+                                    </p>
+                                    <p style={{ fontSize: 11, color: tokens.colorNeutralForeground3 }}>
+                                        Puedes eliminarlo solo del odontograma o también borrar el registro de tratamiento.
                                     </p>
                                 </div>
-                            </div>
+                            )}
 
-                            <div className="space-y-4 mb-6">
-                                <p className="text-sm text-white/80">
-                                    ¿Deseas eliminar este {deleteTarget.type === 'bridge' ? 'puente' : 'tratamiento'} del odontograma?
-                                </p>
-
-                                {deleteTarget.treatmentId && (
-                                    <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg">
-                                        <p className="text-sm text-amber-200/90 font-medium mb-2">
-                                            Este {deleteTarget.type === 'bridge' ? 'puente' : 'tratamiento'} tiene un registro asociado
-                                        </p>
-                                        <p className="text-xs text-white/60">
-                                            También puedes eliminar el registro de tratamiento del sistema.
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                                <button
-                                    onClick={() => confirmDelete(false)}
-                                    className="w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium"
-                                >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <button onClick={() => confirmDelete(false)} style={{ ...secondaryBtnStyle, width: '100%', justifyContent: 'center' }}>
                                     Solo del Odontograma
                                 </button>
-
                                 {deleteTarget.treatmentId && (
-                                    <button
-                                        onClick={() => confirmDelete(true)}
-                                        className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
+                                    <button onClick={() => confirmDelete(true)} style={{
+                                        ...primaryBtnStyle, width: '100%', justifyContent: 'center',
+                                        background: '#c0392b',
+                                    }}>
+                                        <Trash2 style={{ width: 13, height: 13 }} />
                                         Del Odontograma y Registros
                                     </button>
                                 )}
-
-                                <button
-                                    onClick={() => {
-                                        setShowDeleteDialog(false);
-                                        setDeleteTarget(null);
-                                    }}
-                                    className="w-full px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg transition-colors text-sm"
-                                >
+                                <button onClick={() => { setShowDeleteDialog(false); setDeleteTarget(null); }} style={{
+                                    ...secondaryBtnStyle, width: '100%', justifyContent: 'center',
+                                    color: tokens.colorNeutralForeground3,
+                                }}>
                                     Cancelar
                                 </button>
                             </div>
@@ -1437,12 +1429,46 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                 )}
             </AnimatePresence>
 
-            {/* Tratamientos Generales / Independientes */}
+            {/* ── Independent treatments ───────────────────────────── */}
             <IndependentTreatments patientId={patientId} onRefresh={loadData} />
         </div>
     );
 }
 
-function cn(...classes: (string | boolean | undefined)[]) {
-    return classes.filter(Boolean).join(' ');
-}
+// ─── Shared inline styles ────────────────────────────────────────────────────
+const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 500,
+    color: 'rgba(255,255,255,0.6)', marginBottom: 6,
+};
+
+const inputStyle: React.CSSProperties = {
+    width: '100%', height: 34, padding: '0 10px',
+    background: '#2e2e2e', border: '1px solid rgba(255,255,255,0.10)',
+    borderRadius: 6, fontSize: 13, color: '#fff',
+    outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+};
+
+const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    cursor: 'pointer',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 10px center',
+    paddingRight: 28,
+};
+
+const primaryBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '7px 14px', fontSize: 12, fontWeight: 500,
+    borderRadius: 6, border: 'none',
+    background: '#0078d4', color: '#fff', cursor: 'pointer',
+};
+
+const secondaryBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '7px 14px', fontSize: 12, fontWeight: 500,
+    borderRadius: 6, border: '1px solid rgba(255,255,255,0.10)',
+    background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.8)', cursor: 'pointer',
+};

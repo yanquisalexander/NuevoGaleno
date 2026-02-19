@@ -1,7 +1,9 @@
 import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect } from 'react';
 import type { WindowState, WindowAction, WindowId, AppDefinition } from '../types/window-manager';
+import type { InstalledPluginRust } from '../types/plugin';
 import { RuntimeApp } from "@/lib/AppRuntimeManager";
 import { runtimeManager } from "@/hooks/useAppRuntime";
+import { invoke } from '@tauri-apps/api/core';
 
 interface WindowManagerContextType {
     windows: WindowState[];
@@ -116,10 +118,17 @@ function windowReducer(state: WindowState[], action: WindowAction, apps: Map<str
 
 export function WindowManagerProvider({ children }: { children: ReactNode }) {
     const [apps, appsDispatch] = useReducer(
-        (state: Map<string, AppDefinition>, action: { type: 'REGISTER'; app: AppDefinition }) => {
-            if (action.type === 'REGISTER') {
+        (state: Map<string, AppDefinition>, action: { type: 'REGISTER' | 'UNREGISTER'; app?: AppDefinition; appId?: string }) => {
+            if (action.type === 'REGISTER' && action.app) {
                 const newMap = new Map(state);
                 newMap.set(action.app.id, action.app);
+                console.log('App registered in map:', action.app.id, 'Total apps:', newMap.size);
+                return newMap;
+            }
+            if (action.type === 'UNREGISTER' && action.appId) {
+                const newMap = new Map(state);
+                newMap.delete(action.appId);
+                console.log('App unregistered from map:', action.appId, 'Total apps:', newMap.size);
                 return newMap;
             }
             return state;
@@ -194,9 +203,82 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const registerApp = useCallback((app: AppDefinition) => {
+        console.log('Registering app:', app.id, app.name);
         appsDispatch({ type: 'REGISTER', app });
         runtimeManager.register(app.id, app.name);
     }, []);
+
+    const unregisterApp = useCallback((appId: string) => {
+        console.log('Unregistering app:', appId);
+        appsDispatch({ type: 'UNREGISTER', appId });
+        // Close any open windows for this app
+        windows.filter(w => w.appId === appId).forEach(w => closeWindow(w.id));
+    }, [windows, closeWindow]);
+
+    // Register plugin apps dynamically
+    useEffect(() => {
+        let isSubscribed = true;
+
+        const loadPluginApps = async () => {
+            if (!isSubscribed) return;
+
+            try {
+                console.log('Loading plugin apps...');
+                const installedPlugins = await invoke<InstalledPluginRust[]>('get_installed_plugins');
+                console.log('Installed plugins:', installedPlugins);
+
+                // Dynamically import PluginWindowWrapper
+                const { PluginWindowWrapper } = await import('../components/PluginWindowWrapper');
+
+                if (!isSubscribed) return;
+
+                installedPlugins.forEach(plugin => {
+                    if (plugin.enabled && plugin.manifest.menu_items) {
+                        plugin.manifest.menu_items.forEach(menuItem => {
+                            const pluginId = plugin.manifest.id;
+                            const appDef: AppDefinition = {
+                                id: `plugin.${pluginId}`,
+                                name: menuItem.label,
+                                icon: menuItem.icon,
+                                component: ({ windowId, data }) => (
+                                    <PluginWindowWrapper pluginId={pluginId} data={data} />
+                                ),
+                                allowMultipleInstances: plugin.manifest.allow_multiple_instances ?? false,
+                                defaultSize: plugin.manifest.default_size,
+                            };
+                            console.log('Registering plugin app:', appDef.id, appDef.name);
+                            registerApp(appDef);
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to load plugin apps:', error);
+            }
+        };
+
+        loadPluginApps();
+
+        // Listen for plugin changes
+        const handlePluginChange = () => {
+            console.log('Plugin change detected, reloading...');
+            // Clear existing plugin apps
+            const currentApps = Array.from(apps.keys());
+            currentApps.forEach(appId => {
+                if (appId.startsWith('plugin.')) {
+                    unregisterApp(appId);
+                }
+            });
+            // Reload plugins
+            loadPluginApps();
+        };
+
+        window.addEventListener('plugin:changed', handlePluginChange);
+
+        return () => {
+            isSubscribed = false;
+            window.removeEventListener('plugin:changed', handlePluginChange);
+        };
+    }, []); // Empty dependencies - only run once on mount
 
     const killApp = useCallback((appId: string) => {
         runtimeManager.kill(appId);

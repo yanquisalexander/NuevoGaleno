@@ -29,6 +29,7 @@ import { useLicense } from '@/hooks/useLicense';
 import { ShutdownScreen } from "./components/kiosk/ShutdownScreen";
 import { Toaster } from 'sonner';
 
+
 interface User {
   id: number;
   username: string;

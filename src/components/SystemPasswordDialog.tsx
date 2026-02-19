@@ -1,18 +1,236 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
-import { Shield, ShieldAlert, ChevronDown, Lock } from 'lucide-react';
+import { Shield, ShieldAlert, ChevronDown, Lock, AlertTriangle } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
     DialogOverlay,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { useWindowManager } from "@/contexts/WindowManagerContext";
 
+// ─── Fluent v9 / Win11 UAC Tokens ────────────────────────────────────────────
+const f = {
+    // Surfaces  (mica-dark layering)
+    canvas: "#1c1c1c",
+    surface: "rgba(255,255,255,0.04)",
+    surfaceHover: "rgba(255,255,255,0.07)",
+    surfaceRaised: "rgba(255,255,255,0.06)",
+    footer: "#202020",
+
+    // Strokes
+    stroke: "rgba(255,255,255,0.083)",
+    strokeStrong: "rgba(255,255,255,0.14)",
+
+    // Text
+    textPrimary: "rgba(255,255,255,0.955)",
+    textSecondary: "rgba(255,255,255,0.60)",
+    textDisabled: "rgba(255,255,255,0.36)",
+    textCaption: "rgba(255,255,255,0.45)",
+
+    // Accent (Win11 blue)
+    accent: "#0078D4",
+    accentHover: "#006CC0",
+    accentDown: "#005BA1",
+    accentBg: "rgba(0,120,212,0.14)",
+    accentGlow: "rgba(0,120,212,0.35)",
+
+    // Warning / danger (Win11 UAC yellow / orange-red)
+    warn: "#FCE100",
+    warnBg: "rgba(252,225,0,0.10)",
+    warnStroke: "rgba(252,225,0,0.25)",
+    danger: "#D83B01",
+    dangerHover: "#C53000",
+    dangerDown: "#A52800",
+    dangerBg: "rgba(216,59,1,0.12)",
+    dangerStroke: "rgba(216,59,1,0.30)",
+
+    // Misc
+    radius: "4px",
+    radiusLg: "8px",
+    fontStack: '"Segoe UI Variable Text", "Segoe UI", sans-serif',
+    fontDisplay: '"Segoe UI Variable Display", "Segoe UI", sans-serif',
+    body: "13px",
+    caption: "12px",
+    shadow: "0 8px 32px rgba(0,0,0,0.54), 0 2px 8px rgba(0,0,0,0.38)",
+};
+
+// ─── Tiny helpers ─────────────────────────────────────────────────────────────
+function useHover() {
+    const [hovered, setHovered] = useState(false);
+    return [hovered, { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }] as const;
+}
+function usePress() {
+    const [pressed, setPressed] = useState(false);
+    return [pressed, { onMouseDown: () => setPressed(true), onMouseUp: () => setPressed(false), onMouseLeave: () => setPressed(false) }] as const;
+}
+
+// ─── FluentButton ─────────────────────────────────────────────────────────────
+function FluentBtn({
+    children, onClick, disabled, variant = "primary", minWidth = 110,
+}: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    variant?: "primary" | "secondary" | "danger";
+    minWidth?: number;
+}) {
+    const [hov, hovProps] = useHover();
+    const [prs, prsProps] = usePress();
+
+    const bg: Record<string, string> = {
+        primary: prs ? f.accentDown : hov ? f.accentHover : f.accent,
+        secondary: prs ? "rgba(255,255,255,0.07)" : hov ? f.surfaceHover : f.surfaceRaised,
+        danger: prs ? f.dangerDown : hov ? f.dangerHover : f.danger,
+    };
+    const border: Record<string, string> = {
+        primary: "rgba(255,255,255,0.09)",
+        secondary: f.strokeStrong,
+        danger: "rgba(255,255,255,0.09)",
+    };
+
+    return (
+        <button
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
+            {...hovProps}
+            {...prsProps}
+            style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                minWidth, height: 32, padding: "0 14px",
+                background: bg[variant],
+                border: `1px solid ${border[variant]}`,
+                borderRadius: f.radius,
+                color: f.textPrimary,
+                fontSize: f.body,
+                fontFamily: f.fontStack,
+                fontWeight: variant === "secondary" ? 400 : 600,
+                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled ? 0.37 : 1,
+                transform: prs && !disabled ? "scale(0.985)" : "scale(1)",
+                transition: "background 0.1s, transform 0.08s, opacity 0.15s",
+                userSelect: "none",
+                outline: "none",
+                boxShadow: hov && variant === "primary" && !disabled
+                    ? `0 0 0 1px ${f.accentGlow}`
+                    : "none",
+            }}
+        >
+            {children}
+        </button>
+    );
+}
+
+// ─── FluentInput ──────────────────────────────────────────────────────────────
+function FluentPasswordInput({
+    value, onChange, onEnter, inputRef, placeholder,
+}: {
+    value: string;
+    onChange: (v: string) => void;
+    onEnter: () => void;
+    inputRef: React.RefObject<HTMLInputElement>;
+    placeholder?: string;
+}) {
+    const [focused, setFocused] = useState(false);
+    return (
+        <div style={{ position: "relative" }}>
+            <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "0 10px",
+                height: 32,
+                background: focused ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${focused ? f.accent : f.strokeStrong}`,
+                borderRadius: f.radius,
+                boxShadow: focused ? `0 0 0 1px ${f.accent}` : "none",
+                transition: "border-color 0.1s, box-shadow 0.1s, background 0.1s",
+            }}>
+                <Lock style={{ width: 12, height: 12, color: f.textCaption, flexShrink: 0 }} />
+                <input
+                    ref={inputRef}
+                    type="password"
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && onEnter()}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    placeholder={placeholder || "Contraseña"}
+                    autoComplete="off"
+                    style={{
+                        flex: 1,
+                        background: "transparent",
+                        border: "none",
+                        outline: "none",
+                        color: f.textPrimary,
+                        fontSize: f.body,
+                        fontFamily: f.fontStack,
+                    }}
+                />
+            </div>
+            {/* Fluent v9 bottom focus line */}
+            <div style={{
+                position: "absolute", bottom: 0, left: "50%",
+                transform: "translateX(-50%)",
+                height: 2,
+                width: focused ? "100%" : "0%",
+                background: f.accent,
+                borderRadius: "0 0 2px 2px",
+                transition: "width 0.2s cubic-bezier(0.4,0,0.2,1)",
+            }} />
+        </div>
+    );
+}
+
+// ─── Shield Badge ─────────────────────────────────────────────────────────────
+function ShieldBadge({ dangerous }: { dangerous: boolean }) {
+    return (
+        <div style={{
+            width: 48, height: 48,
+            borderRadius: 10,
+            background: dangerous ? f.dangerBg : f.accentBg,
+            border: `1px solid ${dangerous ? f.dangerStroke : "rgba(0,120,212,0.35)"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+            boxShadow: `0 2px 12px ${dangerous ? f.dangerBg : f.accentBg}`,
+        }}>
+            {dangerous
+                ? <ShieldAlert style={{ width: 24, height: 24, color: f.danger }} strokeWidth={1.5} />
+                : <Shield style={{ width: 24, height: 24, color: f.accent }} strokeWidth={1.5} />
+            }
+        </div>
+    );
+}
+
+// ─── Detail row ───────────────────────────────────────────────────────────────
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+    return (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <span style={{ width: 128, flexShrink: 0, color: f.textSecondary, fontSize: f.caption }}>{label}</span>
+            <span style={{ color: f.textPrimary, fontSize: f.caption, fontFamily: "monospace", wordBreak: "break-all" }}>{value}</span>
+        </div>
+    );
+}
+
+// ─── Divider ──────────────────────────────────────────────────────────────────
+function Divider() {
+    return <div style={{ height: 1, background: f.stroke, margin: "0 -24px" }} />;
+}
+
+// ─── Spinner ──────────────────────────────────────────────────────────────────
+function Spinner() {
+    return (
+        <div style={{
+            width: 12, height: 12,
+            border: `2px solid rgba(255,255,255,0.25)`,
+            borderTopColor: "#fff",
+            borderRadius: "50%",
+            animation: "uac-spin 0.7s linear infinite",
+            flexShrink: 0,
+        }} />
+    );
+}
+
+// ─── Interface ────────────────────────────────────────────────────────────────
 interface SystemPasswordDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -26,228 +244,245 @@ interface SystemPasswordDialogProps {
     actionType?: 'admin' | 'dangerous' | 'install' | 'delete' | 'system';
 }
 
+const actionTypeLabels: Record<string, string> = {
+    admin: "Administrativo",
+    dangerous: "Crítico",
+    install: "Instalación",
+    delete: "Eliminación",
+    system: "Sistema",
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export function SystemPasswordDialog({
-    open,
-    onOpenChange,
-    title,
-    description,
-    confirmLabel = 'Sí',
+    open, onOpenChange,
+    title, description,
+    confirmLabel = "Sí",
     onConfirm,
     dangerous = false,
-    appId,
-    moduleName,
-    actionType = 'admin',
+    appId, moduleName,
+    actionType = "admin",
 }: SystemPasswordDialogProps) {
-    const [password, setPassword] = useState('');
+    const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
+    const [detailsHov, detailsHovProps] = useHover();
     const inputRef = useRef<HTMLInputElement>(null);
     const { apps } = useWindowManager();
 
     useEffect(() => {
         if (open) {
-            setPassword('');
+            setPassword("");
             setLoading(false);
-            // En Windows 11, los detalles suelen estar ocultos por defecto
             setShowDetails(false);
-            // Focus automático tras una pequeña espera para la animación
-            setTimeout(() => inputRef.current?.focus(), 100);
+            setTimeout(() => inputRef.current?.focus(), 120);
         }
     }, [open]);
 
     const handleConfirm = async () => {
-        if (!password) {
-            // Animación de error sutil podría ir aquí
-            inputRef.current?.focus();
-            return;
-        }
-
+        if (!password) { inputRef.current?.focus(); return; }
         setLoading(true);
         try {
-            const pwBuffer = new TextEncoder().encode(password);
-            const hashBuf = await crypto.subtle.digest('SHA-256', pwBuffer);
-            const hashHex = Array.from(new Uint8Array(hashBuf))
-                .map((b) => b.toString(16).padStart(2, '0'))
-                .join('');
-
-            const isValid: boolean = await invoke('verify_system_password', {
-                passwordHash: hashHex,
-            });
-
+            const buf = new TextEncoder().encode(password);
+            const hashBuf = await crypto.subtle.digest("SHA-256", buf);
+            const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+            const isValid: boolean = await invoke("verify_system_password", { passwordHash: hashHex });
             if (!isValid) {
-                toast.error('La contraseña es incorrecta. Inténtelo de nuevo.');
-                setPassword('');
+                toast.error("La contraseña es incorrecta. Inténtelo de nuevo.");
+                setPassword("");
                 inputRef.current?.focus();
                 setLoading(false);
                 return;
             }
-
             await onConfirm(hashHex);
             onOpenChange(false);
         } catch (err: any) {
-            console.error('Error:', err);
             toast.error(err.toString());
         } finally {
             setLoading(false);
         }
     };
 
-    // Colores exactos de Windows 11
-    const winBlue = '#0078D4';
-    const winYellow = '#FCE100'; // El amarillo de advertencia de Windows
-
-    // Icono y color base
-    const Icon = dangerous ? ShieldAlert : Shield;
+    const appName = apps?.get(appId!)?.name || "Nuevo Galeno";
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* SECURE DESKTOP BACKDROP:
-                Windows 11 oscurece mucho el fondo (casi negro 70-80%) 
-                y hace una transición de desaturación.
-            */}
-            <DialogOverlay className="fixed inset-0 z-[9999] bg-black/70 backdrop-grayscale transition-all duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out fade-in-0 fade-out-0" />
+            {/* UAC secure-desktop backdrop: heavy dark + desaturation */}
+            <DialogOverlay className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm transition-all duration-200" />
 
             <DialogContent
-                className="fixed left-[50%] top-[50%] z-[9999] grid w-full max-w-[460px] translate-x-[-50%] translate-y-[-50%] 
-                gap-0 border border-[#383838] bg-[#1c1c1c] p-0 shadow-2xl shadow-black/50 
-                duration-200 
-                data-[state=open]:animate-in data-[state=closed]:animate-out 
-                data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 
-                data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 
-                sm:rounded-lg overflow-hidden font-[Segoe_UI_Variable,Segoe_UI,sans-serif]"
-                style={{ fontFamily: '"Segoe UI Variable", "Segoe UI", sans-serif' }}
+                className="fixed left-[50%] top-[50%] -translate-x-1/2 -translate-y-1/2 z-[10000] w-full max-w-[460px] p-0 overflow-hidden outline-none [&>button]:hidden"
+                style={{
+                    background: f.canvas,
+                    border: `1px solid ${f.stroke}`,
+                    borderRadius: f.radiusLg,
+                    boxShadow: f.shadow,
+                    fontFamily: f.fontStack,
+                }}
             >
                 <DialogTitle className="sr-only">{title}</DialogTitle>
 
-                {/* --- CUERPO PRINCIPAL --- */}
-                <div className="p-6 pb-2">
-                    <div className="flex items-start gap-4">
-                        {/* ICONO ESCUDO */}
-                        <div className="flex-shrink-0 pt-1">
-                            <Icon
-                                className={cn("w-10 h-10", dangerous ? "text-yellow-500" : "text-[#0078D4]")}
-                                strokeWidth={1.5}
-                                fill={dangerous ? "currentColor" : "none"} // El de warning suele tener relleno
-                                fillOpacity={dangerous ? 0.1 : 0}
-                            />
-                        </div>
+                {/* ── Danger / Warning bar ──────────────────────────────── */}
+                {dangerous && (
+                    <div style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "8px 20px",
+                        background: "linear-gradient(90deg, rgba(216,59,1,0.18) 0%, transparent 100%)",
+                        borderBottom: `1px solid ${f.dangerStroke}`,
+                    }}>
+                        <AlertTriangle style={{ width: 14, height: 14, color: f.danger, flexShrink: 0 }} />
+                        <span style={{ fontSize: f.caption, color: f.danger, fontWeight: 600, letterSpacing: 0.2 }}>
+                            Esta acción es irreversible y puede afectar el sistema
+                        </span>
+                    </div>
+                )}
 
-                        {/* TEXTOS PRINCIPALES */}
-                        <div className="flex-1 space-y-1">
-                            <h2 className="text-[17px] font-semibold text-white leading-tight">
+                {/* ── Main body ─────────────────────────────────────────── */}
+                <div style={{ padding: "24px 24px 0" }}>
+
+                    {/* Header row: shield + title */}
+                    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 20 }}>
+                        <ShieldBadge dangerous={dangerous} />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 16, fontWeight: 600, color: f.textPrimary, fontFamily: f.fontDisplay, lineHeight: 1.25, marginBottom: 4 }}>
                                 Nuevo Galeno requiere confirmación
-                            </h2>
-
-                            <div className="pt-2 pb-1">
-                                <p className="text-[13px] text-white font-semibold">
-                                    {title}
-                                </p>
-                                <div className="flex items-center gap-1 text-[13px]">
-                                    <span className="text-[#9CA3AF]">Aplicación:</span>
-                                    <span className="text-white">{apps.get(appId!)?.name || 'Desconocida'}</span>
-                                </div>
-
-                                {moduleName && (
-                                    <div className="flex items-center gap-1 text-[13px]">
-                                        <span className="text-[#9CA3AF]">Módulo:</span>
-                                        <span className="text-white">{moduleName}</span>
-                                    </div>
-                                )}
+                            </div>
+                            <div style={{ fontSize: f.body, color: f.textSecondary, lineHeight: 1.5 }}>
+                                Para continuar, escriba la contraseña de administrador.
                             </div>
                         </div>
                     </div>
 
-                    {/* INPUT PASSWORD */}
-                    <div className="mt-5 mb-2 pl-[56px]">
-                        <p className="text-[13px] text-white mb-2">
-                            Para continuar, escriba una contraseña de administrador y luego haga clic en Sí.
-                        </p>
-                        <div className="relative">
-                            <Input
-                                ref={inputRef}
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
-                                className="h-9 w-full bg-[#2C2C2C] border-[#454545] text-white placeholder:text-gray-500 focus-visible:ring-2 focus-visible:ring-[#0078D4] focus-visible:border-transparent rounded-[4px] text-sm pr-2"
-                                placeholder="Contraseña"
-                                autoComplete="off"
-                            />
-                            {/* Borde inferior brillante estilo Windows focus (opcional, Input de shadcn ya tiene ring) */}
-                        </div>
-                        {description && (
-                            <p className="text-xs text-[#9CA3AF] mt-2 truncate">
-                                Acción: {description}
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                {/* --- SECCIÓN DETALLES (Acordeón) --- */}
-                <div className="px-6 pb-4 pl-[80px]">
-                    <button
-                        onClick={() => setShowDetails(!showDetails)}
-                        className="flex items-center gap-1 text-[13px] text-[#0078D4] hover:text-[#198AE0] hover:underline focus:outline-none transition-colors"
-                    >
-                        <span>{showDetails ? 'Ocultar detalles' : 'Mostrar más detalles'}</span>
-                        <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", showDetails ? "rotate-180" : "")} />
-                    </button>
-
-                    {showDetails && (
-                        <div className="mt-2 space-y-1 animate-in slide-in-from-top-1 fade-in duration-200 text-[12px]">
-                            <div className="flex">
-                                <span className="text-[#9CA3AF] w-32">ID de aplicación:</span>
-                                <span className="text-white font-mono text-xs">{appId || 'N/A'}</span>
-                            </div>
-                            <div className="flex">
-                                <span className="text-[#9CA3AF] w-32">Tipo de acción:</span>
-                                <span className="text-white capitalize">
-                                    {actionType === 'admin' ? 'Administrativo' :
-                                        actionType === 'dangerous' ? 'Crítico' :
-                                            actionType === 'install' ? 'Instalación' :
-                                                actionType === 'delete' ? 'Eliminación' :
-                                                    actionType === 'system' ? 'Sistema' : 'General'}
+                    {/* Info chip row */}
+                    <div style={{
+                        display: "flex", flexWrap: "wrap", gap: 6,
+                        marginBottom: 18,
+                    }}>
+                        {[
+                            { label: "Acción", value: title },
+                            { label: "App", value: appName },
+                            ...(moduleName ? [{ label: "Módulo", value: moduleName }] : []),
+                            { label: "Tipo", value: actionTypeLabels[actionType] || "General" },
+                        ].map(chip => (
+                            <div key={chip.label} style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                padding: "3px 10px",
+                                background: f.surface,
+                                border: `1px solid ${f.stroke}`,
+                                borderRadius: 99,
+                                fontSize: f.caption,
+                                color: f.textSecondary,
+                            }}>
+                                <span style={{ color: f.textCaption }}>{chip.label}:</span>
+                                <span style={{ color: f.textPrimary, fontWeight: 500, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {chip.value}
                                 </span>
                             </div>
+                        ))}
+                    </div>
 
+                    <Divider />
 
-                        </div>
-                    )}
+                    {/* Password section */}
+                    <div style={{ padding: "16px 0 0" }}>
+                        <label style={{
+                            display: "block",
+                            fontSize: f.caption,
+                            fontWeight: 600,
+                            color: f.textSecondary,
+                            marginBottom: 6,
+                        }}>
+                            Contraseña de administrador
+                        </label>
+                        <FluentPasswordInput
+                            value={password}
+                            onChange={setPassword}
+                            onEnter={handleConfirm}
+                            inputRef={inputRef}
+                        />
+                        {description && (
+                            <div style={{ marginTop: 8, fontSize: f.caption, color: f.textCaption, lineHeight: 1.5 }}>
+                                {description}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Details accordion */}
+                    <div style={{ padding: "12px 0 20px" }}>
+                        <button
+                            onClick={() => setShowDetails(v => !v)}
+                            {...detailsHovProps}
+                            style={{
+                                display: "inline-flex", alignItems: "center", gap: 4,
+                                background: "none", border: "none", padding: 0,
+                                cursor: "pointer", outline: "none",
+                                color: detailsHov ? f.accentHover : f.accent,
+                                fontSize: f.caption,
+                                fontFamily: f.fontStack,
+                                textDecoration: detailsHov ? "underline" : "none",
+                                transition: "color 0.1s",
+                            }}
+                        >
+                            <span>{showDetails ? "Ocultar detalles" : "Mostrar detalles"}</span>
+                            <ChevronDown style={{
+                                width: 12, height: 12,
+                                transform: showDetails ? "rotate(180deg)" : "rotate(0deg)",
+                                transition: "transform 0.2s",
+                            }} />
+                        </button>
+
+                        {showDetails && (
+                            <div style={{
+                                marginTop: 10,
+                                padding: "12px 14px",
+                                background: f.surface,
+                                border: `1px solid ${f.stroke}`,
+                                borderRadius: f.radius,
+                                display: "flex", flexDirection: "column", gap: 6,
+                                animation: "uac-details-in 0.18s ease-out",
+                            }}>
+                                <DetailRow label="ID de aplicación" value={appId || "N/A"} />
+                                <DetailRow label="Tipo de acción" value={actionTypeLabels[actionType] || "General"} />
+                                {moduleName && <DetailRow label="Módulo" value={moduleName} />}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* --- FOOTER / BOTONES --- */}
-                {/* En Win11 el footer es del mismo color o ligeramente distinto, muy limpio */}
-                <div className="bg-[#202020] p-4 flex justify-end gap-2 border-t border-[#2C2C2C]">
-                    <Button
-                        type="button"
-                        onClick={handleConfirm}
-                        disabled={loading || !password}
-                        className={cn(
-                            "min-w-[120px] h-8 rounded-[4px] text-[13px] font-normal transition-all active:scale-[0.98]",
-                            "bg-[#0078D4] hover:bg-[#006CC0] text-white shadow-sm border border-transparent",
-                            dangerous && "bg-[#D83B01] hover:bg-[#C53000]" // Rojo anaranjado si es peligroso
-                        )}
-                    >
-                        {loading ? (
-                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 inline-block" />
-                        ) : null}
-                        {confirmLabel}
-                    </Button>
-
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                            setPassword('');
-                            onOpenChange(false);
-                        }}
+                {/* ── Footer ───────────────────────────────────────────── */}
+                <div style={{
+                    display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8,
+                    padding: "12px 20px",
+                    background: f.footer,
+                    borderTop: `1px solid ${f.stroke}`,
+                }}>
+                    <FluentBtn
+                        variant="secondary"
+                        onClick={() => { setPassword(""); onOpenChange(false); }}
                         disabled={loading}
-                        className="min-w-[120px] h-8 rounded-[4px] text-[13px] font-normal bg-[#333333] text-white hover:bg-[#3D3D3D] hover:text-white border border-[#454545] active:scale-[0.98]"
                     >
                         No
-                    </Button>
+                    </FluentBtn>
+                    <FluentBtn
+                        variant={dangerous ? "danger" : "primary"}
+                        onClick={handleConfirm}
+                        disabled={loading || !password}
+                    >
+                        {loading && <Spinner />}
+                        {confirmLabel}
+                    </FluentBtn>
                 </div>
             </DialogContent>
+
+            {/* Keyframes */}
+            <style>{`
+                @keyframes uac-spin {
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes uac-details-in {
+                    from { opacity: 0; transform: translateY(-4px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
         </Dialog>
     );
 }

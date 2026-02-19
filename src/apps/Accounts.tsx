@@ -131,10 +131,6 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
                 )}
             </div>
 
-            {/* Footer sutil para simular la barra de estado de ventana */}
-            <div className="h-6 bg-[#202020] border-t border-white/5 flex items-center px-4 justify-end">
-                <span className="text-[10px] text-white/30">Sistema de Cuentas v2.0</span>
-            </div>
         </div>
     );
 }

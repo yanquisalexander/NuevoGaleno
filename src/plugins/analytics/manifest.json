@@ -1,0 +1,29 @@
+{
+    "id": "com.nuevogaleno.analytics",
+    "name": "Analytics Dashboard",
+    "version": "1.0.0",
+    "author": "Nuevo Galeno",
+    "description": "Panel de análisis y estadísticas avanzadas de tu clínica dental",
+    "icon": "📊",
+    "entry": "index.tsx",
+    "permissions": [
+        "patients:read",
+        "treatments:read",
+        "appointments:read",
+        "payments:read"
+    ],
+    "menuItems": [
+        {
+            "label": "Analytics",
+            "icon": "📊",
+            "action": "openMainWindow"
+        }
+    ],
+    "defaultSize": {
+        "width": 1200,
+        "height": 800
+    },
+    "allowMultipleInstances": false,
+    "minVersion": "1.0.0",
+    "license": "Proprietary"
+}

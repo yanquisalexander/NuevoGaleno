@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { DesktopContextMenu } from './DesktopContextMenu';
 import { AltTabSwitcher } from './AltTabSwitcher';
+import { AppIcon } from './AppIcon';
 import { playSound, UI_SOUNDS } from "@/consts/Sounds";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { useWallpaper, WallpaperProviderType } from "@/hooks/useWallpaper";
@@ -106,39 +107,41 @@ export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
                 }}
                 className={`absolute inset-0 p-4 z-10 flex flex-wrap flex-col content-start gap-1 ${isMac ? 'items-end content-end' : 'items-start content-start'}`}
             >
-                {Array.from(apps.values()).filter(app => app.showOnDesktop !== false).map(app => (
-                    <motion.div
-                        key={app.id}
-                        variants={{
-                            hidden: { y: 15, opacity: 0 },
-                            visible: { y: 0, opacity: 1 }
-                        }}
-                        onClick={(e) => { e.stopPropagation(); setSelectedApp(app.id); }}
-                        onDoubleClick={() => openWindow(app.id)}
-                        className={`
+                {(() => {
+                    const desktopApps = Array.from(apps.values()).filter(app => app.showOnDesktop !== false);
+                    console.log('Desktop apps to show:', desktopApps.length, 'Total apps:', apps.size);
+                    return desktopApps.map(app => (
+                        <motion.div
+                            key={app.id}
+                            variants={{
+                                hidden: { y: 15, opacity: 0 },
+                                visible: { y: 0, opacity: 1 }
+                            }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedApp(app.id); }}
+                            onDoubleClick={() => openWindow(app.id)}
+                            className={`
                             flex flex-col items-center p-2 w-[94px] h-[104px] gap-1 rounded-sm 
                             transition-all duration-75 border border-transparent
                             ${selectedApp === app.id
-                                ? (isMac ? 'bg-white/20 border-white/30' : 'bg-white/15 border-white/20 backdrop-blur-md shadow-lg')
-                                : 'hover:bg-white/10 hover:border-white/10'}
+                                    ? (isMac ? 'bg-white/20 border-white/30' : 'bg-white/15 border-white/20 backdrop-blur-md shadow-lg')
+                                    : 'hover:bg-white/10 hover:border-white/10'}
                         `}
-                    >
-                        <div className="drop-shadow-lg">
-                            {
-                                app.iconComponent
-                                    ? <app.iconComponent fontSize={40} />
-                                    : <span className="text-4xl">{app.icon}</span>
-                            }
-                        </div>
-                        <span className={`
+                        >
+                            <div className="drop-shadow-lg">
+                                {
+                                    <AppIcon iconComponent={app.iconComponent} icon={app.icon} size={40} />
+                                }
+                            </div>
+                            <span className={`
                             text-[11px] text-white text-center leading-tight line-clamp-2 px-1
                             drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]
                             ${selectedApp === app.id ? (isMac ? 'bg-black/40 rounded-md px-2' : 'bg-[#0078d7]/90 rounded-sm') : ''}
                         `}>
-                            {app.name}
-                        </span>
-                    </motion.div>
-                ))}
+                                {app.name}
+                            </span>
+                        </motion.div>
+                    ));
+                })()}
             </motion.div>
 
             {/* INFO WALLPAPER (WINDOWS SPOTLIGHT STYLE) */}

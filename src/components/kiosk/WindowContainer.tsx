@@ -1,6 +1,7 @@
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useConfig } from '../../hooks/useConfig';
 import { Window } from './Window';
+import { AppIcon } from './AppIcon';
 import { useSession } from '@/hooks/useSession';
 
 export function WindowContainer() {
@@ -25,7 +26,7 @@ export function WindowContainer() {
                         <Window
                             windowId={window.id}
                             title={window.title || app.name}
-                            icon={<span className="text-lg">{app.icon}</span>}
+                            icon={<AppIcon iconComponent={app.iconComponent} icon={app.icon} size={16} />}
                         >
                             <AppComponent windowId={window.id} data={window.data} />
                         </Window>

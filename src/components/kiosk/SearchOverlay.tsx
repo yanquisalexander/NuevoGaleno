@@ -16,7 +16,64 @@ import {
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useSession } from '../../hooks/useSession';
 import { usePatients } from '../../hooks/usePatients';
+import { AppIcon } from './AppIcon';
 
+/* ─────────────────────────────────────────────
+   Fluent UI v9 Design Tokens (dark theme)
+   https://react.fluentui.dev/?path=/docs/theme-colors--page
+───────────────────────────────────────────── */
+const tokens = {
+    // Surfaces
+    colorNeutralBackground1: '#292929',   // card / panel
+    colorNeutralBackground1Hover: '#333333',
+    colorNeutralBackground1Selected: '#383838',
+    colorNeutralBackground3: '#1f1f1f',   // backdrop deeper layer
+    colorNeutralBackgroundInverted: '#ffffff',
+
+    // Stroke
+    colorNeutralStroke2: '#404040',
+    colorNeutralStrokeAccessible: '#616161',
+
+    // Text
+    colorNeutralForeground1: '#ffffff',
+    colorNeutralForeground2: '#d6d6d6',
+    colorNeutralForeground3: '#adadad',
+    colorNeutralForeground4: '#707070',
+
+    // Brand
+    colorBrandBackground: '#0078D4',
+    colorBrandBackgroundHover: '#106EBE',
+    colorBrandForeground1: '#479ef5',   // brand text on dark
+
+    // Shadow
+    shadow16: '0 8px 16px rgba(0,0,0,0.24)',
+    shadow28: '0 14px 28px rgba(0,0,0,0.32)',
+
+    // Radius
+    borderRadiusMedium: '4px',
+    borderRadiusLarge: '8px',
+    borderRadiusXLarge: '12px',
+
+    // Typography
+    fontFamilyBase: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
+    fontSizeBase200: '11px',
+    fontSizeBase300: '12px',
+    fontSizeBase400: '14px',
+    fontSizeBase500: '16px',
+    fontWeightRegular: 400,
+    fontWeightSemibold: 600,
+};
+
+/* ─── Type badges ─── */
+const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
+    app: { label: 'Aplicación', color: '#479ef5', bg: 'rgba(71,158,245,0.12)' },
+    patient: { label: 'Paciente', color: '#c47ef5', bg: 'rgba(196,126,245,0.12)' },
+    manual: { label: 'Manual', color: '#f5a623', bg: 'rgba(245,166,35,0.12)' },
+    action: { label: 'Acción rápida', color: '#54b96f', bg: 'rgba(84,185,111,0.12)' },
+    recent: { label: 'Reciente', color: '#adadad', bg: 'rgba(255,255,255,0.08)' },
+};
+
+/* ─── Interfaces ─── */
 interface Patient {
     id: number;
     first_name: string;
@@ -40,6 +97,9 @@ interface SearchOverlayProps {
     onClose: () => void;
 }
 
+/* ─────────────────────────────────────────────
+   Component
+───────────────────────────────────────────── */
 export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
@@ -52,37 +112,33 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     const isAdmin = currentUser?.role === 'admin';
     const { searchPatients } = usePatients();
 
-    // Focus automático cuando se abre
+    /* Auto-focus */
     useEffect(() => {
-        if (isOpen && inputRef.current) {
-            inputRef.current.focus();
-        }
+        if (isOpen && inputRef.current) inputRef.current.focus();
     }, [isOpen]);
 
-    // Buscar en tiempo real
+    /* Search */
     useEffect(() => {
         if (!isOpen) return;
 
         const searchAll = async () => {
             if (query.trim().length === 0) {
-                // Mostrar resultados recientes y sugerencias
-                const recentResults: SearchResult[] = [
+                setResults([
                     {
                         id: 'recent-1',
                         type: 'recent',
                         title: 'Pacientes visitados recientemente',
-                        icon: <Clock className="w-5 h-5 text-blue-400" />,
+                        icon: <Clock size={16} />,
                         action: () => { openWindow('patients'); onClose(); }
                     },
                     {
                         id: 'recent-2',
                         type: 'recent',
                         title: 'Estadísticas del día',
-                        icon: <TrendingUp className="w-5 h-5 text-green-400" />,
+                        icon: <TrendingUp size={16} />,
                         action: () => { openWindow('dashboard'); onClose(); }
                     }
-                ];
-                setResults(recentResults);
+                ]);
                 return;
             }
 
@@ -90,7 +146,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
             const allResults: SearchResult[] = [];
             const searchTerm = query.toLowerCase();
 
-            // 1. Buscar en Apps
+            // Apps
             Array.from(apps.values()).forEach(app => {
                 if (app.name.toLowerCase().includes(searchTerm) ||
                     app.description?.toLowerCase().includes(searchTerm)) {
@@ -99,37 +155,34 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                         type: 'app',
                         title: app.name,
                         subtitle: app.description || 'Aplicación',
-                        icon: <span className="text-2xl">{app.icon}</span>,
-                        action: () => {
-                            openWindow(app.id);
-                            onClose();
-                        }
+                        icon: <AppIcon iconComponent={app.iconComponent} icon={app.icon} size={18} />,
+                        action: () => { openWindow(app.id); onClose(); }
                     });
                 }
             });
 
-            // 1.b Buscar en el Manual (index.json)
+            // Manual
             try {
                 if (!manualIndexRef.current) {
                     const res = await fetch('/manual/index.json');
                     if (res.ok) manualIndexRef.current = await res.json();
                 }
-
                 const manualIndex = manualIndexRef.current;
-                if (manualIndex && manualIndex.categories) {
+                if (manualIndex?.categories) {
                     manualIndex.categories.forEach((cat: any) => {
                         cat.items.forEach((item: any) => {
                             const title = (item.title || '').toLowerCase();
                             const catTitle = (cat.title || '').toLowerCase();
                             const keywords: string[] = (item.keywords || []).map((k: string) => k.toLowerCase());
-                            const matches = title.includes(searchTerm) || catTitle.includes(searchTerm) || keywords.some(k => k.includes(searchTerm) || searchTerm.includes(k));
+                            const matches = title.includes(searchTerm) || catTitle.includes(searchTerm) ||
+                                keywords.some(k => k.includes(searchTerm) || searchTerm.includes(k));
                             if (matches) {
                                 allResults.push({
                                     id: `manual-${cat.id}-${item.id}`,
                                     type: 'manual',
                                     title: item.title,
                                     subtitle: cat.title,
-                                    icon: <FileText className="w-5 h-5 text-orange-400" />,
+                                    icon: <FileText size={16} />,
                                     action: () => {
                                         openWindow('manual-galeno', { path: `${cat.id}/${item.id}` });
                                         onClose();
@@ -143,7 +196,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                 console.error('Error loading manual index for search', err);
             }
 
-            // 2. Buscar en Pacientes
+            // Patients
             try {
                 const patients = await searchPatients(searchTerm);
                 patients.forEach(patient => {
@@ -151,60 +204,42 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                         id: `patient-${patient.id}`,
                         type: 'patient',
                         title: `${patient.first_name} ${patient.last_name}`,
-                        subtitle: `DNI: ${patient.document_number || 'Sin DNI'} • Tel: ${patient.phone || 'Sin teléfono'}`,
-                        icon: <User className="w-5 h-5 text-purple-400" />,
-                        action: () => {
-                            openWindow('patient-record', { patientId: patient.id });
-                            onClose();
-                        }
+                        subtitle: `DNI: ${patient.document_number || 'Sin DNI'} · Tel: ${patient.phone || 'Sin teléfono'}`,
+                        icon: <User size={16} />,
+                        action: () => { openWindow('patient-record', { patientId: patient.id }); onClose(); }
                     });
                 });
             } catch (error) {
                 console.error('Error buscando pacientes:', error);
             }
 
-            // 3. Acciones rápidas
+            // Quick actions
             const quickActions = [
                 {
                     keywords: ['nuevo', 'agregar', 'crear', 'paciente'],
                     result: {
-                        id: 'action-new-patient',
-                        type: 'action' as const,
-                        title: 'Nuevo Paciente',
-                        subtitle: 'Agregar un nuevo paciente al sistema',
-                        icon: <User className="w-5 h-5 text-green-400" />,
-                        action: () => {
-                            openWindow('patients');
-                            onClose();
-                        }
+                        id: 'action-new-patient', type: 'action' as const,
+                        title: 'Nuevo Paciente', subtitle: 'Agregar un nuevo paciente al sistema',
+                        icon: <User size={16} />,
+                        action: () => { openWindow('patients'); onClose(); }
                     }
                 },
                 {
                     keywords: ['configuración', 'ajustes', 'settings', 'config'],
                     result: {
-                        id: 'action-settings',
-                        type: 'action' as const,
-                        title: 'Configuración',
-                        subtitle: 'Abrir configuración del sistema',
-                        icon: <Settings className="w-5 h-5 text-gray-400" />,
-                        action: () => {
-                            openWindow('settings');
-                            onClose();
-                        }
+                        id: 'action-settings', type: 'action' as const,
+                        title: 'Configuración', subtitle: 'Abrir configuración del sistema',
+                        icon: <Settings size={16} />,
+                        action: () => { openWindow('settings'); onClose(); }
                     }
                 },
                 {
                     keywords: ['agenda', 'cita', 'turnos', 'calendario'],
                     result: {
-                        id: 'action-calendar',
-                        type: 'action' as const,
-                        title: 'Agenda',
-                        subtitle: 'Ver agenda y turnos',
-                        icon: <Calendar className="w-5 h-5 text-blue-400" />,
-                        action: () => {
-                            openWindow('calendar');
-                            onClose();
-                        }
+                        id: 'action-calendar', type: 'action' as const,
+                        title: 'Agenda', subtitle: 'Ver agenda y turnos',
+                        icon: <Calendar size={16} />,
+                        action: () => { openWindow('calendar'); onClose(); }
                     }
                 }
             ];
@@ -213,23 +248,16 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                 quickActions.push({
                     keywords: ['sistema', 'mantenimiento', 'administración'],
                     result: {
-                        id: 'action-system-tools',
-                        type: 'action' as const,
-                        title: 'Mantenimiento del sistema',
-                        subtitle: 'Abrir herramientas críticas del sistema',
-                        icon: <Shield className="w-5 h-5 text-yellow-400" />,
-                        action: () => {
-                            openWindow('system-tools');
-                            onClose();
-                        }
+                        id: 'action-system-tools', type: 'action' as const,
+                        title: 'Mantenimiento del sistema', subtitle: 'Abrir herramientas críticas del sistema',
+                        icon: <Shield size={16} />,
+                        action: () => { openWindow('system-tools'); onClose(); }
                     }
                 });
             }
 
             quickActions.forEach(({ keywords, result }) => {
-                if (keywords.some(kw => searchTerm.includes(kw))) {
-                    allResults.push(result);
-                }
+                if (keywords.some(kw => searchTerm.includes(kw))) allResults.push(result);
             });
 
             setResults(allResults);
@@ -241,15 +269,12 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
         return () => clearTimeout(debounce);
     }, [query, isOpen, apps, openWindow, onClose]);
 
-    // Navegación con teclado
+    /* Keyboard navigation */
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isOpen) return;
-
             switch (e.key) {
-                case 'Escape':
-                    onClose();
-                    break;
+                case 'Escape': onClose(); break;
                 case 'ArrowDown':
                     e.preventDefault();
                     setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
@@ -260,184 +285,343 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                     break;
                 case 'Enter':
                     e.preventDefault();
-                    if (results[selectedIndex]) {
-                        results[selectedIndex].action();
-                    }
+                    results[selectedIndex]?.action();
                     break;
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, results, selectedIndex, onClose]);
 
-    // Resetear al cerrar
+    /* Reset on close */
     useEffect(() => {
-        if (!isOpen) {
-            setQuery('');
-            setResults([]);
-            setSelectedIndex(0);
-        }
+        if (!isOpen) { setQuery(''); setResults([]); setSelectedIndex(0); }
     }, [isOpen]);
-
-    const getTypeLabel = (type: string) => {
-        switch (type) {
-            case 'app': return 'Aplicación';
-            case 'patient': return 'Paciente';
-            case 'manual': return 'Manual';
-            case 'action': return 'Acción rápida';
-            case 'recent': return 'Reciente';
-            default: return '';
-        }
-    };
-
-    const getTypeColor = (type: string) => {
-        switch (type) {
-            case 'app': return 'text-blue-400';
-            case 'patient': return 'text-purple-400';
-            case 'manual': return 'text-orange-400';
-            case 'action': return 'text-green-400';
-            case 'recent': return 'text-orange-400';
-            default: return 'text-gray-400';
-        }
-    };
 
     return createPortal(
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Backdrop con blur */}
+                    {/* ── Scrim ── */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60]"
+                        style={{
+                            position: 'fixed', inset: 0,
+                            background: 'rgba(0,0,0,0.5)',
+                            zIndex: 60,
+                        }}
                     />
 
-                    {/* Panel de búsqueda - centrado */}
-                    <motion.div
-                        initial={{ opacity: 0, y: -50, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -50, scale: 0.9 }}
-                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="fixed top-[15%] left-1/2 -translate-x-1/2 w-[680px] max-h-[560px] bg-[#2c2c2c]/95 backdrop-blur-[40px] rounded-2xl shadow-2xl border border-white/10 z-[61] flex flex-col overflow-hidden"
+                    {/* ── Panel (centrado) ── */}
+                    <div
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 61,
+                            pointerEvents: 'none',
+                            padding: '20px',
+                        }}
                     >
-                        {/* Header con input */}
-                        <div className="relative p-6 pb-4 border-b border-white/5">
-                            <div className="relative group">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-white/40 group-focus-within:text-blue-400 transition-colors" />
+                        <motion.div
+                            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                            transition={{ duration: 0.18, ease: [0.0, 0.0, 0.2, 1] }}
+                            style={{
+                                position: 'relative',
+                                width: 640,
+                                maxHeight: 540,
+                                background: tokens.colorNeutralBackground1,
+                                borderRadius: tokens.borderRadiusXLarge,
+                                border: `1px solid ${tokens.colorNeutralStroke2}`,
+                                boxShadow: tokens.shadow28,
+                                pointerEvents: 'auto',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                overflow: 'hidden',
+                                fontFamily: tokens.fontFamilyBase,
+                            }}
+                        >
+                            {/* ── Search bar ── */}
+                            <div style={{
+                                padding: '12px 16px',
+                                borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                            }}>
+                                <Search
+                                    size={18}
+                                    style={{
+                                        flexShrink: 0,
+                                        color: query.length
+                                            ? tokens.colorBrandForeground1
+                                            : tokens.colorNeutralForeground3,
+                                        transition: 'color 0.1s',
+                                    }}
+                                />
                                 <input
                                     ref={inputRef}
                                     type="text"
                                     value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
+                                    onChange={e => setQuery(e.target.value)}
                                     placeholder="Buscar aplicaciones, pacientes, documentos..."
-                                    className="w-full h-14 bg-black/30 border-none rounded-xl pl-14 pr-12 text-base text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                                    style={{
+                                        flex: 1,
+                                        background: 'transparent',
+                                        border: 'none',
+                                        outline: 'none',
+                                        color: tokens.colorNeutralForeground1,
+                                        fontSize: tokens.fontSizeBase400,
+                                        fontFamily: tokens.fontFamilyBase,
+                                        fontWeight: tokens.fontWeightRegular,
+                                        lineHeight: '36px',
+                                    }}
+                                // Placeholder via CSS-in-JS workaround: use a style tag
                                 />
-                                {query && (
-                                    <motion.button
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={() => setQuery('')}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 transition-colors"
-                                    >
-                                        <X className="w-5 h-5 text-white/60" />
-                                    </motion.button>
+                                <AnimatePresence>
+                                    {query && (
+                                        <motion.button
+                                            initial={{ opacity: 0, scale: 0.7 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.7 }}
+                                            transition={{ duration: 0.1 }}
+                                            onClick={() => setQuery('')}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                padding: 4,
+                                                borderRadius: tokens.borderRadiusMedium,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                color: tokens.colorNeutralForeground3,
+                                            }}
+                                            onMouseOver={e => (e.currentTarget.style.background = tokens.colorNeutralBackground1Hover)}
+                                            onMouseOut={e => (e.currentTarget.style.background = 'none')}
+                                        >
+                                            <X size={14} />
+                                        </motion.button>
+                                    )}
+                                </AnimatePresence>
+                                {isLoading && (
+                                    <span style={{
+                                        fontSize: tokens.fontSizeBase200,
+                                        color: tokens.colorNeutralForeground4,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        Buscando…
+                                    </span>
                                 )}
                             </div>
-                            {query && (
-                                <div className="flex items-center gap-2 mt-3 text-xs text-white/50">
-                                    <span>{results.length} resultado{results.length !== 1 ? 's' : ''}</span>
-                                    {isLoading && <span>• Buscando...</span>}
-                                </div>
-                            )}
-                        </div>
 
-                        {/* Resultados */}
-                        <div className="flex-1 overflow-y-auto p-4">
-                            {results.length === 0 && query.length > 0 && !isLoading && (
-                                <div className="flex flex-col items-center justify-center h-32 text-center">
-                                    <FileText className="w-12 h-12 text-white/20 mb-2" />
-                                    <span className="text-sm text-white/50">No se encontraron resultados</span>
-                                    <span className="text-xs text-white/30 mt-1">Intenta con otros términos</span>
+                            {/* ── Count bar ── */}
+                            {query.length > 0 && !isLoading && (
+                                <div style={{
+                                    padding: '5px 20px',
+                                    fontSize: tokens.fontSizeBase200,
+                                    color: tokens.colorNeutralForeground4,
+                                    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+                                    background: tokens.colorNeutralBackground3,
+                                }}>
+                                    {results.length} resultado{results.length !== 1 ? 's' : ''}
                                 </div>
                             )}
 
-                            {results.length === 0 && query.length === 0 && (
-                                <div className="space-y-2">
-                                    <span className="text-xs text-white/50 px-2">Sugerencias</span>
-                                    {results.map((result) => (
-                                        <div key={result.id} className="text-white/30 text-sm px-2">
-                                            {result.title}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            {/* ── Results ── */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
 
-                            <div className="space-y-1">
-                                {results.map((result, index) => (
-                                    <motion.button
-                                        key={result.id}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: index * 0.03 }}
-                                        onClick={result.action}
-                                        onMouseEnter={() => setSelectedIndex(index)}
-                                        className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group ${index === selectedIndex
-                                            ? 'bg-white/15 shadow-lg'
-                                            : 'hover:bg-white/8'
-                                            }`}
-                                    >
-                                        {/* Icono */}
-                                        <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${index === selectedIndex ? 'bg-white/10' : 'bg-white/5'
-                                            }`}>
-                                            {result.icon}
-                                        </div>
+                                {/* Section label when empty query */}
+                                {query.length === 0 && (
+                                    <div style={{
+                                        padding: '4px 20px 6px',
+                                        fontSize: tokens.fontSizeBase200,
+                                        fontWeight: tokens.fontWeightSemibold,
+                                        color: tokens.colorNeutralForeground4,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.06em',
+                                    }}>
+                                        Sugerencias
+                                    </div>
+                                )}
 
-                                        {/* Contenido */}
-                                        <div className="flex-1 text-left min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-white truncate">
-                                                    {result.title}
-                                                </span>
-                                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${getTypeColor(result.type)} bg-current/10`}>
-                                                    {getTypeLabel(result.type)}
-                                                </span>
+                                {/* Empty state */}
+                                {results.length === 0 && query.length > 0 && !isLoading && (
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        height: 120,
+                                        color: tokens.colorNeutralForeground4,
+                                        gap: 6,
+                                    }}>
+                                        <FileText size={28} style={{ opacity: 0.4 }} />
+                                        <span style={{ fontSize: tokens.fontSizeBase300 }}>
+                                            No se encontraron resultados
+                                        </span>
+                                        <span style={{ fontSize: tokens.fontSizeBase200, opacity: 0.6 }}>
+                                            Intenta con otros términos
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Result items */}
+                                {results.map((result, index) => {
+                                    const meta = TYPE_META[result.type] ?? TYPE_META.recent;
+                                    const isSelected = index === selectedIndex;
+                                    return (
+                                        <motion.button
+                                            key={result.id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: Math.min(index * 0.025, 0.15) }}
+                                            onClick={result.action}
+                                            onMouseEnter={() => setSelectedIndex(index)}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 12,
+                                                padding: '7px 20px',
+                                                background: isSelected
+                                                    ? tokens.colorNeutralBackground1Selected
+                                                    : 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                textAlign: 'left',
+                                                transition: 'background 0.08s',
+                                                outline: isSelected
+                                                    ? `1px solid ${tokens.colorBrandBackground}`
+                                                    : 'none',
+                                                outlineOffset: '-1px',
+                                            }}
+                                        >
+                                            {/* Icon container */}
+                                            <div style={{
+                                                width: 32,
+                                                height: 32,
+                                                borderRadius: tokens.borderRadiusMedium,
+                                                background: meta.bg,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: meta.color,
+                                                flexShrink: 0,
+                                            }}>
+                                                {result.icon}
                                             </div>
-                                            {result.subtitle && (
-                                                <span className="text-xs text-white/50 truncate block">
-                                                    {result.subtitle}
-                                                </span>
-                                            )}
-                                        </div>
 
-                                        {/* Flecha */}
-                                        <ChevronRight className={`w-5 h-5 text-white/30 transition-all ${index === selectedIndex ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
-                                            }`} />
-                                    </motion.button>
+                                            {/* Text */}
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                }}>
+                                                    <span style={{
+                                                        fontSize: tokens.fontSizeBase400,
+                                                        fontWeight: tokens.fontWeightSemibold,
+                                                        color: tokens.colorNeutralForeground1,
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                    }}>
+                                                        {result.title}
+                                                    </span>
+
+                                                    {/* Type badge */}
+                                                    <span style={{
+                                                        fontSize: 10,
+                                                        fontWeight: tokens.fontWeightSemibold,
+                                                        color: meta.color,
+                                                        background: meta.bg,
+                                                        padding: '1px 7px',
+                                                        borderRadius: tokens.borderRadiusMedium,
+                                                        flexShrink: 0,
+                                                        letterSpacing: '0.02em',
+                                                    }}>
+                                                        {meta.label}
+                                                    </span>
+                                                </div>
+
+                                                {result.subtitle && (
+                                                    <span style={{
+                                                        fontSize: tokens.fontSizeBase300,
+                                                        color: tokens.colorNeutralForeground3,
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        display: 'block',
+                                                        marginTop: 1,
+                                                    }}>
+                                                        {result.subtitle}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Chevron */}
+                                            <ChevronRight
+                                                size={14}
+                                                style={{
+                                                    flexShrink: 0,
+                                                    color: tokens.colorNeutralForeground3,
+                                                    opacity: isSelected ? 1 : 0,
+                                                    transition: 'opacity 0.1s',
+                                                }}
+                                            />
+                                        </motion.button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* ── Footer shortcuts ── */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 24,
+                                padding: '7px 20px',
+                                borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+                                background: tokens.colorNeutralBackground3,
+                            }}>
+                                {[
+                                    { key: '↑↓', label: 'Navegar' },
+                                    { key: '↵', label: 'Abrir' },
+                                    { key: 'Esc', label: 'Cerrar' },
+                                ].map(({ key, label }) => (
+                                    <div key={key} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        fontSize: tokens.fontSizeBase200,
+                                        color: tokens.colorNeutralForeground4,
+                                    }}>
+                                        <kbd style={{
+                                            fontFamily: tokens.fontFamilyBase,
+                                            fontSize: 10,
+                                            padding: '1px 6px',
+                                            background: tokens.colorNeutralBackground1,
+                                            border: `1px solid ${tokens.colorNeutralStrokeAccessible}`,
+                                            borderRadius: tokens.borderRadiusMedium,
+                                            color: tokens.colorNeutralForeground2,
+                                            lineHeight: '18px',
+                                        }}>
+                                            {key}
+                                        </kbd>
+                                        <span>{label}</span>
+                                    </div>
                                 ))}
                             </div>
-                        </div>
-
-                        {/* Footer con atajos */}
-                        <div className="h-10 bg-black/20 backdrop-blur-md flex items-center justify-center gap-6 px-6 border-t border-white/5">
-                            <div className="flex items-center gap-2 text-[10px] text-white/40">
-                                <kbd className="px-2 py-0.5 bg-white/10 rounded border border-white/10">↑↓</kbd>
-                                <span>Navegar</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-white/40">
-                                <kbd className="px-2 py-0.5 bg-white/10 rounded border border-white/10">Enter</kbd>
-                                <span>Abrir</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-white/40">
-                                <kbd className="px-2 py-0.5 bg-white/10 rounded border border-white/10">Esc</kbd>
-                                <span>Cerrar</span>
-                            </div>
-                        </div>
-                    </motion.div>
+                        </motion.div>
+                    </div>
                 </>
             )}
         </AnimatePresence>,

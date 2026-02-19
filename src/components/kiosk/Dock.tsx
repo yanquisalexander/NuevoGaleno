@@ -2,6 +2,7 @@ import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useShell } from '@/contexts/ShellContext';
 import { Search, Bell } from 'lucide-react';
+import { AppIcon } from './AppIcon';
 import { motion } from 'motion/react';
 
 export function Dock() {
@@ -45,7 +46,7 @@ export function Dock() {
                                 className="relative w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-colors shadow-lg"
                                 title={app.name}
                             >
-                                <span className="text-3xl">{app.icon}</span>
+                                <AppIcon iconComponent={app.iconComponent} icon={app.icon} size={28} />
                             </button>
 
                             {/* Indicador de App Abierta (Punto debajo) */}
