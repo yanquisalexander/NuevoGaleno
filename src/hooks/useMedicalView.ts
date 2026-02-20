@@ -36,7 +36,6 @@ export function useMedicalView() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(newPreferences));
             setPreferences(newPreferences);
-            toast.success('Preferencias guardadas');
         } catch (error) {
             console.error('Error guardando preferencias:', error);
             toast.error('Error al guardar preferencias');

@@ -40,7 +40,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 sha2 = "0.10"
 sysinfo = "0.30"
-tauri = {version = "2", features = [] }
+tauri = {version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-http = "2"
 tauri-plugin-log = "2"
@@ -48,10 +48,11 @@ tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tempfile = "3"
 tokio = {version = "1", features = ["full"] }
+uuid = {version = "1", features = ["v4"] }
+zip = "0.6"
 tower = "0.4"
 tower-http = {version = "0.5", features = ["cors"] }
 walkdir = "2"
-zip = "0.6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

@@ -21,7 +21,8 @@ import { NodeConfigApp } from './NodeConfig';
 import { ManualGalenoApp } from './ManualGaleno';
 import { DevToolsApp } from './DevTools';
 import { PluginStore } from './PluginStore';
-import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor } from '@fluentui/react-icons';
+import { FileManagerApp } from './FileManager';
+import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor, FolderRegular, FolderOpenFilled } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -40,6 +41,7 @@ export { NodeConfigApp } from './NodeConfig';
 export { ManualGalenoApp } from './ManualGaleno';
 export { DevToolsApp } from './DevTools';
 export { PluginStore } from './PluginStore';
+export { FileManagerApp } from './FileManager';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -210,12 +212,21 @@ export const APP_DEFINITIONS = [
         component: DevToolsApp,
         showOnDesktop: false,
     },
-    {
-        id: 'plugin-store',
-        name: 'Tienda de Plugins',
-        icon: '🔌',
+    /* {
+        id: 'file-manager',
+        name: 'Archivos',
+        icon: '📁',
+        iconComponent: FolderOpenFilled,
         allowMultipleInstances: false,
         defaultSize: { width: 1000, height: 700 },
-        component: PluginStore,
-    },
+        component: FileManagerApp,
+    }, */
+    /*  {
+         id: 'plugin-store',
+         name: 'Tienda de Plugins',
+         icon: '🔌',
+         allowMultipleInstances: false,
+         defaultSize: { width: 1000, height: 700 },
+         component: PluginStore,
+     }, */
 ];

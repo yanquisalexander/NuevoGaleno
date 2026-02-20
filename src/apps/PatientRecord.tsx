@@ -13,11 +13,13 @@ import {
     Phone,
     Fingerprint,
     Stethoscope,
-    LayoutGrid
+    LayoutGrid,
+    LucideX
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Patient, usePatients } from '../hooks/usePatients';
 import { MedicalHistory } from '../components/patients/MedicalHistory';
+import { MedicalNotesDisplay } from '../components/patients/MedicalNotesDisplay';
 import { TreatmentList } from '../components/treatments/TreatmentList';
 import { TreatmentPayments } from '../components/payments/TreatmentPayments';
 import { BalanceCard } from '../components/payments/BalanceCard';
@@ -134,11 +136,6 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                             shortcut: '⌘M',
                             action: () => {
                                 toggleMedicalView();
-                                toast.success(
-                                    medicalViewPrefs.enabled
-                                        ? 'Modo normal activado'
-                                        : 'Vista médica activada'
-                                );
                             },
                         },
                         {
@@ -281,57 +278,54 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
     // Si la vista médica está habilitada, mostrar solo esa vista
     if (medicalViewPrefs.enabled) {
         return (
-            <div className="h-full flex flex-col bg-[#202020] text-white font-sans selection:bg-blue-500/30">
-                {/* Header: Estilo Acrylic/Glass */}
-                <div className="relative z-10 bg-[#202020]/80 backdrop-blur-md border-b border-white/5 px-8 py-6">
-                    <div className="flex items-center gap-5">
-                        {/* Avatar Placeholder */}
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-xl font-bold border-2 border-[#333] shadow-lg">
-                            {patient.first_name[0]}{patient.last_name[0]}
-                        </div>
-
-                        <div className="space-y-1 flex-1">
-                            <h1 className="text-2xl font-bold tracking-tight">
-                                {patient.first_name} {patient.last_name}
-                            </h1>
-                            <div className="flex items-center gap-3 text-xs text-white/60">
-                                {patient.document_number && (
-                                    <span className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
-                                        <Fingerprint className="w-3 h-3" />
-                                        {patient.document_number}
-                                    </span>
-                                )}
-                                {patient.phone && (
-                                    <span className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
-                                        <Phone className="w-3 h-3" />
-                                        {patient.phone}
-                                    </span>
-                                )}
+            <div className="h-full flex flex-col bg-[#1a1a1a] text-white font-sans selection:bg-blue-500/30">
+                {/* Compact Header - Minimal & Immersive */}
+                <div className="relative z-10 bg-[#1e1e1e]/95 backdrop-blur-sm border-b border-white/5">
+                    <div className="flex items-center justify-between px-6 py-3">
+                        {/* Left: Patient Info - Compact */}
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-sm font-bold border border-[#333] shadow-md">
+                                {patient.first_name[0]}{patient.last_name[0]}
+                            </div>
+                            <div>
+                                <h1 className="text-base font-semibold tracking-tight leading-tight">
+                                    {patient.first_name} {patient.last_name}
+                                </h1>
+                                <div className="flex items-center gap-2 text-[10px] text-white/50 mt-0.5">
+                                    {patient.document_number && (
+                                        <span className="flex items-center gap-1">
+                                            <Fingerprint className="w-2.5 h-2.5" />
+                                            {patient.document_number}
+                                        </span>
+                                    )}
+                                    {patient.phone && (
+                                        <>
+                                            <span className="text-white/20">•</span>
+                                            <span className="flex items-center gap-1">
+                                                <Phone className="w-2.5 h-2.5" />
+                                                {patient.phone}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Indicador y Toggle de Vista Médica */}
+                        {/* Right: Actions - Minimal */}
                         <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 rounded-lg border border-blue-500/30">
-                                <Stethoscope className="w-4 h-4 text-blue-400" />
-                                <span className="text-sm text-blue-300 font-medium">Vista Médica</span>
-                            </div>
                             <button
-                                onClick={() => {
-                                    toggleMedicalView();
-                                    toast.success('Modo normal activado');
-                                }}
-                                className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors flex items-center gap-2 group"
-                                title="Cambiar a vista normal (⌘M)"
+                                onClick={() => toggleMedicalView()}
+                                className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-md border border-white/10 transition-all flex items-center gap-1.5 group"
+                                title="Salir de vista médica (⌘M)"
                             >
-                                <LayoutGrid className="w-4 h-4 text-white/60 group-hover:text-white" />
-                                <span className="text-sm text-white/60 group-hover:text-white">Vista Normal</span>
+                                <LucideX className="w-3.5 h-3.5 text-white/60 group-hover:text-white" />
+                                <span className="text-xs text-white/60 group-hover:text-white">Salir</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Vista Médica Personalizada */}
+                {/* Vista Médica Personalizada - Full Immersion */}
                 <div className="flex-1 overflow-hidden">
                     <MedicalView
                         patient={patient}
@@ -386,7 +380,6 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                     <button
                         onClick={() => {
                             toggleMedicalView();
-                            toast.success('Vista médica activada');
                         }}
                         className="px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg border border-blue-500/30 transition-colors flex items-center gap-2 group"
                         title="Cambiar a vista médica (⌘M)"
@@ -465,14 +458,27 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                                 )}
 
                                 {/* Notas Médicas */}
-                                <div className="bg-[#272727] border border-white/5 rounded-xl p-6 h-full min-h-[200px]">
-                                    <div className="flex items-center gap-2 border-b border-white/5 pb-3 mb-4">
-                                        <StickyNote className="w-4 h-4 text-yellow-400/70" />
-                                        <h3 className="text-sm font-semibold text-white/90">Notas Clínicas</h3>
+                                <div className="bg-[#272727] border border-white/5 rounded-xl p-6 h-full min-h-[200px] flex flex-col">
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <StickyNote className="w-4 h-4 text-yellow-400/70" />
+                                            <h3 className="text-sm font-semibold text-white/90">Notas Clínicas</h3>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                // Toggle edit mode for notes
+                                                const editBtn = document.getElementById('edit-notes-btn');
+                                                if (editBtn) editBtn.click();
+                                            }}
+                                            className="text-xs px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 rounded border border-blue-500/30 text-blue-400 transition-colors"
+                                        >
+                                            Editar
+                                        </button>
                                     </div>
-                                    <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">
-                                        {patient.medical_notes || "No hay notas adicionales registradas para este paciente."}
-                                    </p>
+                                    <MedicalNotesDisplay
+                                        patient={patient}
+                                        onUpdate={loadPatient}
+                                    />
                                 </div>
                             </div>
                         </div>

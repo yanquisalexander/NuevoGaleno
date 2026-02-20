@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
+/// Plugin manifest structure matching plugin.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub id: String,
@@ -11,8 +12,9 @@ pub struct PluginManifest {
     pub author: String,
     pub description: String,
     pub icon: String,
-    pub entry: String,
+    pub entry: String, // Now points to index.html
     pub permissions: Vec<String>,
+    pub api_version: String,
     pub hooks: Option<HashMap<String, String>>,
     pub menu_items: Option<Vec<MenuItem>>,
     pub default_size: Option<WindowSize>,
@@ -78,7 +80,7 @@ pub fn get_installed_plugins() -> Result<Vec<InstalledPlugin>, String> {
     if let Ok(entries) = fs::read_dir(&plugins_dir) {
         for entry in entries.flatten() {
             if entry.path().is_dir() {
-                let manifest_path = entry.path().join("manifest.json");
+                let manifest_path = entry.path().join("plugin.json");
                 if manifest_path.exists() {
                     if let Ok(manifest_str) = fs::read_to_string(&manifest_path) {
                         if let Ok(manifest) = serde_json::from_str::<PluginManifest>(&manifest_str) {
@@ -120,7 +122,7 @@ pub fn get_installed_plugins() -> Result<Vec<InstalledPlugin>, String> {
 }
 
 pub fn load_plugin_manifest(plugin_path: &str) -> Result<PluginManifest, String> {
-    let manifest_path = PathBuf::from(plugin_path).join("manifest.json");
+    let manifest_path = PathBuf::from(plugin_path).join("plugin.json");
     let manifest_str = fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest: {}", e))?;
     
@@ -262,6 +264,100 @@ fn copy_dir_all(src: impl AsRef<std::path::Path>, dst: impl AsRef<std::path::Pat
     Ok(())
 }
 
+/// Installs a plugin from a .galeno file (zip archive)
+pub fn install_plugin_from_zip(zip_path: &str) -> Result<String, String> {
+    use std::io::Read;
+    
+    let file = fs::File::open(zip_path)
+        .map_err(|e| format!("Failed to open zip file: {}", e))?;
+    
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+    
+    // Extract to temp directory first
+    let temp_dir = std::env::temp_dir().join(format!("galeno_plugin_{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    
+    // Extract all files
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)
+            .map_err(|e| format!("Failed to read file from archive: {}", e))?;
+        
+        let outpath = temp_dir.join(file.name());
+        
+        if file.is_dir() {
+            fs::create_dir_all(&outpath)
+                .map_err(|e| format!("Failed to create directory: {}", e))?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                fs::create_dir_all(p)
+                    .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+            }
+            let mut outfile = fs::File::create(&outpath)
+                .map_err(|e| format!("Failed to create file: {}", e))?;
+            std::io::copy(&mut file, &mut outfile)
+                .map_err(|e| format!("Failed to extract file: {}", e))?;
+        }
+    }
+    
+    // Read and validate manifest
+    let manifest = load_plugin_manifest(&temp_dir.to_string_lossy())?;
+    
+    // Validate required files
+    let entry_path = temp_dir.join(&manifest.entry);
+    if !entry_path.exists() {
+        fs::remove_dir_all(&temp_dir).ok();
+        return Err(format!("Entry file '{}' not found in plugin", manifest.entry));
+    }
+    
+    // Move to plugins directory
+    let plugins_dir = get_plugins_dir()?;
+    let dest_dir = plugins_dir.join(&manifest.id);
+    
+    if dest_dir.exists() {
+        fs::remove_dir_all(&temp_dir).ok();
+        return Err("Plugin already installed".to_string());
+    }
+    
+    fs::rename(&temp_dir, &dest_dir)
+        .map_err(|e| {
+            fs::remove_dir_all(&temp_dir).ok();
+            format!("Failed to install plugin: {}", e)
+        })?;
+    
+    // Create metadata file
+    let meta = serde_json::json!({
+        "enabled": true,
+        "installed_at": chrono::Utc::now().to_rfc3339(),
+        "source": "file",
+    });
+    
+    let meta_path = dest_dir.join(".meta.json");
+    fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap())
+        .map_err(|e| format!("Failed to write metadata: {}", e))?;
+    
+    Ok(manifest.id)
+}
+
+/// Gets the asset URL for a plugin file
+pub fn get_plugin_asset_url(plugin_id: &str, file_path: &str) -> Result<String, String> {
+    let plugins_dir = get_plugins_dir()?;
+    let plugin_dir = plugins_dir.join(plugin_id);
+    
+    if !plugin_dir.exists() {
+        return Err("Plugin not found".to_string());
+    }
+    
+    let file_full_path = plugin_dir.join(file_path);
+    if !file_full_path.exists() {
+        return Err(format!("File not found: {}", file_path));
+    }
+    
+    // Return the path that will be converted by convertFileSrc on the frontend
+    Ok(file_full_path.to_string_lossy().to_string())
+}
+
 // Mock store API (in production, this would fetch from a real API)
 pub fn get_store_plugins() -> Result<Vec<StorePlugin>, String> {
     // Include first-party plugins
@@ -294,6 +390,7 @@ pub fn get_store_plugins() -> Result<Vec<StorePlugin>, String> {
                 min_version: Some("1.0.0".to_string()),
                 repository: None,
                 homepage: None,
+                api_version: "1.0.0".to_string(),
                 license: Some("Proprietary".to_string()),
             },
             downloads: 0,
@@ -331,6 +428,7 @@ pub fn get_store_plugins() -> Result<Vec<StorePlugin>, String> {
                 min_version: Some("1.0.0".to_string()),
                 repository: None,
                 homepage: None,
+                api_version: "1.0.0".to_string(),
                 license: Some("Proprietary".to_string()),
             },
             downloads: 0,

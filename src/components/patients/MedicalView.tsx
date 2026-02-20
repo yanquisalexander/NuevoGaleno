@@ -97,71 +97,69 @@ export function MedicalView({
 
     return (
         <div className="h-full flex flex-col">
-            {/* Header / Toolbar */}
-            <div className="flex items-center justify-between px-6 py-4 bg-[#272727] border-b border-white/5">
-                <div className="flex items-center gap-3">
-                    <h2 className="text-sm font-semibold text-white/90">Vista Médica Personalizada</h2>
-                    {isEditMode && (
-                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-md border border-blue-500/30">
-                            Modo Edición
-                        </span>
-                    )}
-                </div>
+            {/* Toolbar - Minimal & Floating (only in edit mode) */}
+            {isEditMode && (
+                <div className="absolute bottom-8 right-6 z-50 flex items-center gap-2 bg-[#1e1e1e]/95 backdrop-blur-md border border-white/10 rounded-lg shadow-2xl px-3 py-2">
+                    <button
+                        onClick={onResetLayout}
+                        className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs text-white/70 hover:text-white transition-colors flex items-center gap-1.5"
+                        title="Restaurar layout por defecto"
+                    >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Restaurar</span>
+                    </button>
 
-                <div className="flex items-center gap-2">
-                    {isEditMode ? (
-                        <>
-                            <button
-                                onClick={onResetLayout}
-                                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-sm text-white/70 hover:text-white transition-colors flex items-center gap-2"
-                            >
-                                <RotateCcw className="w-4 h-4" />
-                                Restaurar
-                            </button>
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowAddMenu(!showAddMenu)}
-                                    className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-sm text-green-400 transition-colors flex items-center gap-2"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Agregar Widget
-                                </button>
-                                {showAddMenu && (
-                                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#2a2a2a] border border-white/10 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
-                                        {WIDGET_CATALOG.map((item) => (
-                                            <button
-                                                key={item.type}
-                                                onClick={() => handleAddWidget(item.type)}
-                                                className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
-                                            >
-                                                <div className="text-sm font-medium text-white/90">{item.label}</div>
-                                                <div className="text-xs text-white/50 mt-0.5">{item.description}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                            <button
-                                onClick={onSaveLayout}
-                                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm text-white font-medium transition-colors flex items-center gap-2"
-                            >
-                                <Save className="w-4 h-4" />
-                                Guardar
-                            </button>
-                        </>
-                    ) : (
+                    <div className="w-px h-5 bg-white/10" />
+
+                    <div className="relative">
                         <button
-                            onClick={onEditModeToggle}
-                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-sm text-white/70 hover:text-white transition-colors flex items-center gap-2"
+                            onClick={() => setShowAddMenu(!showAddMenu)}
+                            className="px-2.5 py-1.5 bg-green-500/20 hover:bg-green-500/30 rounded-md text-xs text-green-400 transition-colors flex items-center gap-1.5"
                         >
-                            <Settings2 className="w-4 h-4" />
-                            Personalizar
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Widget</span>
                         </button>
-                    )}
-                </div>
-            </div>
+                        {showAddMenu && (
+                            <div className="absolute top-full right-0 mt-2 w-64 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
+                                {WIDGET_CATALOG.map((item) => (
+                                    <button
+                                        key={item.type}
+                                        onClick={() => handleAddWidget(item.type)}
+                                        className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                                    >
+                                        <div className="text-sm font-medium text-white/90">{item.label}</div>
+                                        <div className="text-xs text-white/50 mt-0.5">{item.description}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
-            {/* Grid de Widgets (react-grid-layout) */}
+                    <div className="w-px h-5 bg-white/10" />
+
+                    <button
+                        onClick={onSaveLayout}
+                        className="px-2.5 py-1.5 bg-blue-500 hover:bg-blue-600 rounded-md text-xs text-white font-medium transition-colors flex items-center gap-1.5"
+                    >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Guardar</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Floating Edit Button (when not in edit mode) */}
+            {!isEditMode && widgets.length > 0 && (
+                <button
+                    onClick={onEditModeToggle}
+                    className="absolute bottom-8 right-6 z-50 px-3 py-2 bg-[#1e1e1e]/95 backdrop-blur-md hover:bg-[#252525] border border-white/10 rounded-lg text-xs text-white/70 hover:text-white transition-all flex items-center gap-2 shadow-xl hover:shadow-2xl"
+                    title="Personalizar vista médica"
+                >
+                    <Settings2 className="w-3.5 h-3.5" />
+                    <span>Personalizar</span>
+                </button>
+            )}
+
+            {/* Grid de Widgets (react-grid-layout) - Full Screen */}
             <div className="flex-1 overflow-y-auto p-6 bg-[#1a1a1a]">
                 {widgets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-white/40">
@@ -169,52 +167,59 @@ export function MedicalView({
                             <Settings2 className="w-10 h-10" />
                         </div>
                         <p className="text-lg font-medium">No hay widgets configurados</p>
-                        <p className="text-sm mt-1">Haz clic en "Personalizar" para agregar widgets</p>
+                        <p className="text-sm mt-1 mb-4">Comienza agregando widgets a tu vista médica</p>
+                        <button
+                            onClick={onEditModeToggle}
+                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-sm text-white font-medium transition-colors flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Agregar Widgets
+                        </button>
                     </div>
                 ) : (
                     <ResponsiveGridLayout
-                            className="layout"
-                            cols={{ lg: layoutColumns, md: layoutColumns, sm: layoutColumns, xs: layoutColumns, xxs: layoutColumns }}
-                            rowHeight={120}
-                            // Usamos directamente el layout generado por los widgets
-                            layouts={{
-                                lg: orderedWidgets.map(w => ({
-                                    i: w.id,
-                                    x: w.position?.x ?? 0,
-                                    y: w.position?.y ?? 0,
-                                    w: w.size?.width ?? 4,
-                                    h: w.size?.height ?? 2
-                                }))
-                            }}
-                            measureBeforeMount={true}
-                            useCSSTransforms={true} // Importante para rendimiento
-                            isDraggable={isEditMode}
-                            isResizable={isEditMode}
-                            draggableHandle=".widget-grip" // Asegúrate de que tu MedicalWidgetCard tenga este className
-                            onDragStop={handleRGLStop}
-                            onResizeStop={handleRGLStop}
-                            margin={[16, 16]} // Espacio entre widgets
-                        >
-                            {orderedWidgets.map((widget) => (
-                                <div
-                                    key={widget.id}
-                                    ref={(el) => { containerRefs.current[widget.id] = el; }}
-                                    // React-Grid-Layout inyecta estilos inline aquí, no los sobrescribas con clases que afecten posición
-                                    className="relative transition-shadow"
-                                >
-                                    <AnyWidgetCard
-                                        widget={widget}
-                                        patient={patient}
-                                        isEditMode={isEditMode}
-                                        onRemove={onRemoveWidget}
-                                        onUpdate={onUpdateWidget}
-                                        layoutColumns={layoutColumns}
-                                        layoutRows={layoutRows}
-                                    // Eliminamos los props manuales de drag, ya no son necesarios
-                                    />
-                                </div>
-                            ))}
-                        </ResponsiveGridLayout>
+                        className="layout"
+                        cols={{ lg: layoutColumns, md: layoutColumns, sm: layoutColumns, xs: layoutColumns, xxs: layoutColumns }}
+                        rowHeight={120}
+                        // Usamos directamente el layout generado por los widgets
+                        layouts={{
+                            lg: orderedWidgets.map(w => ({
+                                i: w.id,
+                                x: w.position?.x ?? 0,
+                                y: w.position?.y ?? 0,
+                                w: w.size?.width ?? 4,
+                                h: w.size?.height ?? 2
+                            }))
+                        }}
+                        measureBeforeMount={true}
+                        useCSSTransforms={true} // Importante para rendimiento
+                        isDraggable={isEditMode}
+                        isResizable={isEditMode}
+                        draggableHandle=".widget-grip" // Asegúrate de que tu MedicalWidgetCard tenga este className
+                        onDragStop={handleRGLStop}
+                        onResizeStop={handleRGLStop}
+                        margin={[16, 16]} // Espacio entre widgets
+                    >
+                        {orderedWidgets.map((widget) => (
+                            <div
+                                key={widget.id}
+                                ref={(el) => { containerRefs.current[widget.id] = el; }}
+                                // React-Grid-Layout inyecta estilos inline aquí, no los sobrescribas con clases que afecten posición
+                                className="relative transition-shadow"
+                            >
+                                <AnyWidgetCard
+                                    widget={widget}
+                                    patient={patient}
+                                    isEditMode={isEditMode}
+                                    onRemove={onRemoveWidget}
+                                    onUpdate={onUpdateWidget}
+                                    layoutColumns={layoutColumns}
+                                    layoutRows={layoutRows}
+                                // Eliminamos los props manuales de drag, ya no son necesarios
+                                />
+                            </div>
+                        ))}
+                    </ResponsiveGridLayout>
                 )}
             </div>
         </div>

@@ -3,6 +3,7 @@ mod api;
 mod config;
 mod db;
 mod discovery;
+mod filesystem;
 mod global;
 mod import_pipeline;
 mod importer;
@@ -15,7 +16,7 @@ mod session;
 mod wizard;
 
 use sysinfo::System;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 // Simple greeting for sanity checks
 #[tauri::command]
@@ -939,6 +940,11 @@ pub fn run() {
             let mut g = global::GLOBAL_APP_HANDLE.lock().unwrap();
             *g = Some(app.handle().clone());
 
+            // Initialize filesystem
+            let filesystem_state = filesystem::initialize()
+                .expect("Failed to initialize filesystem");
+            app.handle().manage(filesystem_state);
+
             // Auto-start server if configured as host
             let _app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -1170,6 +1176,24 @@ pub fn run() {
             get_plugin_data_entries,
             get_plugin_logs,
             add_plugin_log,
+            // filesystem
+            filesystem::commands::fs_list_directory,
+            filesystem::commands::fs_create_folder,
+            filesystem::commands::fs_delete_entry,
+            filesystem::commands::fs_rename_entry,
+            filesystem::commands::fs_move_entry,
+            filesystem::commands::fs_upload_file,
+            filesystem::commands::fs_download_file,
+            filesystem::commands::fs_get_metadata,
+            filesystem::commands::fs_search,
+            filesystem::commands::fs_get_storage_quota,
+            filesystem::commands::fs_link_to_patient,
+            filesystem::commands::fs_get_patient_files,
+            filesystem::commands::fs_get_audit_logs,
+            filesystem::commands::fs_move_to_trash,
+            filesystem::commands::fs_restore_from_trash,
+            filesystem::commands::fs_empty_trash,
+            filesystem::commands::fs_get_file_lock_status,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { IndependentTreatments } from './IndependentTreatments';
+import { TreatmentTimeline } from './TreatmentTimeline';
 
 // ─── Fluent UI v9 Design Tokens ─────────────────────────────────────────────
 const tokens = {
@@ -149,11 +150,28 @@ function ToothSVG({
     const highlightStroke = (s: Surface) =>
         surfaceSelected(s) ? 'rgba(255,255,255,0.9)' : 'transparent';
 
+    // Check if surface has treatment (for glow effect)
+    const surfaceHasTreatment = (s: Surface) => {
+        const color = getSurfaceColor(toothNumber, s);
+        return color !== tokens.colorNeutralBackground4 && color !== '#1a1a1a';
+    };
+
     return (
         <svg
             width={W} height={H} viewBox={`0 0 ${W} ${H}`}
             style={{ cursor: isEditMode ? 'pointer' : 'default', overflow: 'visible' }}
         >
+            {/* SVG Filters for glow effect */}
+            <defs>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
+                    <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+
             {/* Bridge indicator bar above tooth */}
             {bridgeColor && (
                 <rect x={-2} y={-6} width={W + 4} height={4} rx={2}
@@ -161,11 +179,11 @@ function ToothSVG({
                 />
             )}
 
-            {/* Outer tooth shape */}
+            {/* Outer tooth shape - DARKER for better contrast */}
             <rect x={1} y={1} width={W - 2} height={H - 2} rx={4}
-                fill={tokens.colorNeutralBackground3}
-                stroke={isSelected ? tokens.colorBrandForeground : tokens.colorNeutralStroke1}
-                strokeWidth={isSelected ? 1.5 : 1}
+                fill="#1a1a1a"
+                stroke={isSelected ? '#2196f3' : 'rgba(255,255,255,0.15)'}
+                strokeWidth={isSelected ? 2 : 1}
             />
 
             {/* Top surface */}
@@ -174,12 +192,14 @@ function ToothSVG({
                 fill={getSurfaceColor(toothNumber, topSurface)}
                 stroke={highlightStroke(topSurface)}
                 strokeWidth={1.5}
+                filter={surfaceHasTreatment(topSurface) ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, topSurface)}
                 style={{ cursor: isEditMode ? 'pointer' : 'default' }}
             />
             {/* clip top corners */}
             <rect x={1} y={7} width={W - 2} height={4}
                 fill={getSurfaceColor(toothNumber, topSurface)}
+                filter={surfaceHasTreatment(topSurface) ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, topSurface)}
             />
 
@@ -189,11 +209,13 @@ function ToothSVG({
                 fill={getSurfaceColor(toothNumber, bottomSurface)}
                 stroke={highlightStroke(bottomSurface)}
                 strokeWidth={1.5}
+                filter={surfaceHasTreatment(bottomSurface) ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, bottomSurface)}
                 style={{ cursor: isEditMode ? 'pointer' : 'default' }}
             />
             <rect x={1} y={H - 11} width={W - 2} height={4}
                 fill={getSurfaceColor(toothNumber, bottomSurface)}
+                filter={surfaceHasTreatment(bottomSurface) ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, bottomSurface)}
             />
 
@@ -203,6 +225,7 @@ function ToothSVG({
                 fill={getSurfaceColor(toothNumber, leftSurface)}
                 stroke={highlightStroke(leftSurface)}
                 strokeWidth={1.5}
+                filter={surfaceHasTreatment(leftSurface) ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, leftSurface)}
                 style={{ cursor: isEditMode ? 'pointer' : 'default' }}
             />
@@ -213,6 +236,7 @@ function ToothSVG({
                 fill={getSurfaceColor(toothNumber, rightSurface)}
                 stroke={highlightStroke(rightSurface)}
                 strokeWidth={1.5}
+                filter={surfaceHasTreatment(rightSurface) ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, rightSurface)}
                 style={{ cursor: isEditMode ? 'pointer' : 'default' }}
             />
@@ -224,19 +248,23 @@ function ToothSVG({
                 fill={getSurfaceColor(toothNumber, 'oclusal')}
                 stroke={highlightStroke('oclusal')}
                 strokeWidth={1.5}
+                filter={surfaceHasTreatment('oclusal') ? 'url(#glow)' : undefined}
                 onClick={(e) => isEditMode && onSurfaceClick(e, toothNumber, 'oclusal')}
                 style={{ cursor: isEditMode ? 'pointer' : 'default' }}
             />
 
-            {/* Tooth number label */}
+            {/* Tooth number label - MORE VISIBLE */}
             <text
-                x={cx} y={cy + 3}
+                x={cx} y={cy + 4}
                 textAnchor="middle"
-                fontSize={7}
+                fontSize={10}
                 fontFamily="'Geist Mono', monospace"
-                fontWeight="600"
-                fill="rgba(255,255,255,0.25)"
+                fontWeight="700"
+                fill="rgba(255,255,255,0.85)"
+                stroke="rgba(0,0,0,0.5)"
+                strokeWidth={0.5}
                 pointerEvents="none"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
             >
                 {toothNumber}
             </text>
@@ -305,6 +333,9 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const [toothTreatments, setToothTreatments] = useState<OdontogramToothTreatment[]>([]);
     const [bridges, setBridges] = useState<OdontogramBridge[]>([]);
 
+    // Map of treatment_id -> status for color coding
+    const [treatmentStatusMap, setTreatmentStatusMap] = useState<Map<number, string>>(new Map());
+
     const [catalog, setCatalog] = useState<TreatmentCatalogEntry[]>([]);
     const [catalogItems, setCatalogItems] = useState<TreatmentCatalogItem[]>([]);
     const [selectedTreatment, setSelectedTreatment] = useState<number | null>(null);
@@ -328,6 +359,9 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         treatmentId?: number;
         name?: string;
     } | null>(null);
+
+    // Refresh trigger for TreatmentTimeline
+    const [timelineRefresh, setTimelineRefresh] = useState(0);
 
     useEffect(() => { loadData(); }, [patientId]);
 
@@ -369,16 +403,31 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [surfaceData, catalogData, toothTreatmentsData, bridgesData] = await Promise.all([
+            const [surfaceData, catalogData, toothTreatmentsData, bridgesData, allTreatments] = await Promise.all([
                 getOdontogramSurfacesByPatient(patientId),
                 getAllTreatmentCatalog(),
                 getToothTreatmentsByPatient(patientId),
                 getBridgesByPatient(patientId),
+                (async () => {
+                    const { getTreatmentsByPatient } = await import('../../hooks/useTreatments');
+                    return getTreatmentsByPatient(patientId);
+                })(),
             ]);
+
             setSurfaces(surfaceData);
             setCatalog(catalogData);
             setToothTreatments(toothTreatmentsData);
             setBridges(bridgesData);
+
+            // Create treatment status map
+            const statusMap = new Map<number, string>();
+            (allTreatments || []).forEach((treatment: any) => {
+                statusMap.set(treatment.id, treatment.status);
+            });
+            setTreatmentStatusMap(statusMap);
+
+            // Trigger timeline refresh
+            setTimelineRefresh(prev => prev + 1);
         } catch {
             toast.error('Error al cargar el odontograma');
         } finally {
@@ -455,19 +504,43 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
         }) || null;
     };
 
+    // Get color based on treatment status - VIBRANT COLORS for dark theme
+    const getStatusColor = (status: string): string => {
+        switch (status) {
+            case 'Pending':
+                return '#ffc107'; // Bright amber/yellow
+            case 'InProgress':
+                return '#2196f3'; // Bright blue
+            case 'Completed':
+                return '#4caf50'; // Bright green
+            case 'Cancelled':
+                return '#f44336'; // Bright red
+            default:
+                return tokens.colorNeutralBackground4; // Gray for unknown
+        }
+    };
+
     const getSurfaceColor = (toothNumber: number, surface: Surface): string => {
         const surfaceData = getSurfaceData(toothNumber, surface);
         if (surfaceData.length === 0) return tokens.colorNeutralBackground4;
+
         const mostRecent = surfaceData[0];
-        if (mostRecent.treatment_catalog_id) {
-            const treatment = catalog.find(t => t.id === mostRecent.treatment_catalog_id);
-            if (treatment?.color) return treatment.color;
-            if (mostRecent.treatment_catalog_item_id) {
-                const item = catalogItems.find(i => i.id === mostRecent.treatment_catalog_item_id);
-                if (item?.color) return item.color;
+
+        // If there's a treatment_id, use the status color
+        if (mostRecent.treatment_id) {
+            const status = treatmentStatusMap.get(mostRecent.treatment_id);
+            if (status) {
+                return getStatusColor(status);
             }
         }
-        return '#4ade80';
+
+        // If there's a treatment_catalog_id but no treatment_id, show yellow (pending)
+        if (mostRecent.treatment_catalog_id) {
+            return '#ffc107';
+        }
+
+        // Fallback to default color if no treatment or status found
+        return tokens.colorNeutralBackground4;
     };
 
     const handleSurfaceClick = (e: React.MouseEvent, toothNumber: number, surface: Surface) => {
@@ -730,6 +803,24 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tokens.colorPaletteMarigoldForeground }}>
                     <div style={{ width: 20, height: 4, background: tokens.colorPaletteMarigoldForeground, borderRadius: 2, opacity: 0.85 }} />
                     Puente dental
+                </div>
+                <div style={{ width: 1, height: 14, background: tokens.colorNeutralStroke1, alignSelf: 'center' }} />
+                {/* Status color legend - VIBRANT COLORS */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 12, height: 12, background: '#ffc107', borderRadius: 2, boxShadow: '0 0 8px rgba(255,193,7,0.4)' }} />
+                    <span style={{ color: tokens.colorNeutralForeground2, fontWeight: 500 }}>Pendiente</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 12, height: 12, background: '#2196f3', borderRadius: 2, boxShadow: '0 0 8px rgba(33,150,243,0.4)' }} />
+                    <span style={{ color: tokens.colorNeutralForeground2, fontWeight: 500 }}>En Proceso</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 12, height: 12, background: '#4caf50', borderRadius: 2, boxShadow: '0 0 8px rgba(76,175,80,0.4)' }} />
+                    <span style={{ color: tokens.colorNeutralForeground2, fontWeight: 500 }}>Completado</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 12, height: 12, background: '#f44336', borderRadius: 2, boxShadow: '0 0 8px rgba(244,67,54,0.4)' }} />
+                    <span style={{ color: tokens.colorNeutralForeground2, fontWeight: 500 }}>Cancelado</span>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, color: tokens.colorNeutralForeground4, fontSize: 11 }}>
                     <span>← Derecha del paciente</span>
@@ -1428,6 +1519,22 @@ export function OdontogramAdvanced({ patientId }: OdontogramProps) {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* ── Treatment Timeline ──────────────────────────────── */}
+            <TreatmentTimeline
+                patientId={patientId}
+                selectedTooth={selectedTooth}
+                refreshTrigger={timelineRefresh}
+                onTreatmentClick={(treatmentId, toothNumber) => {
+                    // Navigate to the tooth when clicking a treatment
+                    const tooth = parseInt(toothNumber);
+                    if (!isNaN(tooth)) {
+                        setSelectedTooth(tooth);
+                        setSelectedSurface('whole_tooth');
+                        setViewMode('view');
+                    }
+                }}
+            />
 
             {/* ── Independent treatments ───────────────────────────── */}
             <IndependentTreatments patientId={patientId} onRefresh={loadData} />

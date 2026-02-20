@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 11;
+const CURRENT_SCHEMA_VERSION: i32 = 12;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -89,6 +89,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     if current_version < 11 {
         migrate_v11(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (11)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
+    if current_version < 12 {
+        migrate_v12(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (12)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
@@ -801,4 +807,146 @@ fn migrate_v11(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v11 err: {}", e))
+}
+
+/// Migración v12: Galeno Filesystem - Sistema de archivos virtual
+fn migrate_v12(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        -- Metadata table for files and folders
+        CREATE TABLE IF NOT EXISTS filesystem_metadata (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            virtual_path TEXT NOT NULL UNIQUE,
+            physical_path TEXT NOT NULL,
+            name TEXT NOT NULL,
+            entry_type TEXT NOT NULL CHECK(entry_type IN ('file', 'folder')),
+            size INTEGER NOT NULL DEFAULT 0,
+            mime_type TEXT,
+            owner_username TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+            parent_path TEXT,
+            FOREIGN KEY (owner_username) REFERENCES users(username) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filesystem_metadata_virtual_path ON filesystem_metadata(virtual_path);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_metadata_parent_path ON filesystem_metadata(parent_path);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_metadata_owner ON filesystem_metadata(owner_username);
+
+        -- Permissions table
+        CREATE TABLE IF NOT EXISTS filesystem_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            virtual_path TEXT NOT NULL,
+            username TEXT NOT NULL,
+            can_read INTEGER NOT NULL DEFAULT 0,
+            can_write INTEGER NOT NULL DEFAULT 0,
+            can_delete INTEGER NOT NULL DEFAULT 0,
+            granted_at TEXT NOT NULL DEFAULT (datetime('now')),
+            granted_by TEXT NOT NULL,
+            FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE,
+            UNIQUE(virtual_path, username)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filesystem_permissions_path ON filesystem_permissions(virtual_path);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_permissions_user ON filesystem_permissions(username);
+
+        -- File locks for concurrent access control
+        CREATE TABLE IF NOT EXISTS filesystem_locks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            virtual_path TEXT NOT NULL UNIQUE,
+            locked_by TEXT NOT NULL,
+            locked_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY (locked_by) REFERENCES users(username) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filesystem_locks_path ON filesystem_locks(virtual_path);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_locks_expires ON filesystem_locks(expires_at);
+
+        -- Audit log for all operations
+        CREATE TABLE IF NOT EXISTS filesystem_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            username TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            virtual_path TEXT NOT NULL,
+            target_path TEXT,
+            success INTEGER NOT NULL,
+            error_message TEXT,
+            metadata TEXT,
+            FOREIGN KEY (username) REFERENCES users(username) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filesystem_audit_timestamp ON filesystem_audit_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_audit_user ON filesystem_audit_log(username);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_audit_operation ON filesystem_audit_log(operation);
+
+        -- Patient file associations
+        CREATE TABLE IF NOT EXISTS filesystem_patient_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            virtual_path TEXT NOT NULL,
+            patient_id INTEGER NOT NULL,
+            linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+            linked_by TEXT NOT NULL,
+            notes TEXT,
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (linked_by) REFERENCES users(username) ON DELETE SET NULL,
+            UNIQUE(virtual_path, patient_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filesystem_patient_links_path ON filesystem_patient_links(virtual_path);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_patient_links_patient ON filesystem_patient_links(patient_id);
+
+        -- Trash/Recycle bin
+        CREATE TABLE IF NOT EXISTS filesystem_trash (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_virtual_path TEXT NOT NULL,
+            original_parent_path TEXT NOT NULL,
+            name TEXT NOT NULL,
+            entry_type TEXT NOT NULL CHECK(entry_type IN ('file', 'folder')),
+            size INTEGER NOT NULL,
+            owner_username TEXT NOT NULL,
+            deleted_at TEXT NOT NULL DEFAULT (datetime('now')),
+            deleted_by TEXT NOT NULL,
+            physical_backup_path TEXT NOT NULL,
+            FOREIGN KEY (owner_username) REFERENCES users(username) ON DELETE CASCADE,
+            FOREIGN KEY (deleted_by) REFERENCES users(username) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_filesystem_trash_owner ON filesystem_trash(owner_username);
+        CREATE INDEX IF NOT EXISTS idx_filesystem_trash_deleted_at ON filesystem_trash(deleted_at);
+
+        -- Storage quotas
+        CREATE TABLE IF NOT EXISTS filesystem_quotas (
+            username TEXT PRIMARY KEY,
+            quota_bytes INTEGER NOT NULL,
+            used_bytes INTEGER NOT NULL DEFAULT 0,
+            last_calculated TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
+        );
+
+        -- File type restrictions (whitelist)
+        CREATE TABLE IF NOT EXISTS filesystem_allowed_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            extension TEXT NOT NULL UNIQUE,
+            mime_type TEXT NOT NULL,
+            description TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1
+        );
+
+        -- Insert default allowed types for medical documents
+        INSERT OR IGNORE INTO filesystem_allowed_types (extension, mime_type, description) VALUES
+            ('pdf', 'application/pdf', 'PDF Document'),
+            ('jpg', 'image/jpeg', 'JPEG Image'),
+            ('jpeg', 'image/jpeg', 'JPEG Image'),
+            ('png', 'image/png', 'PNG Image'),
+            ('docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Word Document'),
+            ('doc', 'application/msword', 'Word Document (Legacy)'),
+            ('txt', 'text/plain', 'Text File'),
+            ('dcm', 'application/dicom', 'DICOM Medical Image'),
+            ('xml', 'application/xml', 'XML Document'),
+            ('csv', 'text/csv', 'CSV File');
+        "#,
+    )
+    .map_err(|e| format!("migration v12 err: {}", e))
 }

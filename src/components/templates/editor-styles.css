@@ -80,3 +80,96 @@
   pointer-events: none;
   height: 0;
 }
+
+/* Medical Notes Editor - Dark Theme */
+.medical-notes-editor .ProseMirror {
+  min-height: 200px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.medical-notes-editor .ProseMirror p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.medical-notes-editor .ProseMirror h1,
+.medical-notes-editor .ProseMirror h2,
+.medical-notes-editor .ProseMirror h3 {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.medical-notes-editor .ProseMirror code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.medical-notes-editor .ProseMirror pre {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.medical-notes-editor .ProseMirror blockquote {
+  border-left-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.medical-notes-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Prose styling for display mode */
+.prose-invert p {
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0.75rem 0;
+}
+
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3 {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.prose-invert h2 {
+  font-size: 1.25rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.prose-invert ul,
+.prose-invert ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.prose-invert li {
+  margin: 0.25rem 0;
+}
+
+.prose-invert strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 700;
+}
+
+.prose-invert em {
+  font-style: italic;
+}
+
+.prose-invert u {
+  text-decoration: underline;
+}
+
+.prose-invert code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.prose-invert blockquote {
+  border-left: 4px solid rgba(255, 255, 255, 0.2);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: rgba(255, 255, 255, 0.6);
+}
