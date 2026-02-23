@@ -79,8 +79,9 @@ pub fn get_user_by_username(username: &str) -> Result<Option<(User, String)>, St
 pub fn list_users() -> Result<Vec<User>, String> {
     let conn = get_connection()?;
 
+    // hide internal system account from any standard listing
     let mut stmt = conn
-        .prepare("SELECT id, username, name, role, pin, active, created_at, preferences FROM users ORDER BY created_at DESC")
+        .prepare("SELECT id, username, name, role, pin, active, created_at, preferences FROM users WHERE username != 'system' ORDER BY created_at DESC")
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let users = stmt
@@ -101,6 +102,28 @@ pub fn list_users() -> Result<Vec<User>, String> {
         .map_err(|e| format!("Error procesando usuarios: {}", e))?;
 
     Ok(users)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::get_connection;
+
+    #[test]
+    fn list_users_excludes_system() {
+        let conn = get_connection().expect("db");
+        // ensure system user exists and is active=0
+        conn.execute_batch(
+            "INSERT OR IGNORE INTO users (username, password_hash, name, role, created_at, updated_at, active) VALUES ('system','', 'System User','admin', datetime('now'), datetime('now'), 0);"
+        )
+        .unwrap();
+
+        let users = list_users().expect("list");
+        assert!(
+            users.iter().all(|u| u.username != "system"),
+            "system user should be filtered out"
+        );
+    }
 }
 
 pub fn update_user_password(username: &str, new_password_hash: &str) -> Result<(), String> {

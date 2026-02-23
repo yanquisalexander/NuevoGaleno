@@ -3,6 +3,7 @@ import { Patient } from '@/hooks/usePatients';
 import { MedicalWidget, WidgetType } from '@/types/medical-view';
 import * as Widgets from './MedicalWidgets';
 import { Plus, Save, RotateCcw, Settings2 } from 'lucide-react';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { WidthProvider, Responsive } from 'react-grid-layout/legacy'; // Asegúrate de importar de 'react-grid-layout' (no legacy si es posible, aunque legacy funciona)
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -47,10 +48,11 @@ export function MedicalView({
     layoutColumns = 12,
     layoutRows = 8,
 }: MedicalViewProps) {
-    const [showAddMenu, setShowAddMenu] = React.useState(false);
+    // showAddMenu is no longer needed since we use a portal‑based Select component
     const containerRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
 
-    const handleAddWidget = (type: WidgetType) => {
+    const handleAddWidget = (value: string) => {
+        const type = value as WidgetType;
         const newWidget: MedicalWidget = {
             id: `${type}-${Date.now()}`,
             type,
@@ -59,7 +61,6 @@ export function MedicalView({
             config: { order: Date.now() },
         };
         onAddWidget(newWidget);
-        setShowAddMenu(false);
     };
 
     // Orden inicial basado en config, pero RGL manejará el layout visual
@@ -111,28 +112,24 @@ export function MedicalView({
 
                     <div className="w-px h-5 bg-white/10" />
 
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowAddMenu(!showAddMenu)}
-                            className="px-2.5 py-1.5 bg-green-500/20 hover:bg-green-500/30 rounded-md text-xs text-green-400 transition-colors flex items-center gap-1.5"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Widget</span>
-                        </button>
-                        {showAddMenu && (
-                            <div className="absolute top-full right-0 mt-2 w-64 bg-[#1e1e1e] border border-white/10 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
+                    {/* Widget selector using shadcn Select; portal ensures it can escape window bounds */}
+                    <div>
+                        <Select onValueChange={handleAddWidget}>
+                            <SelectTrigger className="px-2.5 py-1.5 bg-green-500/20 hover:bg-green-500/30 rounded-md text-xs text-green-400 transition-colors flex items-center gap-1.5">
+                                <Plus className="w-3.5 h-3.5" />
+                                <SelectValue placeholder="Widget" />
+                            </SelectTrigger>
+                            <SelectContent>
                                 {WIDGET_CATALOG.map((item) => (
-                                    <button
-                                        key={item.type}
-                                        onClick={() => handleAddWidget(item.type)}
-                                        className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
-                                    >
-                                        <div className="text-sm font-medium text-white/90">{item.label}</div>
-                                        <div className="text-xs text-white/50 mt-0.5">{item.description}</div>
-                                    </button>
+                                    <SelectItem key={item.type} value={item.type}>
+                                        <div className="flex flex-col">
+                                            <span>{item.label}</span>
+                                            <span className="text-xs text-gray-400">{item.description}</span>
+                                        </div>
+                                    </SelectItem>
                                 ))}
-                            </div>
-                        )}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="w-px h-5 bg-white/10" />
