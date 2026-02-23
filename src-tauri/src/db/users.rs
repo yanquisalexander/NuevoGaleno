@@ -25,6 +25,11 @@ pub struct CreateUserInput {
 }
 
 pub fn create_user(input: CreateUserInput) -> Result<i64, String> {
+    // prevent any external code from creating the reserved internal account
+    if input.username.eq_ignore_ascii_case("system") {
+        return Err("El nombre de usuario 'system' está reservado".to_string());
+    }
+
     let conn = get_connection()?;
     let now = Utc::now().to_rfc3339();
 
@@ -123,6 +128,18 @@ mod tests {
             users.iter().all(|u| u.username != "system"),
             "system user should be filtered out"
         );
+    }
+
+    #[test]
+    fn cannot_create_system_user() {
+        let input = CreateUserInput {
+            username: "system".to_string(),
+            password_hash: "hash".to_string(),
+            name: "whatever".to_string(),
+            role: "user".to_string(),
+        };
+        let res = create_user(input);
+        assert!(res.is_err(), "Should not allow creating reserved username");
     }
 }
 

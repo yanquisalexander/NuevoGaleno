@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 12;
+const CURRENT_SCHEMA_VERSION: i32 = 13;
 
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     // Setup inicial
@@ -98,18 +98,23 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
+    if current_version < 13 {
+        migrate_v13(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (13)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
     Ok(())
 }
 
 /// Asegura compatibilidad con esquemas antiguos: agrega columnas que puedan faltar
 pub fn ensure_legacy_columns(conn: &Connection) -> Result<(), String> {
     // Si la tabla treatments no existe, no hacemos nada
-    let table_exists: Result<i64, _> = conn
-        .query_row(
-            "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='treatments'",
-            [],
-            |row| row.get(0),
-        );
+    let table_exists: Result<i64, _> = conn.query_row(
+        "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='treatments'",
+        [],
+        |row| row.get(0),
+    );
 
     if table_exists.is_err() || table_exists.unwrap_or(0) == 0 {
         return Ok(());
@@ -949,4 +954,14 @@ fn migrate_v12(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v12 err: {}", e))
+}
+
+/// Migración v13: marca el usuario 'system' como inactivo para ocultarlo
+fn migrate_v13(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        UPDATE users SET active = 0 WHERE username = 'system';
+        "#,
+    )
+    .map_err(|e| format!("migration v13 err: {}", e))
 }
