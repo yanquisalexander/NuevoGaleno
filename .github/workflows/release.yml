@@ -2,18 +2,70 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main          # ← cambiá si usás otra rama principal
+    paths:
+      - 'src-tauri/tauri.conf.json'
   workflow_dispatch:
 
 jobs:
-  release:
-    name: Build & Release (Windows)
-    runs-on: windows-latest
-
+  # ─────────────────────────────────────────
+  # JOB 1: Lee la versión y crea el tag
+  # ─────────────────────────────────────────
+  tag:
+    name: Create version tag
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      tag_created: ${{ steps.tag_check.outputs.exists == 'false' }}
 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tauri.conf.json
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: v$VERSION"
+
+      - name: Check if tag already exists
+        id: tag_check
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $TAG already exists, skipping."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $TAG does not exist, will create."
+          fi
+
+      - name: Create and push tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "✅ Tag $TAG created and pushed."
+
+  # ─────────────────────────────────────────
+  # JOB 2: Build & Release (depende del tag)
+  # ─────────────────────────────────────────
+  release:
+    name: Build & Release (Windows)
+    needs: tag
+    if: needs.tag.outputs.tag_created == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -22,35 +74,29 @@ jobs:
             args: '--target x86_64-pc-windows-msvc'
 
     steps:
-      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ pnpm (INSTALAR PRIMERO)
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 8
           run_install: false
 
-      # 3️⃣ Node + pnpm cache
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: 'pnpm'
 
-      # 4️⃣ Frontend deps
       - name: Install frontend dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # 5️⃣ Rust toolchain
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
-      # 6️⃣ Rust cache (target + cargo)
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -58,7 +104,6 @@ jobs:
             ./src-tauri -> target
           cache-on-failure: true
 
-      # 7️⃣ Build + Release Tauri
       - name: Build and release app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -66,11 +111,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Nuevo Galeno ${{ github.ref_name }}'
+          tagName: ${{ needs.tag.outputs.tag }}
+          releaseName: 'Nuevo Galeno ${{ needs.tag.outputs.tag }}'
           releaseBody: |
             🚀 Nueva versión de **Nuevo Galeno**
-
             Revisá el changelog para ver mejoras y correcciones.
           releaseDraft: false
           prerelease: false
