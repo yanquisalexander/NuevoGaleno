@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { DesktopContextMenu } from './DesktopContextMenu';
 import { AltTabSwitcher } from './AltTabSwitcher';
 import { AppIcon } from './AppIcon';
-import { playSound, UI_SOUNDS } from "@/consts/Sounds";
+import { UI_SOUNDS } from "@/consts/Sounds";
+import { usePlaySound } from '@/hooks/useSound';
 import { useNotifications } from "@/contexts/NotificationContext";
 import { useWallpaper, WallpaperProviderType } from "@/hooks/useWallpaper";
 import { useWallpaperContext } from '@/contexts/WallpaperContext';
@@ -20,10 +21,14 @@ export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
     const [selectedApp, setSelectedApp] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
-    // Obtener preferences del usuario
+    // Obtener preferences del usuario cada render; algunas llamadas posteriores
+    // (p.ej. al cambiar la configuración) harán que este valor se actualice.
     const userPrefs = getUserPreferences();
     const layout = (userPrefs.layout_style as string) || defaultLayout;
     const isMac = layout === 'macos';
+
+    // derivar tema de sonido para saber cuándo disparar el efecto de arranque
+    const soundTheme = ((userPrefs.sound_theme as string) || 'default').toString().trim().toLowerCase();
 
     // Usar el contexto compartido de wallpaper
     const {
@@ -37,9 +42,13 @@ export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
 
     const { addNotification } = useNotifications();
 
+    const play = usePlaySound();
+
+    // play welcome sound & notification. the theme may not be available on the
+    // very first render if preferences are loading, so we watch for
+    // "soundTheme" and guard with a ref so the boot sound only fires once.
     useEffect(() => {
-        console.log('Desktop mounted - showing welcome notification');
-        playSound(UI_SOUNDS.GALENO_BOOT, 0.3);
+        console.log('Desktop mounted or preferences changed - showing welcome notification?');
 
         const timer = setTimeout(() => {
             console.log('About to show notification...');
@@ -59,9 +68,19 @@ export function Desktop({ layout: defaultLayout = 'windows' }: DesktopProps) {
         }, 2000);
 
         return () => clearTimeout(timer);
-        // Solo ejecutar una vez cuando Desktop se monte
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [addNotification]);
+
+    // track whether we've already started the boot sound; useRef so it's
+    // stable across renders but doesn't trigger rerenders.
+    const bootPlayedRef = useRef(false);
+
+    useEffect(() => {
+        if (bootPlayedRef.current) return; // already played
+
+        bootPlayedRef.current = true;
+        console.log('Playing boot sound with theme', soundTheme);
+        play(UI_SOUNDS.GALENO_BOOT, 0.3);
+    }, [play, soundTheme]);
 
     return (
         <motion.div

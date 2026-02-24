@@ -12,6 +12,7 @@ import { NodeProvider } from "./contexts/NodeContext";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { initErrorLogging } from "./utils/errorLogging";
+import { CommandProvider } from "./contexts/CommandContext";
 
 // Inicializar el sistema de logging antes de renderizar
 initErrorLogging().then(() => {
@@ -28,8 +29,10 @@ initErrorLogging().then(() => {
                   <NotificationProvider>
                     <MenuBarProvider>
                       <WindowManagerProvider>
-                        <App />
-                        <NotificationCenter />
+                        <CommandProvider>
+                          <App />
+                          <NotificationCenter />
+                        </CommandProvider>
                       </WindowManagerProvider>
                     </MenuBarProvider>
                   </NotificationProvider>
@@ -56,8 +59,10 @@ initErrorLogging().then(() => {
                   <NotificationProvider>
                     <MenuBarProvider>
                       <WindowManagerProvider>
-                        <App />
-                        <NotificationCenter />
+                        <CommandProvider>
+                          <App />
+                          <NotificationCenter />
+                        </CommandProvider>
                       </WindowManagerProvider>
                     </MenuBarProvider>
                   </NotificationProvider>

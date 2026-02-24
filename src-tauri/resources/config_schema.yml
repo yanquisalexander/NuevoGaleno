@@ -27,3 +27,18 @@ wallpaperProvider:
   description: Proveedor de wallpapers para el escritorio.
   ui_section: Personalización
   user_preference: true
+
+soundTheme:
+  type: enum
+  default: default
+  choices: [default, nature]
+  description: Tema de sonidos de interfaz de usuario.
+  ui_section: Personalización
+  user_preference: true
+
+playBootSound:
+  type: boolean
+  default: true
+  description: Reproducir sonido de arranque de Nuevo Galeno.
+  ui_section: Personalización
+  user_preference: true

@@ -2,39 +2,46 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { useNotifications, Notification, NotificationType } from '../contexts/NotificationContext';
 import { useEffect, useRef } from 'react';
-import { playSound } from '../consts/Sounds';
+import { usePlaySound } from '../hooks/useSound';
 
 function NotificationItem({ notification }: { notification: Notification }) {
     const { removeNotification } = useNotifications();
 
-    // En Windows 11, el color solo aparece discretamente en el icono
+    // Solo el icono lleva color — el fondo es siempre neutro (Fluent dark)
     const getIcon = (type: NotificationType) => {
         switch (type) {
             case 'success': return <CheckCircle className="w-4 h-4 text-[#6ccb5f]" />;
-            case 'error': return <XCircle className="w-4 h-4 text-[#ff99a4]" />;
-            case 'warning': return <AlertTriangle className="w-4 h-4 text-[#ffda6a]" />;
-            default: return <Info className="w-4 h-4 text-[#60cdff]" />;
+            case 'error': return <XCircle className="w-4 h-4 text-[#f1707b]" />;
+            case 'warning': return <AlertTriangle className="w-4 h-4 text-[#fce100]" />;
+            default: return <Info className="w-4 h-4 text-[#479ef5]" />;
         }
     };
 
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, x: 50, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 20, scale: 0.9, transition: { duration: 0.15 } }}
-            // Fondo neutro oscuro (Mica), sin bordes de colores, bordes muy redondeados (xl)
+            initial={{ opacity: 0, y: 12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{
+                opacity: 0,
+                x: 20,
+                scale: 0.95,
+                transition: { duration: 0.15, ease: 'easeIn' },
+            }}
+            // Fondo siempre #202020 — sin variación por tipo
             className="relative w-[360px] bg-[#202020]/90 backdrop-blur-2xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden group mb-2"
         >
+            {/* Barra superior de progreso de auto-dismiss (opcional, decorativa) */}
+            <div className="h-[1px] bg-white/[0.06] w-full" />
+
             <div className="p-4">
                 <div className="flex gap-3">
-                    {/* Icono de la App o Estado */}
+                    {/* Icono — única señal visual del tipo */}
                     <div className="flex-shrink-0 mt-0.5">
-                        {notification.icon ? (
-                            <span className="text-base">{notification.icon}</span>
-                        ) : (
-                            getIcon(notification.type)
-                        )}
+                        {notification.icon
+                            ? <span className="text-base leading-none">{notification.icon}</span>
+                            : getIcon(notification.type)
+                        }
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -45,14 +52,15 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
                             <button
                                 onClick={() => removeNotification(notification.id)}
-                                className="flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors"
+                                className="flex-shrink-0 p-1 rounded-md hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors"
+                                aria-label="Cerrar notificación"
                             >
-                                <X className="w-3.5 h-3.5 text-white/70" />
+                                <X className="w-3.5 h-3.5 text-white/50" />
                             </button>
                         </div>
 
                         {notification.message && (
-                            <p className="text-[12px] text-white/60 mt-1 leading-snug font-normal">
+                            <p className="text-[12px] text-white/55 mt-1 leading-snug font-normal">
                                 {notification.message}
                             </p>
                         )}
@@ -66,7 +74,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
                                             action.onClick();
                                             removeNotification(notification.id);
                                         }}
-                                        className="flex-1 px-3 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.05] rounded text-[12px] text-white/90 transition-all active:scale-[0.98]"
+                                        className="flex-1 px-3 py-1.5 bg-white/[0.05] hover:bg-white/[0.09] active:bg-white/[0.04] border border-white/[0.07] rounded-md text-[12px] text-white/85 transition-all active:scale-[0.98]"
                                     >
                                         {action.label}
                                     </button>
@@ -85,8 +93,8 @@ export function NotificationCenter() {
     const currentNotification = notifications[0];
     const lastNotificationIdRef = useRef<string | null>(null);
     const soundPlayedRef = useRef<Set<string>>(new Set());
+    const play = usePlaySound();
 
-    // Debug: Log cuando cambian las notificaciones
     useEffect(() => {
         console.log('NotificationCenter - Total notifications:', notifications.length);
         if (currentNotification) {
@@ -94,27 +102,25 @@ export function NotificationCenter() {
         }
     }, [notifications, currentNotification]);
 
-    // Reproducir sonido solo cuando aparece una nueva notificación visible
     useEffect(() => {
         if (!currentNotification) return;
 
         const notificationId = currentNotification.id;
 
-        // Solo reproducir si es una notificación nueva y no se ha reproducido antes
-        if (notificationId !== lastNotificationIdRef.current &&
-            !soundPlayedRef.current.has(notificationId)) {
-
+        if (
+            notificationId !== lastNotificationIdRef.current &&
+            !soundPlayedRef.current.has(notificationId)
+        ) {
             lastNotificationIdRef.current = notificationId;
             soundPlayedRef.current.add(notificationId);
 
             console.log('Playing notification sound:', currentNotification.soundFile);
 
-            // Reproducir sonido si está habilitado
             if (currentNotification.sound && currentNotification.soundFile) {
-                playSound(currentNotification.soundFile, 0.5);
+                // soundFile may already be a UISound constant
+                play(currentNotification.soundFile as any, 0.5);
             }
 
-            // Limpiar refs antiguas para evitar memory leaks (mantener solo las últimas 50)
             if (soundPlayedRef.current.size > 50) {
                 const entries = Array.from(soundPlayedRef.current);
                 soundPlayedRef.current = new Set(entries.slice(-25));
@@ -132,14 +138,21 @@ export function NotificationCenter() {
                 )}
             </AnimatePresence>
 
-            {/* Indicador de más notificaciones estilo Windows 11 */}
-            {notifications.length > 1 && (
-                <div className="mt-1 mr-2 px-2 py-0.5 bg-[#2c2c2c] border border-white/10 rounded-full shadow-lg">
-                    <p className="text-[10px] text-white/50 font-medium">
-                        {notifications.length - 1} más en el centro de control
-                    </p>
-                </div>
-            )}
+            {/* Pill de "N más" — estilo Windows 11 */}
+            <AnimatePresence>
+                {notifications.length > 1 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                        className="mt-1 mr-2 px-2.5 py-0.5 bg-[#2a2a2a] border border-white/[0.08] rounded-full shadow-lg"
+                    >
+                        <p className="text-[10px] text-white/40 font-medium tracking-wide">
+                            {notifications.length - 1} más en el centro de control
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

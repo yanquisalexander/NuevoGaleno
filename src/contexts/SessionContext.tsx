@@ -147,7 +147,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const updatePreferences = async (preferences: Record<string, any>): Promise<void> => {
         if (!currentUser) throw new Error('No hay usuario en sesión');
-        const preferencesJson = JSON.stringify(preferences);
+
+        // merge the new values with the existing preferences so that updating a
+        // single key doesn't wipe out the others. the backend expects the full
+        // preferences object, so we combine locally before sending.
+        let existing: Record<string, any> = {};
+        if (currentUser.preferences) {
+            try {
+                existing = JSON.parse(currentUser.preferences);
+            } catch {
+                // if parsing fails we'll overwrite; should rarely happen
+                existing = {};
+            }
+        }
+        const merged = { ...existing, ...preferences };
+        const preferencesJson = JSON.stringify(merged);
+
         await invoke('update_user_preferences', {
             username: currentUser.username,
             preferences: preferencesJson

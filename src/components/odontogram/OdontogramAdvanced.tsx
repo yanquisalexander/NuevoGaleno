@@ -77,6 +77,9 @@ const tokens = {
 
 interface OdontogramProps {
     patientId: number;
+    // provided when opening via quick-edit from preview widget
+    initialTooth?: number;
+    initialSurface?: Surface;
 }
 
 const TEETH_FDI_PERMANENT = {
@@ -319,16 +322,23 @@ function ToothSVG({
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-export function OdontogramAdvanced({ patientId }: OdontogramProps) {
+export function OdontogramAdvanced({ patientId, initialTooth, initialSurface }: OdontogramProps) {
     const [surfaces, setSurfaces] = useState<OdontogramSurface[]>([]);
-    const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
-    const [selectedSurface, setSelectedSurface] = useState<Surface | null>(null);
+    const [selectedTooth, setSelectedTooth] = useState<number | null>(initialTooth ?? null);
+    const [selectedSurface, setSelectedSurface] = useState<Surface | null>(initialSurface ?? null);
     const [surfaceTreatments, setSurfaceTreatments] = useState<OdontogramSurface[]>([]);
     const [surfaceHistory, setSurfaceHistory] = useState<SurfaceHistoryEntry[]>([]);
     const [showHistory, setShowHistory] = useState(false);
     const [toothLevelTreatments, setToothLevelTreatments] = useState<OdontogramToothTreatment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [viewMode, setViewMode] = useState<ViewMode>('view');
+
+    // automatically switch to edit mode if an initial tooth/ surface was provided
+    useEffect(() => {
+        if (initialTooth != null) {
+            setViewMode('edit');
+        }
+    }, [initialTooth]);
 
     const [toothTreatments, setToothTreatments] = useState<OdontogramToothTreatment[]>([]);
     const [bridges, setBridges] = useState<OdontogramBridge[]>([]);

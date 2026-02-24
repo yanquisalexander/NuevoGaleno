@@ -1,10 +1,206 @@
 import { useState, useEffect } from 'react';
-import { Activity, Wallet, ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Activity, Wallet, ChevronRight, TrendingDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../contexts/WindowManagerContext';
 import { getPatientsWithDebt } from '../hooks/usePayments';
 import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
+
+// ── Fluent UI v9 Dark tokens ─────────────────────────────────────────────────
+const F = {
+    bg: '#141414',
+    surface: '#1c1c1c',
+    surfaceRaised: '#222222',
+    hover: 'rgba(255,255,255,0.055)',
+    pressed: 'rgba(255,255,255,0.03)',
+    border: 'rgba(255,255,255,0.07)',
+    borderMed: 'rgba(255,255,255,0.12)',
+    brand: '#479ef5',
+    brandMuted: 'rgba(71,158,245,0.1)',
+    brandBorder: 'rgba(71,158,245,0.22)',
+    success: '#6ccb5f',
+    successMuted: 'rgba(108,203,95,0.1)',
+    successBorder: 'rgba(108,203,95,0.22)',
+    warning: '#fce100',
+    warningMuted: 'rgba(252,225,0,0.08)',
+    textPrimary: '#ffffff',
+    textSecondary: 'rgba(255,255,255,0.58)',
+    textDisabled: 'rgba(255,255,255,0.3)',
+    font: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+    fontMono: "'Cascadia Code', 'Consolas', monospace",
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('es-AR', {
+        style: 'currency', currency: 'ARS', maximumFractionDigits: 0,
+    }).format(amount);
+
+// ── Subcomponentes ───────────────────────────────────────────────────────────
+
+function Spinner() {
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: '12px',
+            background: F.bg, fontFamily: F.font,
+        }}>
+            <div style={{
+                width: '24px', height: '24px',
+                border: `2px solid rgba(71,158,245,0.2)`,
+                borderTopColor: F.brand,
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+            }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <span style={{ fontSize: '12px', color: F.textDisabled }}>Cargando cuentas…</span>
+        </div>
+    );
+}
+
+function EmptyState() {
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: '12px', textAlign: 'center',
+            padding: '40px',
+        }}>
+            <div style={{
+                width: '56px', height: '56px', borderRadius: '16px',
+                background: F.successMuted,
+                border: `1px solid ${F.successBorder}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: '4px',
+            }}>
+                <Activity style={{ width: '24px', height: '24px', color: F.success }} strokeWidth={1.5} />
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: F.textPrimary }}>
+                Todo al día
+            </span>
+            <span style={{
+                fontSize: '12px', color: F.textSecondary,
+                maxWidth: '220px', lineHeight: '1.5',
+            }}>
+                No hay pacientes con saldos pendientes en este momento.
+            </span>
+        </div>
+    );
+}
+
+function DebtorRow({ debtor, index, onClick }: {
+    debtor: any; index: number; onClick: () => void;
+}) {
+    const [hov, setHov] = useState(false);
+
+    const initials = debtor.patient_name
+        ?.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase() ?? '??';
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.025, duration: 0.2, ease: [0.33, 1, 0.68, 1] }}
+        >
+            <button
+                onClick={onClick}
+                onMouseEnter={() => setHov(true)}
+                onMouseLeave={() => setHov(false)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    width: '100%', padding: '11px 14px',
+                    background: hov ? F.hover : 'transparent',
+                    border: `1px solid ${hov ? F.borderMed : F.border}`,
+                    borderRadius: '7px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background 0.1s, border-color 0.12s',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    fontFamily: F.font,
+                }}
+            >
+                {/* Accent bar izquierdo */}
+                <div style={{
+                    position: 'absolute', left: 0, top: '20%', bottom: '20%',
+                    width: '3px', borderRadius: '0 3px 3px 0',
+                    background: F.success,
+                    opacity: hov ? 1 : 0,
+                    transition: 'opacity 0.12s',
+                }} />
+
+                {/* Avatar con iniciales */}
+                <div style={{
+                    flexShrink: 0,
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    background: F.successMuted,
+                    border: `1px solid ${F.successBorder}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '12px', fontWeight: 700, color: F.success,
+                    transition: 'background 0.1s',
+                    ...(hov ? { background: 'rgba(108,203,95,0.18)' } : {}),
+                }}>
+                    {initials}
+                </div>
+
+                {/* Nombre + badge */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                        fontSize: '13px', fontWeight: 600,
+                        color: hov ? F.textPrimary : 'rgba(255,255,255,0.88)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        transition: 'color 0.1s',
+                    }}>
+                        {debtor.patient_name}
+                    </div>
+                    <div style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                            fontSize: '10px', fontWeight: 500,
+                            color: F.textDisabled,
+                            background: 'rgba(255,255,255,0.05)',
+                            border: `1px solid ${F.border}`,
+                            borderRadius: '4px',
+                            padding: '1px 6px',
+                        }}>
+                            {debtor.treatments_count} ítems
+                        </span>
+                    </div>
+                </div>
+
+                {/* Montos */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{
+                        fontSize: '14px', fontWeight: 700,
+                        color: F.success,
+                        fontFamily: F.fontMono,
+                        letterSpacing: '-0.3px',
+                        lineHeight: 1.2,
+                    }}>
+                        {formatCurrency(debtor.total_balance)}
+                    </div>
+                    <div style={{
+                        fontSize: '10px', color: F.textDisabled,
+                        fontFamily: F.fontMono,
+                        marginTop: '2px',
+                    }}>
+                        de {formatCurrency(debtor.total_treatments_cost)}
+                    </div>
+                </div>
+
+                {/* Chevron */}
+                <ChevronRight style={{
+                    width: '14px', height: '14px', flexShrink: 0,
+                    color: hov ? F.textSecondary : F.textDisabled,
+                    transform: hov ? 'translateX(2px)' : 'none',
+                    transition: 'color 0.1s, transform 0.15s',
+                }} />
+            </button>
+        </motion.div>
+    );
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
 
 export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
     useAppRuntime('accounts', 'Cuentas Corrientes');
@@ -12,123 +208,103 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
     const [isLoading, setIsLoading] = useState(true);
     const { openWindow } = useWindowManager();
 
-    useEffect(() => {
-        loadDebtors();
-    }, []);
+    useEffect(() => { loadDebtors(); }, []);
 
     const loadDebtors = async () => {
         setIsLoading(true);
-        try {
-            const data = await getPatientsWithDebt();
-            setDebtors(data);
-        } catch (error) {
-            console.error('Error cargando deudores:', error);
-        } finally {
-            setIsLoading(false);
-        }
+        try { setDebtors(await getPatientsWithDebt()); }
+        catch (e) { console.error(e); }
+        finally { setIsLoading(false); }
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-AR', {
-            style: 'currency',
-            currency: 'ARS',
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    const totalDebt = debtors.reduce((acc, d) => acc + (d.total_balance ?? 0), 0);
 
-    // Spinner estilo Windows (puntos girando o círculo fino)
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full bg-[#202020] text-white/80 gap-3">
-                <div className="w-8 h-8 border-[3px] border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-                <span className="text-sm font-medium animate-pulse">Cargando cuentas...</span>
-            </div>
-        );
-    }
+    if (isLoading) return <Spinner />;
 
     return (
-        // Fondo base estilo "Mica" oscuro
-        <div className="h-full flex flex-col bg-[#202020] text-[#ffffff] font-sans selection:bg-emerald-500/30">
+        <div style={{
+            height: '100%', display: 'flex', flexDirection: 'column',
+            background: F.bg, fontFamily: F.font, color: F.textPrimary,
+        }}>
 
-            {/* Header estilo Glass/Acrílico */}
-            <div className="sticky top-0 z-10 px-6 py-5 bg-[#202020]/80 backdrop-blur-md border-b border-white/5 flex justify-between items-end">
-                <div>
-                    <h2 className="text-xl font-semibold tracking-tight">Cuentas Corrientes</h2>
-                    <p className="text-xs text-white/50 mt-1 font-medium">Estado de saldos pendientes</p>
-                </div>
-                <div className="bg-white/5 px-3 py-1 rounded-md border border-white/5">
-                    <span className="text-xs text-emerald-400 font-medium">Total: {debtors.length}</span>
-                </div>
-            </div>
-
-            {/* Lista con scrollbar estilizado */}
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                {debtors.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-[60%] text-center p-8">
-                        <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/5 shadow-2xl shadow-emerald-900/10">
-                            <Activity className="w-10 h-10 text-emerald-400/80" strokeWidth={1.5} />
-                        </div>
-                        <h3 className="text-lg font-semibold text-white/90">Todo al día</h3>
-                        <p className="text-sm text-white/50 mt-2 max-w-[250px]">
-                            No hay pacientes con saldos pendientes en este momento.
-                        </p>
+            {/* ── Header ── */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 20px',
+                background: F.surface,
+                borderBottom: `1px solid ${F.border}`,
+                flexShrink: 0,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                        width: '32px', height: '32px', borderRadius: '8px',
+                        background: F.successMuted,
+                        border: `1px solid ${F.successBorder}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <Wallet style={{ width: '16px', height: '16px', color: F.success }} strokeWidth={1.5} />
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-2">
-                        {debtors.map((debtor, index) => (
-                            <motion.button
-                                key={debtor.patient_id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.03, duration: 0.3 }}
-                                onClick={() => openWindow('patient-record', { patientId: debtor.patient_id })}
-                                // Estilos de tarjeta Windows 11:
-                                // - bg-white/5 (Surface layer)
-                                // - hover:bg-white/10 (Hover state)
-                                // - border-white/5 (Subtle stroke)
-                                // - active:scale (Feedback táctil)
-                                className="group relative flex items-center w-full p-4 rounded-lg bg-[#2d2d2d] border border-white/5 hover:bg-[#353535] hover:border-white/10 transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-2 focus:ring-offset-[#202020]"
-                            >
-                                {/* Indicador lateral de estado (acento) */}
-                                <div className="absolute left-0 top-3 bottom-3 w-[3px] bg-emerald-500 rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, lineHeight: 1.2 }}>
+                            Cuentas Corrientes
+                        </div>
+                        <div style={{ fontSize: '11px', color: F.textDisabled, marginTop: '1px' }}>
+                            Estado de saldos pendientes
+                        </div>
+                    </div>
+                </div>
 
-                                {/* Icono / Avatar */}
-                                <div className="mr-4 relative">
-                                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
-                                        <Wallet className="w-5 h-5 text-emerald-400" strokeWidth={1.5} />
-                                    </div>
-                                </div>
-
-                                {/* Contenido Central */}
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="text-sm font-semibold text-white/90 truncate group-hover:text-white transition-colors">
-                                        {debtor.patient_name}
-                                    </h3>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-xs text-white/50 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
-                                            {debtor.treatments_count} ítems
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Columna de Precio */}
-                                <div className="text-right pl-4">
-                                    <div className="text-base font-bold text-emerald-400 font-mono tracking-tight">
-                                        {formatCurrency(debtor.total_balance)}
-                                    </div>
-                                    <div className="text-[11px] text-white/40 mt-0.5">
-                                        Total: {formatCurrency(debtor.total_treatments_cost)}
-                                    </div>
-                                </div>
-
-                                {/* Flecha sutil (reveal on hover) */}
-                                <div className="ml-4 text-white/20 group-hover:text-white/60 transition-colors group-hover:translate-x-1 duration-200">
-                                    <ArrowRight className="w-4 h-4" />
-                                </div>
-                            </motion.button>
-                        ))}
+                {/* Summary chips */}
+                {debtors.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            padding: '4px 10px',
+                            background: F.warningMuted,
+                            border: `1px solid rgba(252,225,0,0.18)`,
+                            borderRadius: '6px',
+                        }}>
+                            <TrendingDown style={{ width: '12px', height: '12px', color: F.warning }} />
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: F.warning, fontFamily: F.fontMono }}>
+                                {formatCurrency(totalDebt)}
+                            </span>
+                        </div>
+                        <div style={{
+                            padding: '4px 10px',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${F.border}`,
+                            borderRadius: '6px',
+                            fontSize: '11px', fontWeight: 500,
+                            color: F.textSecondary,
+                        }}>
+                            {debtors.length} pacientes
+                        </div>
                     </div>
                 )}
+            </div>
+
+            {/* ── Lista ── */}
+            <div style={{
+                flex: 1, overflowY: 'auto', padding: '12px 16px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(255,255,255,0.1) transparent',
+            }}>
+                <AnimatePresence>
+                    {debtors.length === 0 ? (
+                        <EmptyState />
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {debtors.map((debtor, i) => (
+                                <DebtorRow
+                                    key={debtor.patient_id}
+                                    debtor={debtor}
+                                    index={i}
+                                    onClick={() => openWindow('patient-record', { patientId: debtor.patient_id })}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </AnimatePresence>
             </div>
 
         </div>

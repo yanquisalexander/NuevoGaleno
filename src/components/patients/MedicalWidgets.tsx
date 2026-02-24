@@ -401,6 +401,16 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
     const [catalogItems, setCatalogItems] = React.useState<any[]>([]);
     const { openWindow } = useWindowManager();
 
+    // quick edit helper: open patient record odontogram with a tooth/surface pre-selected
+    const handleSurfaceClick = (toothNumber: number, surface: string) => {
+        openWindow('patient-record', {
+            patientId,
+            activeTab: 'odontogram',
+            initialTooth: toothNumber,
+            initialSurface: surface,
+        });
+    };
+
     React.useEffect(() => {
         let mounted = true;
         (async () => {
@@ -514,6 +524,8 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
             t.is_active
         );
 
+        // note: the various surface variables are reused below to attach click handlers
+
         // Get visual effect from treatment catalog using component state
         let visualEffect: string | null = null;
         if (toothTreatment) {
@@ -534,8 +546,9 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
         return (
             <div
                 key={toothNumber}
-                className="flex flex-col items-center"
-                title={`Pieza ${toothNumber}${bridge ? ` - Puente: ${bridge.bridge_name}` : ''}`}
+                className="flex flex-col items-center cursor-pointer"
+                title={`Pieza ${toothNumber}${bridge ? ` - Puente: ${bridge.bridge_name}` : ''} (clic para editar)`}
+                onClick={() => handleSurfaceClick(toothNumber, 'whole_tooth')}
             >
                 <svg width={W} height={H + 4} viewBox={`0 0 ${W} ${H + 4}`}>
                     {/* Bridge indicator bar */}
@@ -567,8 +580,15 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
                             rx="3"
                             fill={getSurfaceColor(toothNumber, topSurface)}
                             opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, topSurface)}
+                            className="cursor-pointer"
                         />
-                        <rect x="0.5" y="8" width={W - 1} height="4" fill={getSurfaceColor(toothNumber, topSurface)} opacity="0.9" />
+                        <rect
+                            x="0.5" y="8" width={W - 1} height="4"
+                            fill={getSurfaceColor(toothNumber, topSurface)} opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, topSurface)}
+                            className="cursor-pointer"
+                        />
 
                         {/* Bottom surface */}
                         <rect
@@ -577,8 +597,15 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
                             rx="3"
                             fill={getSurfaceColor(toothNumber, bottomSurface)}
                             opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, bottomSurface)}
+                            className="cursor-pointer"
                         />
-                        <rect x="0.5" y={H - 11.5} width={W - 1} height="4" fill={getSurfaceColor(toothNumber, bottomSurface)} opacity="0.9" />
+                        <rect
+                            x="0.5" y={H - 11.5} width={W - 1} height="4"
+                            fill={getSurfaceColor(toothNumber, bottomSurface)} opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, bottomSurface)}
+                            className="cursor-pointer"
+                        />
 
                         {/* Left surface */}
                         <rect
@@ -586,6 +613,8 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
                             width="9" height={H - 24}
                             fill={getSurfaceColor(toothNumber, leftSurface)}
                             opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, leftSurface)}
+                            className="cursor-pointer"
                         />
 
                         {/* Right surface */}
@@ -594,6 +623,8 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
                             width="9" height={H - 24}
                             fill={getSurfaceColor(toothNumber, rightSurface)}
                             opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, rightSurface)}
+                            className="cursor-pointer"
                         />
 
                         {/* Oclusal center */}
@@ -603,6 +634,8 @@ function OdontogramPreviewWidget({ patientId }: { patientId: number }) {
                             rx="2"
                             fill={getSurfaceColor(toothNumber, 'oclusal')}
                             opacity="0.9"
+                            onClick={() => handleSurfaceClick(toothNumber, 'oclusal')}
+                            className="cursor-pointer"
                         />
 
                         {/* Tooth number - LARGER and MORE VISIBLE */}

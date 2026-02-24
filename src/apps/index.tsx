@@ -10,6 +10,7 @@ import {
     InitialSetupApp,
     ImportReviewApp
 } from './';
+import { CommandShellApp } from './CommandShell';
 
 import { UserAccountsApp } from './UserAccounts';
 import { ConfigurationApp } from '@/components/ConfigurationApp';
@@ -22,7 +23,7 @@ import { ManualGalenoApp } from './ManualGaleno';
 import { DevToolsApp } from './DevTools';
 import { PluginStore } from './PluginStore';
 import { FileManagerApp } from './FileManager';
-import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor, FolderRegular, FolderOpenFilled } from '@fluentui/react-icons';
+import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor, FolderRegular, FolderOpenFilled, NumberSymbolSquareColor, SavingsColor, PersonStarburstColor, BookOpenColor, WrenchColor, AppsColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -42,6 +43,7 @@ export { ManualGalenoApp } from './ManualGaleno';
 export { DevToolsApp } from './DevTools';
 export { PluginStore } from './PluginStore';
 export { FileManagerApp } from './FileManager';
+export { CommandShellApp } from './CommandShell';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -93,6 +95,7 @@ export const APP_DEFINITIONS = [
         id: 'accounts',
         name: 'Cuentas Corrientes',
         icon: '💰',
+        iconComponent: SavingsColor,
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: AccountsApp,
@@ -119,7 +122,7 @@ export const APP_DEFINITIONS = [
         id: 'settings',
         name: 'Configuración',
         icon: '⚙️',
-        iconComponent: SettingsColor,
+        iconComponent: WrenchColor,
         allowMultipleInstances: false,
         defaultSize: { width: 900, height: 650 },
         component: ConfigurationApp,
@@ -128,6 +131,7 @@ export const APP_DEFINITIONS = [
         id: 'user-profile',
         name: 'Tu Cuenta',
         icon: '👤',
+        iconComponent: PersonStarburstColor,
         allowMultipleInstances: false,
         defaultSize: { width: 850, height: 650 },
         component: UserAccountsApp,
@@ -172,6 +176,7 @@ export const APP_DEFINITIONS = [
         id: 'migaleno',
         name: 'MiGaleno',
         icon: '🛡️',
+        iconComponent: AppsColor,
         allowMultipleInstances: false,
         defaultSize: { width: 960, height: 600 },
         component: MiGalenoApp,
@@ -196,9 +201,18 @@ export const APP_DEFINITIONS = [
         showOnDesktop: false,
     },
     {
+        id: 'command-shell',
+        name: 'Command Shell',
+        iconComponent: NumberSymbolSquareColor,
+        allowMultipleInstances: false,
+        defaultSize: { width: 600, height: 400 },
+        component: CommandShellApp,
+    },
+    {
         id: 'manual-galeno',
         name: 'Manual Galeno',
         icon: '📖',
+        iconComponent: BookOpenColor,
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: ManualGalenoApp,

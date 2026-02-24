@@ -8,7 +8,11 @@ import {
     Clock,
     Globe,
     Server,
-    Laptop
+    Laptop,
+    CheckCircle2,
+    AlertCircle,
+    AlertTriangle,
+    Info
 } from 'lucide-react';
 import { useNotifications, Notification } from '../contexts/NotificationContext';
 import { useNode } from '../contexts/NodeContext';
@@ -18,54 +22,198 @@ interface NotificationCenterPanelProps {
     onClose: () => void;
 }
 
+// Fluent UI v9 — Dark Mode Design Tokens
+const fluent = {
+    // Surface (dark)
+    surfacePrimary: '#1C1C1C',
+    surfaceSecondary: '#141414',
+    surfaceTertiary: '#282828',
+    surfaceOverlay: 'rgba(0,0,0,0.55)',
+    surfaceHover: 'rgba(255,255,255,0.06)',
+    surfacePressed: 'rgba(255,255,255,0.04)',
+    // Text
+    textPrimary: '#FFFFFF',
+    textSecondary: '#B3B3B3',
+    textDisabled: '#666666',
+    // Brand (dark variant — Fluent uses #479EF5 on dark)
+    brand: '#479EF5',
+    brandHover: '#62ABFF',
+    brandLight: 'rgba(71,158,245,0.1)',
+    brandBorder: 'rgba(71,158,245,0.3)',
+    // Status (dark variants)
+    success: '#6CCB5F',
+    successBg: 'rgba(108,203,95,0.1)',
+    successBorder: 'rgba(108,203,95,0.25)',
+    error: '#F1707B',
+    errorBg: 'rgba(241,112,123,0.1)',
+    errorBorder: 'rgba(241,112,123,0.25)',
+    warning: '#FCE100',
+    warningBg: 'rgba(252,225,0,0.08)',
+    warningBorder: 'rgba(252,225,0,0.22)',
+    info: '#479EF5',
+    infoBg: 'rgba(71,158,245,0.1)',
+    infoBorder: 'rgba(71,158,245,0.25)',
+    // Borders
+    borderSubtle: 'rgba(255,255,255,0.08)',
+    borderMedium: 'rgba(255,255,255,0.12)',
+    // Shadows (más pronunciadas en dark)
+    shadow64: '0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
+};
+
+const notificationConfig = {
+    success: {
+        icon: CheckCircle2,
+        color: fluent.success,
+        bg: fluent.successBg,
+        border: fluent.successBorder,
+    },
+    error: {
+        icon: AlertCircle,
+        color: fluent.error,
+        bg: fluent.errorBg,
+        border: fluent.errorBorder,
+    },
+    warning: {
+        icon: AlertTriangle,
+        color: '#B07C00',
+        bg: fluent.warningBg,
+        border: fluent.warningBorder,
+    },
+    info: {
+        icon: Info,
+        color: fluent.info,
+        bg: fluent.infoBg,
+        border: fluent.infoBorder,
+    },
+};
+
 function NotificationItem({ notification }: { notification: Notification }) {
     const { removeNotification } = useNotifications();
-
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'success': return '✅';
-            case 'error': return '❌';
-            case 'warning': return '⚠️';
-            default: return 'ℹ️';
-        }
-    };
+    const cfg = notificationConfig[notification.type as keyof typeof notificationConfig] ?? notificationConfig.info;
+    const IconComponent = cfg.icon;
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="flex gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.15, ease: [0.33, 1, 0.68, 1] }}
+            style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '12px',
+                background: cfg.bg,
+                border: `1px solid ${cfg.border}`,
+                borderRadius: '6px',
+                position: 'relative',
+                cursor: 'default',
+            }}
+            className="fluent-notification-item"
         >
-            <div className="flex-shrink-0 text-lg mt-0.5">
-                {notification.icon || getIcon(notification.type)}
+            {/* Left accent bar */}
+            <div style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: '3px',
+                borderRadius: '6px 0 0 6px',
+                background: cfg.color,
+            }} />
+
+            <div style={{ flexShrink: 0, paddingLeft: '4px' }}>
+                <IconComponent style={{ width: '16px', height: '16px', color: cfg.color, marginTop: '1px' }} />
             </div>
 
-            <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-sm font-medium text-white/90 leading-tight">
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: fluent.textPrimary,
+                        fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+                        lineHeight: '18px',
+                    }}>
                         {notification.title}
-                    </h4>
+                    </span>
                     <button
                         onClick={() => removeNotification(notification.id)}
-                        className="flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+                        style={{
+                            flexShrink: 0,
+                            padding: '2px',
+                            border: 'none',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            color: fluent.textSecondary,
+                            transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        aria-label="Cerrar notificación"
                     >
-                        <X className="w-3 h-3 text-white/50" />
+                        <X style={{ width: '14px', height: '14px' }} />
                     </button>
                 </div>
 
                 {notification.message && (
-                    <p className="text-xs text-white/60 mt-1 leading-snug">
+                    <p style={{
+                        fontSize: '12px',
+                        color: fluent.textSecondary,
+                        marginTop: '2px',
+                        lineHeight: '16px',
+                        fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+                    }}>
                         {notification.message}
                     </p>
                 )}
 
-                <div className="flex items-center gap-1 mt-2 text-[10px] text-white/40">
-                    <Clock className="w-3 h-3" />
-                    <span>{notification.timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    marginTop: '6px',
+                    color: fluent.textDisabled,
+                }}>
+                    <Clock style={{ width: '11px', height: '11px' }} />
+                    <span style={{
+                        fontSize: '11px',
+                        fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+                    }}>
+                        {notification.timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                 </div>
             </div>
         </motion.div>
+    );
+}
+
+// Fluent Divider
+function Divider() {
+    return (
+        <div style={{
+            height: '1px',
+            background: fluent.borderSubtle,
+            margin: '0',
+        }} />
+    );
+}
+
+// Fluent Section Header
+function SectionHeader({ children }: { children: React.ReactNode }) {
+    return (
+        <span style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: fluent.textDisabled,
+            textTransform: 'uppercase',
+            letterSpacing: '0.6px',
+            fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+        }}>
+            {children}
+        </span>
     );
 }
 
@@ -82,85 +230,241 @@ export function NotificationCenterPanel({ isOpen, onClose }: NotificationCenterP
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: fluent.surfaceOverlay,
+                            zIndex: 60,
+                        }}
                     />
 
-                    {/* Panel */}
+                    {/* Drawer — Fluent UI v9 Drawer pattern */}
                     <motion.div
-                        initial={{ opacity: 0, x: 400 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 400 }}
-                        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                        className="fixed top-0 right-0 h-full w-[380px] bg-[#1c1c1c]/95 backdrop-blur-2xl border-l border-white/10 z-[61] flex flex-col"
+                        initial={{ x: 380 }}
+                        animate={{ x: 0 }}
+                        exit={{ x: 380 }}
+                        transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }}
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            right: 0,
+                            height: '100%',
+                            width: '360px',
+                            background: fluent.surfacePrimary,
+                            backdropFilter: 'saturate(180%) blur(20px)',
+                            WebkitBackdropFilter: 'saturate(180%) blur(20px)',
+                            boxShadow: fluent.shadow64,
+                            zIndex: 61,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+                            borderLeft: `1px solid ${fluent.borderMedium}`,
+                        }}
                     >
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-white/10">
-                            <h2 className="text-lg font-semibold text-white">Notificaciones</h2>
+                        {/* ── Header ── */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '16px 20px 15px',
+                            borderBottom: `1px solid ${fluent.borderSubtle}`,
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <Bell style={{ width: '18px', height: '18px', color: fluent.brand }} />
+                                <span style={{
+                                    fontSize: '16px',
+                                    fontWeight: 600,
+                                    color: fluent.textPrimary,
+                                    letterSpacing: '-0.01em',
+                                }}>
+                                    Notificaciones
+                                </span>
+                                {notifications.length > 0 && (
+                                    <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        minWidth: '20px',
+                                        height: '20px',
+                                        padding: '0 6px',
+                                        background: fluent.brand,
+                                        color: '#fff',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        borderRadius: '10px',
+                                    }}>
+                                        {notifications.length}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Fluent Close Button */}
                             <button
                                 onClick={onClose}
-                                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '32px',
+                                    height: '32px',
+                                    border: `1px solid transparent`,
+                                    background: 'transparent',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    color: fluent.textSecondary,
+                                    transition: 'background 0.1s, border-color 0.1s',
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
+                                    e.currentTarget.style.borderColor = fluent.borderSubtle;
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.background = 'transparent';
+                                    e.currentTarget.style.borderColor = 'transparent';
+                                }}
+                                aria-label="Cerrar panel"
                             >
-                                <X className="w-5 h-5 text-white/70" />
+                                <X style={{ width: '16px', height: '16px' }} />
                             </button>
                         </div>
 
-                        {/* Notificaciones */}
-                        <div className="flex-1 overflow-y-auto">
+                        {/* ── Body (scrollable) ── */}
+                        <div style={{ flex: 1, overflowY: 'auto' }}>
+
                             {/* Estado del Sistema */}
                             {activeContext && (
-                                <div className="p-4 border-b border-white/10">
-                                    <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">
-                                        Estado del Sistema
-                                    </h3>
-                                    <div className={`flex items-start gap-3 p-3 rounded-lg ${activeContext.mode === 'remote'
-                                        ? 'bg-blue-500/10 border border-blue-500/30'
-                                        : 'bg-white/5'
-                                        }`}>
-                                        <div className="flex-shrink-0 mt-0.5">
-                                            {activeContext.mode === 'remote' ? (
-                                                <Globe className="w-5 h-5 text-blue-400" />
-                                            ) : (
-                                                <Laptop className="w-5 h-5 text-white/60" />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h4 className="text-sm font-medium text-white/90">
-                                                    {activeContext.mode === 'remote' ? 'Servidor Remoto' : 'Modo Local'}
-                                                </h4>
-                                                {activeContext.mode === 'remote' && (
-                                                    <div className="flex items-center gap-1">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                                        <span className="text-[10px] text-green-400 font-medium">Conectado</span>
+                                <>
+                                    <div style={{ padding: '16px 20px 12px' }}>
+                                        <SectionHeader>Estado del Sistema</SectionHeader>
+
+                                        <div style={{
+                                            marginTop: '10px',
+                                            padding: '12px 14px',
+                                            background: activeContext.mode === 'remote'
+                                                ? fluent.brandLight
+                                                : fluent.surfaceSecondary,
+                                            border: `1px solid ${activeContext.mode === 'remote' ? fluent.brandBorder : fluent.borderSubtle}`,
+                                            borderRadius: '6px',
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '12px',
+                                        }}>
+                                            <div style={{
+                                                flexShrink: 0,
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '6px',
+                                                background: activeContext.mode === 'remote'
+                                                    ? fluent.brand
+                                                    : 'rgba(0,0,0,0.08)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}>
+                                                {activeContext.mode === 'remote' ? (
+                                                    <Globe style={{ width: '16px', height: '16px', color: '#fff' }} />
+                                                ) : (
+                                                    <Laptop style={{ width: '16px', height: '16px', color: fluent.textSecondary }} />
+                                                )}
+                                            </div>
+
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                                                    <span style={{
+                                                        fontSize: '13px',
+                                                        fontWeight: 600,
+                                                        color: fluent.textPrimary,
+                                                    }}>
+                                                        {activeContext.mode === 'remote' ? 'Servidor Remoto' : 'Modo Local'}
+                                                    </span>
+
+                                                    {activeContext.mode === 'remote' && (
+                                                        <span style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '1px 7px',
+                                                            background: fluent.successBg,
+                                                            border: `1px solid ${fluent.successBorder}`,
+                                                            borderRadius: '10px',
+                                                            fontSize: '11px',
+                                                            fontWeight: 600,
+                                                            color: fluent.success,
+                                                        }}>
+                                                            <span style={{
+                                                                width: '6px',
+                                                                height: '6px',
+                                                                borderRadius: '50%',
+                                                                background: fluent.success,
+                                                                display: 'inline-block',
+                                                            }} />
+                                                            Conectado
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <span style={{
+                                                    fontSize: '12px',
+                                                    color: fluent.textSecondary,
+                                                    display: 'block',
+                                                    marginBottom: activeContext.apiBaseUrl ? '8px' : 0,
+                                                }}>
+                                                    {activeContext.nodeName}
+                                                </span>
+
+                                                {activeContext.mode === 'remote' && activeContext.apiBaseUrl && (
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        padding: '4px 8px',
+                                                        background: 'rgba(0,0,0,0.05)',
+                                                        border: `1px solid ${fluent.borderSubtle}`,
+                                                        borderRadius: '4px',
+                                                    }}>
+                                                        <Server style={{ width: '11px', height: '11px', color: fluent.textDisabled, flexShrink: 0 }} />
+                                                        <span style={{
+                                                            fontSize: '11px',
+                                                            color: fluent.textSecondary,
+                                                            fontFamily: "'Cascadia Code', 'Consolas', monospace",
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {activeContext.apiBaseUrl}
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-white/60 mb-2">
-                                                {activeContext.nodeName}
-                                            </p>
-                                            {activeContext.mode === 'remote' && activeContext.apiBaseUrl && (
-                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-black/30 border border-white/10">
-                                                    <Server className="w-3 h-3 text-white/40" />
-                                                    <span className="text-[10px] text-white/60 font-mono truncate">
-                                                        {activeContext.apiBaseUrl}
-                                                    </span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
-                                </div>
+                                    <Divider />
+                                </>
                             )}
 
-                            <div className="p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-sm font-semibold text-white/90">
-                                        Notificaciones ({notifications.length})
-                                    </h3>
+                            {/* Lista de Notificaciones */}
+                            <div style={{ padding: '16px 20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                    <SectionHeader>Recientes</SectionHeader>
                                     {notifications.length > 0 && (
                                         <button
                                             onClick={clearAll}
-                                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                            style={{
+                                                fontSize: '12px',
+                                                color: fluent.brand,
+                                                background: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+                                                fontWeight: 500,
+                                                transition: 'background 0.1s',
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.background = fluent.brandLight}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                         >
                                             Limpiar todo
                                         </button>
@@ -168,14 +472,38 @@ export function NotificationCenterPanel({ isOpen, onClose }: NotificationCenterP
                                 </div>
 
                                 {notifications.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <Bell className="w-12 h-12 text-white/20 mb-3" />
-                                        <p className="text-sm text-white/50">No hay notificaciones</p>
-                                        <p className="text-xs text-white/30 mt-1">Las nuevas aparecerán aquí</p>
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '40px 20px',
+                                        textAlign: 'center',
+                                        gap: '8px',
+                                    }}>
+                                        <div style={{
+                                            width: '48px',
+                                            height: '48px',
+                                            borderRadius: '12px',
+                                            background: fluent.surfaceSecondary,
+                                            border: `1px solid ${fluent.borderSubtle}`,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            marginBottom: '4px',
+                                        }}>
+                                            <Bell style={{ width: '22px', height: '22px', color: fluent.textDisabled }} />
+                                        </div>
+                                        <span style={{ fontSize: '14px', fontWeight: 600, color: fluent.textSecondary }}>
+                                            Sin notificaciones
+                                        </span>
+                                        <span style={{ fontSize: '12px', color: fluent.textDisabled, maxWidth: '200px', lineHeight: '16px' }}>
+                                            Las nuevas notificaciones del sistema aparecerán aquí
+                                        </span>
                                     </div>
                                 ) : (
-                                    <div className="space-y-2">
-                                        <AnimatePresence>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <AnimatePresence mode="popLayout">
                                             {notifications.map((notification) => (
                                                 <NotificationItem
                                                     key={notification.id}
@@ -188,14 +516,42 @@ export function NotificationCenterPanel({ isOpen, onClose }: NotificationCenterP
                             </div>
                         </div>
 
-                        {/* Footer */}
-                        <div className="p-4 border-t border-white/10">
-                            <button className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group">
-                                <div className="flex items-center gap-3">
-                                    <Settings className="w-5 h-5 text-white/60" />
-                                    <span className="text-sm text-white/90">Configuración</span>
+                        {/* ── Footer ── */}
+                        <div style={{
+                            borderTop: `1px solid ${fluent.borderSubtle}`,
+                            padding: '12px 20px',
+                            background: fluent.surfaceSecondary,
+                        }}>
+                            <button
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    background: 'transparent',
+                                    border: `1px solid transparent`,
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.1s, border-color 0.1s',
+                                    fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.background = 'rgba(0,0,0,0.04)';
+                                    e.currentTarget.style.borderColor = fluent.borderSubtle;
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.background = 'transparent';
+                                    e.currentTarget.style.borderColor = 'transparent';
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <Settings style={{ width: '16px', height: '16px', color: fluent.textSecondary }} />
+                                    <span style={{ fontSize: '13px', fontWeight: 500, color: fluent.textPrimary }}>
+                                        Configuración de notificaciones
+                                    </span>
                                 </div>
-                                <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+                                <ChevronRight style={{ width: '14px', height: '14px', color: fluent.textDisabled }} />
                             </button>
                         </div>
                     </motion.div>
