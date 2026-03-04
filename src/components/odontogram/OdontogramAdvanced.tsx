@@ -34,46 +34,7 @@ import { toast } from 'sonner';
 import { IndependentTreatments } from './IndependentTreatments';
 import { TreatmentTimeline } from './TreatmentTimeline';
 
-// ─── Fluent UI v9 Design Tokens ─────────────────────────────────────────────
-const tokens = {
-    // Neutrals
-    colorNeutralBackground1: '#1c1c1c',
-    colorNeutralBackground2: '#242424',
-    colorNeutralBackground3: '#2e2e2e',
-    colorNeutralBackground4: '#383838',
-    colorNeutralForeground1: '#ffffff',
-    colorNeutralForeground2: 'rgba(255,255,255,0.72)',
-    colorNeutralForeground3: 'rgba(255,255,255,0.48)',
-    colorNeutralForeground4: 'rgba(255,255,255,0.28)',
-    colorNeutralStroke1: 'rgba(255,255,255,0.10)',
-    colorNeutralStroke2: 'rgba(255,255,255,0.06)',
-    colorNeutralShadow: '0 2px 8px rgba(0,0,0,0.40)',
-
-    // Brand / Accent
-    colorBrandBackground: '#0078d4',
-    colorBrandBackgroundHover: '#106ebe',
-    colorBrandBackgroundPressed: '#005a9e',
-    colorBrandForeground: '#4da6ff',
-
-    // Status
-    colorPaletteGreenBackground: 'rgba(107,191,89,0.12)',
-    colorPaletteGreenForeground: '#73c765',
-    colorPaletteRedBackground: 'rgba(232,17,35,0.12)',
-    colorPaletteRedForeground: '#f1707a',
-    colorPaletteYellowBackground: 'rgba(255,185,0,0.12)',
-    colorPaletteYellowForeground: '#ffb900',
-    colorPaletteMarigoldBackground: 'rgba(224,140,0,0.14)',
-    colorPaletteMarigoldForeground: '#e08c00',
-
-    // Border radius
-    borderRadiusMedium: '6px',
-    borderRadiusLarge: '8px',
-    borderRadiusXLarge: '12px',
-
-    // Transitions
-    durationNormal: '150ms',
-    curveEasyEase: 'cubic-bezier(0.33,0,0.67,1)',
-} as const;
+import { fluentDark as tokens } from '@/consts/fluent-tokens';
 
 interface OdontogramProps {
     patientId: number;

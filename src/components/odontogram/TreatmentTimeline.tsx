@@ -15,21 +15,7 @@ import {
 import { getTreatmentsByPatient } from '../../hooks/useTreatments';
 import { toast } from 'sonner';
 
-const tokens = {
-    colorNeutralBackground1: '#1c1c1c',
-    colorNeutralBackground2: '#242424',
-    colorNeutralBackground3: '#2e2e2e',
-    colorNeutralForeground1: '#ffffff',
-    colorNeutralForeground2: 'rgba(255,255,255,0.72)',
-    colorNeutralForeground3: 'rgba(255,255,255,0.48)',
-    colorNeutralStroke1: 'rgba(255,255,255,0.10)',
-    colorBrandForeground: '#4da6ff',
-    colorPaletteGreenForeground: '#73c765',
-    colorPaletteRedForeground: '#f1707a',
-    colorPaletteYellowForeground: '#ffb900',
-    borderRadiusLarge: '8px',
-    borderRadiusXLarge: '12px',
-} as const;
+import { fluentDark as tokens } from '@/consts/fluent-tokens';
 
 interface TreatmentTimelineProps {
     patientId: number;

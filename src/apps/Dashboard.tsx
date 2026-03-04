@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCircle, Activity, AlertTriangle, ArrowRight, Clock, RefreshCw } from 'lucide-react';
+import { UserCircle, Activity, AlertTriangle, ArrowRight, Clock, RefreshCw, Settings, Check, RotateCcw, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useWindowManager } from '../contexts/WindowManagerContext';
 import { usePatients } from '../hooks/usePatients';
@@ -305,6 +305,69 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     );
 }
 
+// ─── Widget Configuration ─────────────────────────────────────────────────────
+type WidgetId =
+    | 'stat-patients'
+    | 'stat-pending'
+    | 'stat-inprogress'
+    | 'stat-completed'
+    | 'stat-debt'
+    | 'action-patients'
+    | 'action-treatments'
+    | 'action-accounts'
+    | 'action-appointments';
+
+interface WidgetDef {
+    id: WidgetId;
+    label: string;
+    section: 'stats' | 'actions';
+    emoji: string;
+}
+
+const WIDGET_DEFS: WidgetDef[] = [
+    { id: 'stat-patients', label: 'Total Pacientes', section: 'stats', emoji: '👥' },
+    { id: 'stat-pending', label: 'Trat. Pendientes', section: 'stats', emoji: '⏳' },
+    { id: 'stat-inprogress', label: 'Trat. En Curso', section: 'stats', emoji: '⚡' },
+    { id: 'stat-completed', label: 'Trat. Completados', section: 'stats', emoji: '✅' },
+    { id: 'stat-debt', label: 'Deuda Total', section: 'stats', emoji: '💰' },
+    { id: 'action-patients', label: 'Acceso: Pacientes', section: 'actions', emoji: '👤' },
+    { id: 'action-treatments', label: 'Acceso: Tratamientos', section: 'actions', emoji: '🦷' },
+    { id: 'action-accounts', label: 'Acceso: Cuentas', section: 'actions', emoji: '💳' },
+    { id: 'action-appointments', label: 'Acceso: Agenda', section: 'actions', emoji: '📅' },
+];
+
+const DEFAULT_VISIBLE: WidgetId[] = [
+    'stat-patients', 'stat-pending', 'stat-inprogress', 'stat-debt',
+    'action-patients', 'action-treatments', 'action-accounts', 'action-appointments',
+];
+
+const WIDGET_STORAGE_KEY = 'galeno-dashboard-widgets';
+
+function useWidgetPrefs() {
+    const [visible, setVisible] = useState<WidgetId[]>(() => {
+        try {
+            const s = localStorage.getItem(WIDGET_STORAGE_KEY);
+            return s ? (JSON.parse(s) as WidgetId[]) : DEFAULT_VISIBLE;
+        } catch { return DEFAULT_VISIBLE; }
+    });
+
+    const toggle = (id: WidgetId) => {
+        setVisible(prev => {
+            const next = prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id];
+            localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const reset = () => {
+        setVisible(DEFAULT_VISIBLE);
+        localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(DEFAULT_VISIBLE));
+    };
+
+    const isVisible = (id: WidgetId) => visible.includes(id);
+    return { visible, toggle, isVisible, reset };
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data?: any }) {
     useAppRuntime('dashboard', 'Panel de Control');
@@ -319,8 +382,10 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
     });
     const [isLoading, setIsLoading] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+    const [showCustomize, setShowCustomize] = useState(false);
     const { openWindow } = useWindowManager();
     const { getPatientsCount } = usePatients();
+    const { isVisible, toggle, reset } = useWidgetPrefs();
 
     useEffect(() => { loadStats(); }, []);
 
@@ -344,6 +409,21 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
     const formatCurrency = (amount: number) =>
         new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount);
 
+    const visibleStatCards = [
+        isVisible('stat-patients') && <StatCard key="patients" title="Pacientes" value={stats.patientsCount} icon={<UserCircle size={16} />} color="blue" index={0} />,
+        isVisible('stat-pending') && <StatCard key="pending" title="Por Hacer" value={stats.treatmentStats.pending_count} subtitle={formatCurrency(stats.treatmentStats.total_pending_cost)} icon={<Activity size={16} />} color="amber" index={1} />,
+        isVisible('stat-inprogress') && <StatCard key="inprogress" title="En Curso" value={stats.treatmentStats.in_progress_count} subtitle={formatCurrency(stats.treatmentStats.total_in_progress_cost)} icon={<Activity size={16} />} color="indigo" index={2} />,
+        isVisible('stat-completed') && <StatCard key="completed" title="Completados" value={stats.treatmentStats.completed_count} subtitle={formatCurrency(stats.treatmentStats.total_completed_cost)} icon={<Activity size={16} />} color="blue" index={3} />,
+        isVisible('stat-debt') && <StatCard key="debt" title="Deuda Total" value={formatCurrency(stats.totalDebt)} icon={<AlertTriangle size={16} />} color="rose" isCritical index={4} />,
+    ].filter(Boolean);
+
+    const visibleActions = [
+        isVisible('action-patients') && <QuickAction key="patients" onClick={() => openWindow('patients')} title="Pacientes" desc="Gestión de historias clínicas" icon="👥" accentColor="#0078d4" index={0} />,
+        isVisible('action-treatments') && <QuickAction key="treatments" onClick={() => openWindow('treatments')} title="Tratamientos" desc="Seguimiento de planes" icon="🦷" accentColor="#6264a7" index={1} />,
+        isVisible('action-accounts') && <QuickAction key="accounts" onClick={() => openWindow('accounts')} title="Cuentas" desc="Balances y pagos" icon="💰" accentColor="#107c10" index={2} />,
+        isVisible('action-appointments') && <QuickAction key="appointments" onClick={() => openWindow('appointments')} title="Agenda" desc="Citas y turnos" icon="📅" accentColor="#c239b3" index={3} />,
+    ].filter(Boolean);
+
     return (
         <div
             className="h-full overflow-y-auto"
@@ -355,7 +435,7 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
         >
             <MicaBackground />
 
-            <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* ── Header ── */}
                 <header style={{
                     padding: '28px 28px 20px',
@@ -364,6 +444,7 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
                     borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    flexShrink: 0,
                 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                         <div>
@@ -392,97 +473,223 @@ export function DashboardApp({ windowId: _windowId }: { windowId: WindowId; data
                             </motion.div>
                         </div>
 
-                        {/* Refresh button — Fluent style */}
-                        <button
-                            onClick={loadStats}
-                            disabled={isLoading}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 7,
-                                padding: '7px 14px', borderRadius: 6,
-                                background: 'rgba(255,255,255,0.06)',
-                                border: '1px solid rgba(255,255,255,0.09)',
-                                color: 'rgba(255,255,255,0.75)',
-                                fontSize: 12, fontWeight: 500,
-                                cursor: isLoading ? 'default' : 'default',
-                                opacity: isLoading ? 0.5 : 1,
-                                transition: 'all 0.1s',
-                                fontFamily: 'inherit',
-                            }}
-                            onMouseEnter={e => !isLoading && ((e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)')}
-                            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)')}
-                        >
-                            <RefreshCw
-                                size={13}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {/* Personalizar button */}
+                            <button
+                                onClick={() => setShowCustomize(v => !v)}
                                 style={{
-                                    animation: isLoading ? 'spin 1s linear infinite' : 'none',
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    padding: '7px 14px', borderRadius: 6,
+                                    background: showCustomize ? 'rgba(0,120,212,0.15)' : 'rgba(255,255,255,0.06)',
+                                    border: showCustomize ? '1px solid rgba(0,120,212,0.4)' : '1px solid rgba(255,255,255,0.09)',
+                                    color: showCustomize ? '#60b0ff' : 'rgba(255,255,255,0.75)',
+                                    fontSize: 12, fontWeight: 500,
+                                    cursor: 'default',
+                                    transition: 'all 0.15s',
+                                    fontFamily: 'inherit',
                                 }}
-                            />
-                            Actualizar
-                        </button>
+                            >
+                                <Settings size={13} />
+                                Personalizar
+                            </button>
+
+                            {/* Refresh button */}
+                            <button
+                                onClick={loadStats}
+                                disabled={isLoading}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    padding: '7px 14px', borderRadius: 6,
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid rgba(255,255,255,0.09)',
+                                    color: 'rgba(255,255,255,0.75)',
+                                    fontSize: 12, fontWeight: 500,
+                                    cursor: isLoading ? 'default' : 'default',
+                                    opacity: isLoading ? 0.5 : 1,
+                                    transition: 'all 0.1s',
+                                    fontFamily: 'inherit',
+                                }}
+                                onMouseEnter={e => !isLoading && ((e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)')}
+                                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)')}
+                            >
+                                <RefreshCw size={13} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
+                                Actualizar
+                            </button>
+                        </div>
                     </div>
                 </header>
 
-                {/* ── Content ── */}
-                <main style={{ padding: '24px 28px 32px' }}>
-
-                    {isLoading ? (
-                        <div style={{
-                            display: 'flex', flexDirection: 'column',
-                            alignItems: 'center', justifyContent: 'center',
-                            height: 200, gap: 14,
-                        }}>
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                    {/* ── Content ── */}
+                    <main style={{ flex: 1, overflowY: 'auto', padding: '24px 28px 32px' }}>
+                        {isLoading ? (
                             <div style={{
-                                width: 28, height: 28,
-                                border: '2px solid rgba(0,120,212,0.3)',
-                                borderTopColor: '#0078d4',
-                                borderRadius: '50%',
-                                animation: 'spin 0.8s linear infinite',
-                            }} />
-                            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.02em' }}>
-                                Cargando estadísticas…
-                            </span>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Stats grid */}
-                            <SectionLabel>Resumen</SectionLabel>
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                                gap: 10, marginBottom: 28,
+                                display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center',
+                                height: 200, gap: 14,
                             }}>
-                                <StatCard title="Pacientes" value={stats.patientsCount}
-                                    icon={<UserCircle size={16} />} color="blue" index={0} />
-                                <StatCard title="Por Hacer" value={stats.treatmentStats.pending_count}
-                                    subtitle={formatCurrency(stats.treatmentStats.total_pending_cost)}
-                                    icon={<Activity size={16} />} color="amber" index={1} />
-                                <StatCard title="En Curso" value={stats.treatmentStats.in_progress_count}
-                                    subtitle={formatCurrency(stats.treatmentStats.total_in_progress_cost)}
-                                    icon={<Activity size={16} />} color="indigo" index={2} />
-                                <StatCard title="Deuda Total" value={formatCurrency(stats.totalDebt)}
-                                    icon={<AlertTriangle size={16} />} color="rose" isCritical index={3} />
+                                <div style={{
+                                    width: 28, height: 28,
+                                    border: '2px solid rgba(0,120,212,0.3)',
+                                    borderTopColor: '#0078d4',
+                                    borderRadius: '50%',
+                                    animation: 'spin 0.8s linear infinite',
+                                }} />
+                                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.02em' }}>
+                                    Cargando estadísticas…
+                                </span>
+                            </div>
+                        ) : (
+                            <>
+                                {visibleStatCards.length > 0 && (
+                                    <>
+                                        <SectionLabel>Resumen</SectionLabel>
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                            gap: 10, marginBottom: 28,
+                                        }}>
+                                            {visibleStatCards}
+                                        </div>
+                                    </>
+                                )}
+
+                                {visibleActions.length > 0 && (
+                                    <>
+                                        <SectionLabel>Acceso directo</SectionLabel>
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                                            gap: 8,
+                                        }}>
+                                            {visibleActions}
+                                        </div>
+                                    </>
+                                )}
+
+                                {visibleStatCards.length === 0 && visibleActions.length === 0 && (
+                                    <div style={{
+                                        display: 'flex', flexDirection: 'column',
+                                        alignItems: 'center', justifyContent: 'center',
+                                        height: 200, gap: 12,
+                                        border: '1px dashed rgba(255,255,255,0.08)',
+                                        borderRadius: 12, marginTop: 12,
+                                    }}>
+                                        <Settings size={28} style={{ color: 'rgba(255,255,255,0.18)' }} />
+                                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
+                                            Todos los widgets están ocultos.<br />
+                                            <span style={{ fontSize: 11 }}>Usa «Personalizar» para mostrarlos.</span>
+                                        </p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </main>
+
+                    {/* ── Customize Panel ── */}
+                    {showCustomize && (
+                        <motion.aside
+                            initial={{ opacity: 0, x: 24 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 24 }}
+                            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                            style={{
+                                width: 240,
+                                background: 'rgba(20,22,36,0.95)',
+                                borderLeft: '1px solid rgba(255,255,255,0.06)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                display: 'flex', flexDirection: 'column',
+                                flexShrink: 0, overflowY: 'auto',
+                            }}
+                        >
+                            {/* Panel header */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '16px 16px 12px',
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                position: 'sticky', top: 0,
+                                background: 'rgba(20,22,36,0.98)',
+                                zIndex: 2,
+                            }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Widgets</span>
+                                <div style={{ display: 'flex', gap: 4 }}>
+                                    <button
+                                        onClick={reset}
+                                        title="Restablecer por defecto"
+                                        style={{
+                                            padding: '4px', borderRadius: 5,
+                                            background: 'transparent', border: 'none',
+                                            color: 'rgba(255,255,255,0.4)',
+                                            cursor: 'default', display: 'flex',
+                                        }}
+                                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                    >
+                                        <RotateCcw size={12} />
+                                    </button>
+                                    <button
+                                        onClick={() => setShowCustomize(false)}
+                                        style={{
+                                            padding: '4px', borderRadius: 5,
+                                            background: 'transparent', border: 'none',
+                                            color: 'rgba(255,255,255,0.4)',
+                                            cursor: 'default', display: 'flex',
+                                        }}
+                                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Quick actions */}
-                            <SectionLabel>Acceso directo</SectionLabel>
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                                gap: 8,
-                            }}>
-                                <QuickAction onClick={() => openWindow('patients')}
-                                    title="Pacientes" desc="Gestión de historias clínicas"
-                                    icon="👥" accentColor="#0078d4" index={0} />
-                                <QuickAction onClick={() => openWindow('treatments')}
-                                    title="Tratamientos" desc="Seguimiento de planes"
-                                    icon="🦷" accentColor="#6264a7" index={1} />
-                                <QuickAction onClick={() => openWindow('accounts')}
-                                    title="Cuentas" desc="Balances y pagos"
-                                    icon="💰" accentColor="#107c10" index={2} />
-                            </div>
-                        </>
+                            {/* Widget groups */}
+                            {(['stats', 'actions'] as const).map(section => (
+                                <div key={section} style={{ padding: '12px 12px 8px' }}>
+                                    <p style={{
+                                        fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
+                                        textTransform: 'uppercase',
+                                        color: 'rgba(255,255,255,0.25)',
+                                        marginBottom: 6, paddingLeft: 4,
+                                    }}>
+                                        {section === 'stats' ? 'Métricas' : 'Accesos rápidos'}
+                                    </p>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        {WIDGET_DEFS.filter(w => w.section === section).map(w => {
+                                            const on = isVisible(w.id);
+                                            return (
+                                                <button
+                                                    key={w.id}
+                                                    onClick={() => toggle(w.id)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: 9,
+                                                        padding: '7px 8px', borderRadius: 6,
+                                                        background: on ? 'rgba(0,120,212,0.12)' : 'transparent',
+                                                        border: on ? '1px solid rgba(0,120,212,0.25)' : '1px solid transparent',
+                                                        cursor: 'default', textAlign: 'left',
+                                                        transition: 'all 0.1s', width: '100%',
+                                                    }}
+                                                    onMouseEnter={e => !on && (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                                                    onMouseLeave={e => !on && (e.currentTarget.style.background = 'transparent')}
+                                                >
+                                                    <span style={{ fontSize: 14 }}>{w.emoji}</span>
+                                                    <span style={{
+                                                        flex: 1, fontSize: 12,
+                                                        color: on ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)',
+                                                        fontFamily: 'inherit',
+                                                        transition: 'color 0.1s',
+                                                    }}>{w.label}</span>
+                                                    {on && <Check size={11} style={{ color: '#60b0ff', flexShrink: 0 }} />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </motion.aside>
                     )}
-                </main>
+                </div>
             </div>
 
             <style>{`

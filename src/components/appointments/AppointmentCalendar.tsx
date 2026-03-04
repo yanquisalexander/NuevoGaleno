@@ -5,27 +5,7 @@ import { es } from 'date-fns/locale';
 import { CalendarEvent, AppointmentWithPatient, APPOINTMENT_STATUS_COLORS } from '../../types/appointments';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
-// ── Fluent dark tokens (en sync con el resto del sistema) ────────────────────
-const F = {
-    bg: '#161616',
-    surface: '#1c1c1c',
-    surfaceRaised: '#222222',
-    hover: 'rgba(255,255,255,0.05)',
-    border: 'rgba(255,255,255,0.07)',
-    borderMed: 'rgba(255,255,255,0.12)',
-    brand: '#479ef5',
-    brandBg: '#0078D4',
-    brandMuted: 'rgba(71,158,245,0.12)',
-    brandBorder: 'rgba(71,158,245,0.22)',
-    textPrimary: '#ffffff',
-    textSecondary: 'rgba(255,255,255,0.55)',
-    textDisabled: 'rgba(255,255,255,0.28)',
-    weekend: 'rgba(255,255,255,0.018)',
-    today: 'rgba(71,158,245,0.07)',
-    todayBorder: '#479ef5',
-    font: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
-    fontMono: "'Cascadia Code', 'Consolas', monospace",
-};
+import { fluentDarkCompact as F } from '@/consts/fluent-tokens';
 
 // ── CSS override inyectado una sola vez ──────────────────────────────────────
 const CALENDAR_CSS = `

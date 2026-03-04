@@ -3,25 +3,7 @@ import { Patient, usePatients } from '../../hooks/usePatients';
 import { User, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
-const tokens = {
-    colorNeutralBackground1: '#292929',
-    colorNeutralBackground1Hover: '#333333',
-    colorNeutralBackground1Selected: '#383838',
-    colorNeutralForeground1: '#ffffff',
-    colorNeutralForeground2: '#d6d6d6',
-    colorNeutralForeground3: '#adadad',
-    colorNeutralForeground4: '#707070',
-    colorNeutralStroke2: '#404040',
-    colorBrandBackground: '#0078D4',
-    colorBrandForeground1: '#479ef5',
-    fontFamilyBase: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-    fontSizeBase200: '11px',
-    fontSizeBase300: '12px',
-    fontSizeBase400: '14px',
-    fontWeightRegular: 400,
-    fontWeightSemibold: 600,
-    borderRadiusMedium: '4px',
-};
+import { fluentDarkOverlay as tokens } from '@/consts/fluent-tokens';
 
 interface PatientListProps {
     onSelectPatient: (patient: Patient) => void;

@@ -12,26 +12,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useWindowManager } from '../contexts/WindowManagerContext';
 
-// ── Fluent UI v9 Dark tokens ─────────────────────────────────────────────────
-const F = {
-    bg: '#141414',
-    surface: '#1c1c1c',
-    surfaceRaised: '#222222',
-    overlay: '#282828',
-    hover: 'rgba(255,255,255,0.06)',
-    pressed: 'rgba(255,255,255,0.04)',
-    border: 'rgba(255,255,255,0.08)',
-    borderMed: 'rgba(255,255,255,0.12)',
-    brand: '#479ef5',
-    brandBg: '#0078D4',
-    brandHover: '#106EBE',
-    brandMuted: 'rgba(71,158,245,0.12)',
-    brandBorder: 'rgba(71,158,245,0.28)',
-    textPrimary: '#ffffff',
-    textSecondary: 'rgba(255,255,255,0.62)',
-    textDisabled: 'rgba(255,255,255,0.32)',
-    font: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
-};
+import { fluentDarkCompact as F } from '@/consts/fluent-tokens';
 
 // ── Micro-components ─────────────────────────────────────────────────────────
 

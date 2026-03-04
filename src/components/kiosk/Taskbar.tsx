@@ -20,31 +20,7 @@ import { useNotImplemented } from '@/utils/system/NotImplemented';
 import { useGalenoClient } from '@/hooks/useGalenoClient';
 import { usePatients } from '@/hooks/usePatients';
 
-// ─── Fluent UI v9 tokens ──────────────────────────────────────────────────────
-const tokens = {
-    colorNeutralBackground1: '#1c1c1c',
-    colorNeutralBackground2: '#242424',
-    colorNeutralBackground3: '#2e2e2e',
-    colorNeutralBackground4: '#383838',
-    colorNeutralForeground1: '#ffffff',
-    colorNeutralForeground2: 'rgba(255,255,255,0.72)',
-    colorNeutralForeground3: 'rgba(255,255,255,0.48)',
-    colorNeutralForeground4: 'rgba(255,255,255,0.28)',
-    colorNeutralStroke1: 'rgba(255,255,255,0.10)',
-    colorNeutralStroke2: 'rgba(255,255,255,0.06)',
-    colorBrandBackground: '#0078d4',
-    colorBrandBackgroundHover: '#106ebe',
-    colorBrandForeground: '#4da6ff',
-    colorPaletteGreenForeground: '#73c765',
-    colorPaletteRedForeground: '#f1707a',
-    colorPaletteRedBackground: 'rgba(232,17,35,0.15)',
-    colorPaletteYellowForeground: '#ffb900',
-    borderRadiusMedium: '6px',
-    borderRadiusLarge: '8px',
-    borderRadiusXLarge: '12px',
-    durationNormal: '150ms',
-    curveEasyEase: 'cubic-bezier(0.33,0,0.67,1)',
-} as const;
+import { fluentDark as tokens } from '@/consts/fluent-tokens';
 
 interface StartSearchResult {
     id: string;

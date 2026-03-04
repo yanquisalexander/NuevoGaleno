@@ -602,6 +602,9 @@ function ItemFormDialog({
         icon: item?.icon || '',
         display_order: item?.display_order || 0,
         is_active: item?.is_active ?? true,
+        applies_to_whole_tooth: item?.applies_to_whole_tooth ?? false,
+        visual_effect: item?.visual_effect ?? '',
+        is_bridge_component: item?.is_bridge_component ?? false,
     });
 
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -621,9 +624,14 @@ function ItemFormDialog({
                 onClick={(e) => e.stopPropagation()}
                 className="bg-[#2c2c2c] border border-white/[0.1] rounded-2xl p-8 max-w-md w-full shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]"
             >
-                <h2 className="text-xl font-semibold mb-8">
-                    {item ? 'Editar Sub-tratamiento' : 'Nuevo Sub-tratamiento'}
-                </h2>
+                <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-xl font-semibold">
+                        {item ? 'Editar Sub-tratamiento' : 'Nuevo Sub-tratamiento'}
+                    </h2>
+                    <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-md">
+                        <X className="w-5 h-5 text-white/50" />
+                    </button>
+                </div>
 
                 <div className="space-y-5">
                     <div>
@@ -649,7 +657,7 @@ function ItemFormDialog({
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-[12px] font-medium text-white/50 mb-1.5 ml-1">Precio</label>
+                            <label className="block text-[12px] font-medium text-white/50 mb-1.5 ml-1">Precio base</label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -689,6 +697,7 @@ function ItemFormDialog({
                             </div>
                         </button>
                     </div>
+
                 </div>
 
                 <div className="flex gap-3 mt-10">

@@ -14,10 +14,15 @@ import {
     Fingerprint,
     Stethoscope,
     LayoutGrid,
-    LucideX
+    LucideX,
+    History,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { invoke } from '@tauri-apps/api/core';
 import { Patient, usePatients } from '../hooks/usePatients';
+import { getTreatmentsByPatient } from '../hooks/useTreatments';
+import { getPaymentsByPatient } from '../hooks/usePayments';
+import type { AppointmentWithPatient } from '../types/appointments';
 import { MedicalHistory } from '../components/patients/MedicalHistory';
 import { MedicalNotesDisplay } from '../components/patients/MedicalNotesDisplay';
 import { TreatmentList } from '../components/treatments/TreatmentList';
@@ -34,12 +39,202 @@ import type { WindowId } from '../types/window-manager';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+// ─── Unified Timeline ────────────────────────────────────────────────────────────
+
+const TL_STATUS_LABELS: Record<string, string> = {
+    Pending: 'Pendiente', InProgress: 'En curso', Completed: 'Completado', Cancelled: 'Cancelado',
+};
+const TL_METHOD_LABELS: Record<string, string> = {
+    cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', check: 'Cheque', other: 'Otro',
+};
+const TL_APPT_LABELS: Record<string, string> = {
+    scheduled: 'Programada', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada', no_show: 'Ausente',
+};
+
+type TLEventType = 'treatment' | 'payment' | 'appointment';
+interface TLEvent {
+    id: string;
+    type: TLEventType;
+    date: string;
+    title: string;
+    subtitle?: string;
+    badge?: string;
+    amount?: number;
+    color: string;
+    bg: string;
+}
+
+const TL_ICONS: Record<TLEventType, string> = { treatment: '🦷', payment: '💰', appointment: '📅' };
+const TL_LABELS: Record<TLEventType, string> = { treatment: 'Tratamiento', payment: 'Pago', appointment: 'Cita' };
+
+const fmtARS = (n: number) =>
+    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+
+function fmtDate(d: string) {
+    try {
+        return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(d));
+    } catch { return d.slice(0, 10); }
+}
+
+function UnifiedTimeline({ patientId }: { patientId: number }) {
+    const [events, setEvents] = useState<TLEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState<TLEventType | 'all'>('all');
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            try {
+                const [treatments, payments, appointments] = await Promise.all([
+                    getTreatmentsByPatient(patientId),
+                    getPaymentsByPatient(patientId),
+                    invoke<AppointmentWithPatient[]>('list_appointments', { filter: { patient_id: patientId } }),
+                ]);
+                if (cancelled) return;
+
+                const all: TLEvent[] = [
+                    ...treatments.map(t => ({
+                        id: `t-${t.id}`, type: 'treatment' as const,
+                        date: t.start_date || t.created_at,
+                        title: t.name,
+                        subtitle: t.tooth_number ? `Pieza ${t.tooth_number}` : (t.notes ?? undefined),
+                        badge: TL_STATUS_LABELS[t.status] ?? t.status,
+                        amount: t.total_cost,
+                        color: '#818cf8', bg: 'rgba(129,140,248,0.09)',
+                    })),
+                    ...payments.map(p => ({
+                        id: `p-${p.id}`, type: 'payment' as const,
+                        date: p.payment_date || p.created_at,
+                        title: 'Pago registrado',
+                        subtitle: p.payment_method ? (TL_METHOD_LABELS[p.payment_method] ?? p.payment_method) : undefined,
+                        amount: p.amount,
+                        color: '#4ade80', bg: 'rgba(74,222,128,0.07)',
+                    })),
+                    ...(appointments as AppointmentWithPatient[]).map(a => ({
+                        id: `a-${a.id}`, type: 'appointment' as const,
+                        date: a.start_time,
+                        title: a.title,
+                        subtitle: a.description ?? undefined,
+                        badge: TL_APPT_LABELS[a.status] ?? a.status,
+                        color: '#60b0ff', bg: 'rgba(96,176,255,0.07)',
+                    })),
+                ];
+                all.sort((a, b) => b.date.slice(0, 19).localeCompare(a.date.slice(0, 19)));
+                setEvents(all);
+            } catch (e) { console.error('Timeline error:', e); }
+            finally { if (!cancelled) setLoading(false); }
+        })();
+        return () => { cancelled = true; };
+    }, [patientId]);
+
+    const visible = filter === 'all' ? events : events.filter(e => e.type === filter);
+
+    if (loading) return (
+        <div className="flex items-center justify-center h-40 gap-3">
+            <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+            <span className="text-sm text-white/40">Cargando historial…</span>
+        </div>
+    );
+
+    return (
+        <div className="max-w-3xl">
+            {/* Filter pills */}
+            <div className="flex items-center gap-2 mb-6 flex-wrap">
+                {(['all', 'treatment', 'payment', 'appointment'] as const).map(f => (
+                    <button
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        className={cn(
+                            'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
+                            filter === f
+                                ? 'bg-white/15 text-white border-white/20'
+                                : 'bg-white/5 text-white/50 border-white/5 hover:bg-white/8 hover:text-white/70'
+                        )}
+                    >
+                        {f === 'all'
+                            ? `Todo (${events.length})`
+                            : `${TL_ICONS[f as TLEventType]} ${TL_LABELS[f as TLEventType]}s`}
+                    </button>
+                ))}
+            </div>
+
+            {/* Timeline */}
+            {visible.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-white/20 border-2 border-dashed border-white/[0.04] rounded-2xl">
+                    <History className="w-10 h-10 mb-3" />
+                    <p className="text-base font-medium">Sin eventos registrados</p>
+                    <p className="text-sm mt-1">
+                        {filter === 'all' ? 'No hay actividad en este expediente' : `No hay ${TL_LABELS[filter as TLEventType].toLowerCase()}s`}
+                    </p>
+                </div>
+            ) : (
+                <div className="relative">
+                    <div className="absolute left-[19px] top-0 bottom-0 w-px bg-white/5" />
+                    <div className="space-y-1.5">
+                        {visible.map((ev, i) => (
+                            <motion.div
+                                key={ev.id}
+                                initial={{ opacity: 0, x: -8 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.018, duration: 0.2 }}
+                                className="flex gap-4"
+                            >
+                                {/* Dot */}
+                                <div
+                                    className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-base relative z-10"
+                                    style={{ background: ev.bg, border: `1px solid ${ev.color}30` }}
+                                >
+                                    {TL_ICONS[ev.type]}
+                                </div>
+
+                                {/* Card */}
+                                <div className="flex-1 mb-1 p-3 rounded-xl bg-white/[0.025] border border-white/[0.05] hover:border-white/10 transition-colors">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span
+                                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                                    style={{ background: ev.bg, color: ev.color, border: `1px solid ${ev.color}25` }}
+                                                >
+                                                    {TL_LABELS[ev.type]}
+                                                </span>
+                                                {ev.badge && (
+                                                    <span className="text-[10px] text-white/40 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                                                        {ev.badge}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm font-medium text-white/90 mt-1 truncate">{ev.title}</p>
+                                            {ev.subtitle && (
+                                                <p className="text-xs text-white/40 mt-0.5 truncate">{ev.subtitle}</p>
+                                            )}
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            {ev.amount !== undefined && (
+                                                <p className="text-sm font-bold font-mono" style={{ color: ev.color }}>
+                                                    {fmtARS(ev.amount)}
+                                                </p>
+                                            )}
+                                            <p className="text-[11px] text-white/30 mt-0.5">{fmtDate(ev.date)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?: any }) {
     useAppRuntime('patient-record', 'Ficha de Paciente');
     const [patient, setPatient] = useState<Patient | null>(null);
     const { getPatientById } = usePatients();
     const [isLoading, setIsLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram'>('info');
+    const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram' | 'timeline'>('info');
     const [showAddTreatmentDialog, setShowAddTreatmentDialog] = useState(false);
     const { updateTitle } = useWindowManager();
     const patientId = data?.patientId;
@@ -221,7 +416,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
     // Si la ventana fue abierta con una pestaña por defecto (ej. desde un widget), seleccionarla
     useEffect(() => {
         const tab = (data?.activeTab ?? data?.defaultTab) as any;
-        if (tab && ['info', 'history', 'treatments', 'payments', 'odontogram'].includes(tab)) {
+        if (tab && ['info', 'history', 'treatments', 'payments', 'odontogram', 'timeline'].includes(tab)) {
             setActiveTab(tab);
         }
     }, [data?.activeTab, data?.defaultTab]);
@@ -273,6 +468,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
         { id: 'treatments', label: 'Tratamientos', icon: Activity },
         { id: 'payments', label: 'Pagos', icon: CreditCard },
         { id: 'odontogram', label: 'Odontograma', icon: Smile },
+        { id: 'timeline', label: 'Historial', icon: History },
     ];
 
     // Si la vista médica está habilitada, mostrar solo esa vista
@@ -513,6 +709,10 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                         <div className="bg-[#272727] border border-white/5 rounded-xl p-6 shadow-sm">
                             <OdontogramAdvanced patientId={patient.id} />
                         </div>
+                    )}
+
+                    {activeTab === 'timeline' && (
+                        <UnifiedTimeline patientId={patient.id} />
                     )}
                 </motion.div>
             </div>

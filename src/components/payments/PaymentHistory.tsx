@@ -6,30 +6,7 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { PrintReceipt } from '@/components/templates';
 
-// ─── Fluent UI v9 tokens (shared) ────────────────────────────────────────────
-const tokens = {
-    colorNeutralBackground1: '#1c1c1c',
-    colorNeutralBackground2: '#242424',
-    colorNeutralBackground3: '#2e2e2e',
-    colorNeutralBackground4: '#383838',
-    colorNeutralForeground1: '#ffffff',
-    colorNeutralForeground2: 'rgba(255,255,255,0.72)',
-    colorNeutralForeground3: 'rgba(255,255,255,0.48)',
-    colorNeutralForeground4: 'rgba(255,255,255,0.28)',
-    colorNeutralStroke1: 'rgba(255,255,255,0.10)',
-    colorNeutralStroke2: 'rgba(255,255,255,0.06)',
-    colorBrandBackground: '#0078d4',
-    colorBrandBackgroundHover: '#106ebe',
-    colorBrandForeground: '#4da6ff',
-    colorPaletteGreenForeground: '#73c765',
-    colorPaletteGreenBackground: 'rgba(107,191,89,0.12)',
-    colorPaletteGreenBorder: 'rgba(107,191,89,0.25)',
-    colorPaletteRedForeground: '#f1707a',
-    borderRadiusMedium: '6px',
-    borderRadiusLarge: '8px',
-    borderRadiusXLarge: '12px',
-    durationNormal: '150ms',
-} as const;
+import { fluentDark as tokens } from '@/consts/fluent-tokens';
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
     cash: 'Efectivo',

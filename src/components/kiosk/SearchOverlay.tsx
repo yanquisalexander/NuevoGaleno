@@ -18,51 +18,8 @@ import { useSession } from '../../hooks/useSession';
 import { usePatients } from '../../hooks/usePatients';
 import { AppIcon } from './AppIcon';
 
-/* ─────────────────────────────────────────────
-   Fluent UI v9 Design Tokens (dark theme)
-   https://react.fluentui.dev/?path=/docs/theme-colors--page
-───────────────────────────────────────────── */
-const tokens = {
-    // Surfaces
-    colorNeutralBackground1: '#292929',   // card / panel
-    colorNeutralBackground1Hover: '#333333',
-    colorNeutralBackground1Selected: '#383838',
-    colorNeutralBackground3: '#1f1f1f',   // backdrop deeper layer
-    colorNeutralBackgroundInverted: '#ffffff',
+import { fluentDarkOverlay as tokens } from '@/consts/fluent-tokens';
 
-    // Stroke
-    colorNeutralStroke2: '#404040',
-    colorNeutralStrokeAccessible: '#616161',
-
-    // Text
-    colorNeutralForeground1: '#ffffff',
-    colorNeutralForeground2: '#d6d6d6',
-    colorNeutralForeground3: '#adadad',
-    colorNeutralForeground4: '#707070',
-
-    // Brand
-    colorBrandBackground: '#0078D4',
-    colorBrandBackgroundHover: '#106EBE',
-    colorBrandForeground1: '#479ef5',   // brand text on dark
-
-    // Shadow
-    shadow16: '0 8px 16px rgba(0,0,0,0.24)',
-    shadow28: '0 14px 28px rgba(0,0,0,0.32)',
-
-    // Radius
-    borderRadiusMedium: '4px',
-    borderRadiusLarge: '8px',
-    borderRadiusXLarge: '12px',
-
-    // Typography
-    fontFamilyBase: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-    fontSizeBase200: '11px',
-    fontSizeBase300: '12px',
-    fontSizeBase400: '14px',
-    fontSizeBase500: '16px',
-    fontWeightRegular: 400,
-    fontWeightSemibold: 600,
-};
 
 /* ─── Type badges ─── */
 const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
