@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Eye, EyeOff, ChevronUp, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useBingImage } from '@/hooks/useBingImage';
+import { useClock } from '@/hooks/useClock';
 
 interface LockScreenProps {
     user?: {
@@ -16,35 +18,6 @@ interface LockScreenProps {
 }
 
 // --- Custom Hooks ---
-
-const useClock = () => {
-    const [date, setDate] = useState(new Date());
-    useEffect(() => {
-        const timer = setInterval(() => setDate(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-    return date;
-};
-
-const useBingImage = () => {
-    const [bgUrl, setBgUrl] = useState('https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=2064'); // Fallback
-
-    useEffect(() => {
-        const fetchBingImage = async () => {
-            try {
-                // Endpoint público que devuelve la imagen de Bing del día sin problemas de CORS
-                const res = await fetch('https://bing.biturl.top/?resolution=1920&format=json&index=0&mkt=es-ES');
-                const data = await res.json();
-                if (data.url) setBgUrl(data.url);
-            } catch (error) {
-                console.warn('No se pudo cargar la imagen de Bing, usando fallback.', error);
-            }
-        };
-        fetchBingImage();
-    }, []);
-
-    return bgUrl;
-};
 
 const useMedicalFact = () => {
     const facts = useMemo(() => [

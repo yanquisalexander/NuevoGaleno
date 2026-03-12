@@ -30,6 +30,7 @@ import { TreatmentPayments } from '../components/payments/TreatmentPayments';
 import { BalanceCard } from '../components/payments/BalanceCard';
 import { OdontogramAdvanced } from '../components/odontogram/OdontogramAdvanced';
 import { MedicalView } from '../components/patients/MedicalView';
+import { PatientForm } from '../components/patients/PatientForm';
 import { AddGeneralTreatmentDialog } from '../components/treatments/AddGeneralTreatmentDialog';
 import { useAppMenuBar } from '../hooks/useAppMenuBar';
 import { useMedicalView } from '../hooks/useMedicalView';
@@ -232,10 +233,11 @@ function UnifiedTimeline({ patientId }: { patientId: number }) {
 export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?: any }) {
     useAppRuntime('patient-record', 'Ficha de Paciente');
     const [patient, setPatient] = useState<Patient | null>(null);
-    const { getPatientById } = usePatients();
+    const { getPatientById, updatePatient } = usePatients();
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'info' | 'history' | 'treatments' | 'payments' | 'odontogram' | 'timeline'>('info');
     const [showAddTreatmentDialog, setShowAddTreatmentDialog] = useState(false);
+    const [showEditForm, setShowEditForm] = useState(false);
     const { updateTitle } = useWindowManager();
     const patientId = data?.patientId;
 
@@ -304,9 +306,7 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                             id: 'edit-patient',
                             label: 'Editar Información',
                             type: 'item',
-                            action: () => {
-                                toast.info('Editar datos del paciente');
-                            },
+                            action: () => setShowEditForm(true),
                         },
                         {
                             id: 'add-note',
@@ -572,6 +572,16 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                         </div>
                     </div>
 
+                    {/* Botón Editar Paciente */}
+                    <button
+                        onClick={() => setShowEditForm(true)}
+                        className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-colors flex items-center gap-2 group"
+                        title="Editar datos del paciente (⌘E)"
+                    >
+                        <User className="w-4 h-4 text-white/60 group-hover:text-white" />
+                        <span className="text-sm text-white/60 group-hover:text-white font-medium">Editar</span>
+                    </button>
+
                     {/* Botón Toggle Vista Médica */}
                     <button
                         onClick={() => {
@@ -716,6 +726,20 @@ export function PatientRecordApp({ windowId, data }: { windowId: WindowId; data?
                     )}
                 </motion.div>
             </div>
+
+            {/* Diálogo de Editar Paciente */}
+            {showEditForm && patient && (
+                <PatientForm
+                    patient={patient}
+                    onSave={async (data) => {
+                        await updatePatient(patient.id, data);
+                        toast.success('Paciente actualizado');
+                        setShowEditForm(false);
+                        loadPatient();
+                    }}
+                    onCancel={() => setShowEditForm(false)}
+                />
+            )}
 
             {/* Diálogo de Agregar Tratamiento */}
             {patientId && (

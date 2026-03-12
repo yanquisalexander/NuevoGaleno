@@ -6,6 +6,7 @@ import { FileCode, Database, HardDrive, ShieldCheck, UserCircle, ChevronRight, C
 import ImportReviewScreen from "./ImportReviewScreen";
 import { useLicense } from "@/hooks/useLicense";
 import { useConfig } from "@/hooks/useConfig";
+import { normalizeUsername, generateUsernameFromName } from "@/utils/username";
 
 // ─── Fluent UI v9 Design Tokens ─────────────────────────────────────────────
 const fluent = {
@@ -254,6 +255,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const [step, setStep] = useState(0);
     const [name, setName] = useState("");
     const [username, setUsername] = useState("");
+    const [usernameEdited, setUsernameEdited] = useState(false);
     const [password, setPassword] = useState("");
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
     const [extracting, setExtracting] = useState(false);
@@ -316,7 +318,7 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                 await invoke("set_config", { key: "first_run_completed", value: "true" });
             }
             toast.success(`Usuario ${username} creado correctamente`);
-            next();
+            finishAndPersist();
         } catch (err: any) { toast.error(err.toString()); }
     }
 
@@ -331,45 +333,71 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
         if (!selectedFile) { toast.error('Selecciona un archivo .gln'); return; }
         setExtracting(true);
         setTerminalLogs([]);
+
+        const unlisteners: Array<() => void> = [];
+        function cleanup() { unlisteners.forEach(fn => fn()); }
+
         try {
-            const jobId: any = await invoke("extract_gln", { glnPath: selectedFile });
-            const unlistenLogs = await listen("log://log", (event: any) => {
-                const logMsg = event.payload?.message || JSON.stringify(event.payload);
-                setTerminalLogs(prev => [...prev, logMsg].slice(-50));
-            });
-            const unlistenFinished = await listen("import:finished", async (event) => {
-                const payload: any = event.payload;
-                if (payload?.job_id !== jobId) return;
+            // Registrar TODOS los listeners antes de invocar para evitar race conditions
+            unlisteners.push(await listen("import:log", (event: any) => {
+                const msg: string = event.payload?.message ?? JSON.stringify(event.payload);
+                setTerminalLogs(prev => [...prev, msg].slice(-100));
+            }));
+
+            unlisteners.push(await listen("import:progress", (event: any) => {
+                setProgress(event.payload?.progress ?? 0);
+            }));
+
+            unlisteners.push(await listen("import:error", (event: any) => {
                 setExtracting(false);
-                if (payload.extracted_to) {
+                toast.error(`Error: ${event.payload?.error ?? 'Error desconocido'}`);
+                setTerminalLogs(prev => [...prev, `❌ ${event.payload?.error ?? 'Error desconocido'}`]);
+                cleanup();
+            }));
+
+            unlisteners.push(await listen("import:finished", async (event) => {
+                const payload: any = event.payload;
+                cleanup();
+                setExtracting(false);
+                if (payload?.extracted_to) {
                     setExtractedDir(payload.extracted_to);
                     const list: any = await invoke("list_extracted_files", { dir: payload.extracted_to });
-                    setExtractedFiles([...(list.db_files || []), ...(list.documents || [])]);
-                    const tables: Record<string, string[]> = {};
-                    const data: Record<string, string[][]> = {};
-                    for (const db of list.db_files || []) {
-                        const tbls: any = await invoke("list_tables", { path: db });
-                        tables[db] = tbls;
-                        try {
-                            const records: any = await invoke("read_table_data_pxlib", { path: db, limit: 5 });
-                            data[db] = records;
-                        } catch {
-                            try { data[db] = await invoke("read_table_data", { path: db, limit: 5 }); }
-                            catch { data[db] = []; }
-                        }
-                    }
-                    setDbTables(tables);
-                    setTableData(data);
+                    setExtractedFiles([...(list.db_files ?? []), ...(list.documents ?? [])]);
+
+                    const dbFiles: string[] = list.db_files ?? [];
+
+                    // Paralelizar list_tables y read_table_data para todos los archivos DB a la vez
+                    const [tablesEntries, dataEntries] = await Promise.all([
+                        Promise.all(dbFiles.map(async db => {
+                            const tbls: any = await invoke("list_tables", { path: db });
+                            return [db, tbls] as [string, string[]];
+                        })),
+                        Promise.all(dbFiles.map(async db => {
+                            try {
+                                const records: any = await invoke("read_table_data_pxlib", { path: db, limit: 5 });
+                                return [db, records] as [string, any];
+                            } catch {
+                                try {
+                                    const records: any = await invoke("read_table_data", { path: db, limit: 5 });
+                                    return [db, records] as [string, any];
+                                } catch {
+                                    return [db, []] as [string, any];
+                                }
+                            }
+                        }))
+                    ]);
+
+                    setDbTables(Object.fromEntries(tablesEntries));
+                    setTableData(Object.fromEntries(dataEntries));
                     toast.success("Importación completada");
                 }
-                if (typeof unlistenLogs === 'function') unlistenLogs();
-                unlistenFinished();
-            });
-            await listen("import:progress", (event: any) => {
-                if (event.payload?.job_id === jobId) setProgress(event.payload.progress);
-            });
+            }));
+
+            // Arrancar el job DESPUÉS de que todos los listeners estén activos
+            await invoke("extract_gln", { glnPath: selectedFile });
         } catch {
             setExtracting(false);
+            cleanup();
             toast.error('Error iniciando extracción');
         }
     }
@@ -379,14 +407,14 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const stepTitles = [
         isFirstUser ? "Bienvenido" : "Resumen del sistema",
         "Elige la interfaz",
-        isFirstUser ? "Crear cuenta" : "Nuevo usuario",
         "Importar datos",
+        isFirstUser ? "Crear cuenta" : "Nuevo usuario",
     ];
     const stepSubtitles = [
         isFirstUser ? "Asistente de instalación de Nuevo Galeno" : "Gestión de usuarios del sistema",
         "Selecciona el estilo de interfaz que prefieres para la aplicación",
-        isFirstUser ? "Configuración de la cuenta administrativa principal" : "Agregar un nuevo usuario al sistema",
         "Migración de base de datos Paradox (.gln)",
+        isFirstUser ? "Configuración de la cuenta administrativa principal" : "Agregar un nuevo usuario al sistema",
     ];
 
     // ─── Render ───────────────────────────────────────────────────────────────
@@ -527,16 +555,17 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                         </div>
 
                         {/* Scrollable content */}
-                        <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+                        <div style={showReview && extractedDir
+                            ? { flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }
+                            : { flex: 1, overflowY: "auto", padding: "24px 32px" }
+                        }>
                             {showReview && extractedDir ? (
-                                <div style={{ position: "absolute", inset: 0, background: fluent.bg, zIndex: 20, padding: 24 }}>
-                                    <ImportReviewScreen
-                                        extractedDir={extractedDir}
-                                        onComplete={handleReviewComplete}
-                                        onCancel={handleReviewCancel}
-                                        embedded={true}
-                                    />
-                                </div>
+                                <ImportReviewScreen
+                                    extractedDir={extractedDir}
+                                    onComplete={handleReviewComplete}
+                                    onCancel={handleReviewCancel}
+                                    embedded={true}
+                                />
                             ) : (
                                 <>
                                     {/* ── Step 0 ── */}
@@ -710,20 +739,28 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                         </div>
                                     )}
 
-                                    {/* ── Step 2 ── */}
-                                    {step === 2 && (
+                                    {/* ── Step 3 (Create account) ── */}
+                                    {step === 3 && (
                                         <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeSlide 0.3s ease-out" }}>
                                             <FluentInput
                                                 label="Nombre completo"
                                                 value={name}
-                                                onChange={v => setName(v)}
+                                                onChange={v => {
+                                                    setName(v);
+                                                    if (!usernameEdited) {
+                                                        setUsername(generateUsernameFromName(v));
+                                                    }
+                                                }}
                                                 placeholder="Ej. Dr. Juan Pérez"
                                             />
 
                                             <FluentInput
                                                 label="Nombre de usuario"
                                                 value={username}
-                                                onChange={v => setUsername(v)}
+                                                onChange={v => {
+                                                    setUsername(normalizeUsername(v));
+                                                    setUsernameEdited(v.length > 0);
+                                                }}
                                                 placeholder="admin"
                                             />
 
@@ -747,8 +784,8 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                         </div>
                                     )}
 
-                                    {/* ── Step 3 (Import) ── */}
-                                    {step === 3 && (
+                                    {/* ── Step 2 (Import) ── */}
+                                    {step === 2 && (
                                         <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeSlide 0.3s ease-out" }}>
                                             {/* File picker */}
                                             <div
@@ -925,8 +962,8 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                         </FluentButton>
                                     )}
 
-                                    {(step === 3 && extractedFiles.length === 0) && (
-                                        <FluentButton variant="secondary" onClick={finishAndPersist}>
+                                    {(step === 2 && extractedFiles.length === 0) && (
+                                        <FluentButton variant="secondary" onClick={next}>
                                             Omitir
                                         </FluentButton>
                                     )}
@@ -936,25 +973,25 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
                                         </FluentButton>
                                     )}
 
-                                    {step < 3 && (
+                                    {(step < 2 || step === 3) && (
                                         <FluentButton
                                             variant="primary"
-                                            onClick={step === 2 ? handleCreateAdmin : next}
-                                            disabled={step === 2 && (!username || !password || !name)}
+                                            onClick={step === 3 ? handleCreateAdmin : next}
+                                            disabled={step === 3 && (!username || !password || !name)}
                                         >
-                                            {step === 2 ? (isFirstUser ? "Crear y continuar" : "Crear usuario") : "Siguiente"}
+                                            {step === 3 ? (isFirstUser ? "Crear y continuar" : "Crear usuario") : "Siguiente"}
                                             <ChevronRight style={{ width: 14, height: 14 }} />
                                         </FluentButton>
                                     )}
 
-                                    {step === 3 && extractedFiles.length > 0 && (
+                                    {step === 2 && extractedFiles.length > 0 && (
                                         <>
                                             <FluentButton variant="secondary" onClick={handleOpenImportReview}>
                                                 Revisar detalles
                                             </FluentButton>
-                                            <FluentButton variant="success" onClick={finishAndPersist}>
-                                                <Check style={{ width: 14, height: 14 }} />
-                                                Finalizar
+                                            <FluentButton variant="primary" onClick={next}>
+                                                Siguiente
+                                                <ChevronRight style={{ width: 14, height: 14 }} />
                                             </FluentButton>
                                         </>
                                     )}

@@ -1,5 +1,6 @@
 pub mod appointments;
 pub mod config;
+pub mod intellisense;
 pub mod migrations;
 pub mod odontogram_surfaces;
 pub mod odontogram_tooth_treatments;

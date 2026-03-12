@@ -335,6 +335,7 @@ export function TreatmentList({ patientId, onSelectTreatment }: TreatmentListPro
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {(Object.entries(countByStatus) as [StatusKey, number][]).map(([key, count]) => {
                         const cfg = STATUS_CONFIG[key];
+                        if (!cfg) return null;
                         const Icon = cfg.icon;
                         return (
                             <span key={key} style={{

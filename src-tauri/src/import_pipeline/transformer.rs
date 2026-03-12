@@ -76,23 +76,47 @@ pub fn transform_raw_data(
     let payments_table = reader::identify_payments_table(raw_data);
     let odontograms_table = reader::identify_odontograms_table(raw_data);
 
-    issues.push(super::ValidationIssue::info(
-        "system",
-        "tables",
-        format!(
-            "Tablas identificadas - Pacientes: {}, Tratamientos: {}, Pagos: {}, Odontogramas: {}",
-            patients_table.table_name,
-            treatments_table
-                .map(|t| t.table_name.as_str())
-                .unwrap_or("ninguna"),
-            payments_table
-                .map(|t| t.table_name.as_str())
-                .unwrap_or("ninguna"),
-            odontograms_table
-                .map(|t| t.table_name.as_str())
-                .unwrap_or("ninguna"),
-        ),
-    ));
+    // Log diagnóstico: todas las tablas y sus campos
+    if let Some(ref cb) = progress_cb {
+        cb(format!(
+            "📋 Tablas disponibles: {}",
+            raw_data
+                .tables
+                .iter()
+                .map(|t| format!(
+                    "{} ({} regs) [{}]",
+                    t.table_name,
+                    t.rows.len(),
+                    t.fields
+                        .iter()
+                        .map(|f| f.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        ));
+    }
+
+    let tables_msg = format!(
+        "Tablas identificadas - Pacientes: {}, Tratamientos: {}, Pagos: {}, Odontogramas: {}",
+        patients_table.table_name,
+        treatments_table
+            .map(|t| t.table_name.as_str())
+            .unwrap_or("ninguna"),
+        payments_table
+            .map(|t| t.table_name.as_str())
+            .unwrap_or("ninguna"),
+        odontograms_table
+            .map(|t| t.table_name.as_str())
+            .unwrap_or("ninguna"),
+    );
+
+    if let Some(ref cb) = progress_cb {
+        cb(format!("🔍 {}", tables_msg));
+    }
+
+    issues.push(super::ValidationIssue::info("system", "tables", tables_msg));
 
     if let Some(ref cb) = progress_cb {
         cb(format!(
@@ -284,7 +308,30 @@ pub fn transform_raw_data(
     // 3. Procesar pagos
     if let Some(pay_table) = payments_table {
         if let Some(ref cb) = progress_cb {
-            cb(format!("💳 Integrando {} pagos...", pay_table.rows.len()));
+            cb(format!(
+                "💳 Integrando {} pagos desde {}...",
+                pay_table.rows.len(),
+                pay_table.table_name
+            ));
+        }
+
+        // Log diagnóstico: primera fila del table de pagos para ver tipos/valores reales
+        if let Some(first_row) = pay_table.rows.first() {
+            if let Some(ref cb) = progress_cb {
+                let sample: Vec<String> = first_row
+                    .iter()
+                    .map(|(k, v)| {
+                        let val = get_json_value_as_string(v);
+                        let display = if val.is_empty() {
+                            "(vacío)".to_string()
+                        } else {
+                            val
+                        };
+                        format!("{}: {}", k, display)
+                    })
+                    .collect();
+                cb(format!("💳 Muestra 1er pago: {}", sample.join(" | ")));
+            }
         }
 
         for (row_idx, row) in pay_table.rows.iter().enumerate() {
@@ -405,6 +452,33 @@ pub fn transform_raw_data(
                     cb(format!("💳 Pagos procesados: {}", row_idx + 1));
                 }
             }
+        }
+
+        // Log resumen de pagos después de procesar todos
+        if let Some(ref cb) = progress_cb {
+            let linked: usize = patients
+                .iter()
+                .flat_map(|p| p.treatments.iter())
+                .map(|t| t.payments.len())
+                .sum();
+            let linked_amount: f64 = patients
+                .iter()
+                .flat_map(|p| p.treatments.iter())
+                .flat_map(|t| t.payments.iter())
+                .map(|pay| pay.amount)
+                .sum();
+            let pat_orphan: usize = patients.iter().map(|p| p.orphan_payments.len()).sum();
+            let pat_orphan_amount: f64 = patients
+                .iter()
+                .flat_map(|p| p.orphan_payments.iter())
+                .map(|pay| pay.amount)
+                .sum();
+            let glob_orphan = orphan_payments.len();
+            let glob_orphan_amount: f64 = orphan_payments.iter().map(|p| p.amount).sum();
+            cb(format!(
+                "💳 Resumen pagos: {} vinculados (${:.2}) | {} huérfanos-paciente (${:.2}) | {} huérfanos-global (${:.2})",
+                linked, linked_amount, pat_orphan, pat_orphan_amount, glob_orphan, glob_orphan_amount
+            ));
         }
     }
 
@@ -702,11 +776,26 @@ fn transform_treatment_row(
         let trimmed = trimmed.trim();
 
         match key_lower.as_str() {
-            k if k.contains("notrat") || (k.contains("trat") && k.contains("id")) || k == "id" => {
+            // Consecutivo = ID único de instancia en Odontograma de Galeno 2000
+            // Es el campo que Pagos.ClaveTratam referencia → máxima prioridad
+            k if k == "consecutivo" => {
                 let legacy = normalize_legacy_key(trimmed);
                 if !legacy.is_empty() {
                     treatment.legacy_treatment_id = Some(legacy.clone());
                     treatment.metadata.legacy_primary_key = Some(legacy);
+                }
+            }
+            // Notrata = referencia al catálogo Tratam; solo usar como ID si no hay Consecutivo
+            k if k.contains("notrat") || (k.contains("trat") && k.contains("id")) || k == "id" => {
+                let legacy = normalize_legacy_key(trimmed);
+                if !legacy.is_empty() {
+                    // Siempre guardar como referencia al catálogo
+                    treatment.reference_code = Some(legacy.clone());
+                    // Solo usar como legacy_treatment_id si Consecutivo no lo estableció
+                    if treatment.legacy_treatment_id.is_none() {
+                        treatment.legacy_treatment_id = Some(legacy.clone());
+                        treatment.metadata.legacy_primary_key = Some(legacy);
+                    }
                 }
             }
             k if k.contains("clavepac")
@@ -774,6 +863,12 @@ fn transform_treatment_row(
             k if k.contains("fecha_fin") || k.contains("termino") || k.contains("complet") => {
                 treatment.completed_date = parse_legacy_date(trimmed);
             }
+            // Avance en Odontograma indica el progreso del tratamiento
+            k if k.contains("avance") => {
+                if !trimmed.is_empty() {
+                    treatment.status = TreatmentStatus::from_legacy_value(trimmed);
+                }
+            }
             k if k.contains("pagado") => {
                 treatment.paid_amount = parse_currency(trimmed);
             }
@@ -833,7 +928,12 @@ fn transform_payment_row(
                     payment.legacy_treatment_id = Some(legacy);
                 }
             }
-            k if k.contains("norecibo") || k.contains("recibo") || k.contains("receipt") => {
+            // Norecivo (con 'v') es el nombre exacto en Galeno 2000
+            k if k.contains("norecivo")
+                || k.contains("norecibo")
+                || k.contains("recibo")
+                || k.contains("receipt") =>
+            {
                 if !trimmed.is_empty() {
                     payment.legacy_receipt_number = Some(trimmed.to_string());
                 }

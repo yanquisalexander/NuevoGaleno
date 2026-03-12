@@ -1,7 +1,7 @@
 // Componente React para la pantalla de revisión de importación
 // Estilo Fluent Windows 11 Dark Mode
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Button } from './ui/button';
@@ -55,6 +55,20 @@ interface ImportReviewScreenProps {
     embedded?: boolean;
 }
 
+function stageEmoji(stage: string): string {
+    switch (stage) {
+        case 'reading': return '📖';
+        case 'transforming': return '🔄';
+        case 'persisting': return '💾';
+        case 'patients': return '👤';
+        case 'treatments': return '🦷';
+        case 'payments': return '💳';
+        case 'history': return '📄';
+        case 'orphans': return '🔗';
+        default: return '⚙️';
+    }
+}
+
 export default function ImportReviewScreen({ extractedDir, onComplete, onCancel, embedded = false }: ImportReviewScreenProps) {
     const [stage, setStage] = useState<'checking-docs' | 'loading' | 'preview' | 'loading-full' | 'importing' | 'complete' | 'error'>('checking-docs');
     const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -63,27 +77,40 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
     const [isPreviewOnly, setIsPreviewOnly] = useState(true);
     const [progressMessage, setProgressMessage] = useState<string>('Verificando archivos...');
     const [progressStage, setProgressStage] = useState<string>('checking');
+    const [logs, setLogs] = useState<string[]>([]);
+    const logsEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [logs]);
 
     useEffect(() => {
         // Listener para eventos de progreso
         const setupListener = async () => {
-            const unlisten = await listen<any>('import:progress', (event) => {
-                console.log('📊 Progreso:', event.payload);
-                setProgressMessage(event.payload.message || 'Procesando...');
-                setProgressStage(event.payload.stage || 'reading');
+            const unlistenProgress = await listen<any>('import:progress', (event) => {
+                const msg: string = event.payload.message || 'Procesando...';
+                const stg: string = event.payload.stage || 'reading';
+                setProgressMessage(msg);
+                setProgressStage(stg);
+                if (msg && msg !== 'Procesando...') {
+                    setLogs(prev => [...prev, `${stageEmoji(stg)} ${msg}`].slice(-300));
+                }
             });
-
-            return unlisten;
+            const unlistenLog = await listen<any>('import:log', (event) => {
+                const msg: string = event.payload?.message || '';
+                if (msg) setLogs(prev => [...prev, msg].slice(-300));
+            });
+            return () => { unlistenProgress(); unlistenLog(); };
         };
 
-        const unlistenPromise = setupListener();
+        const cleanupPromise = setupListener();
 
         // NO iniciar automáticamente - esperar a DocConversionDialog
         // runImportPipeline(true);
 
         // Cleanup
         return () => {
-            unlistenPromise.then(unlisten => unlisten());
+            cleanupPromise.then(cleanup => cleanup());
         };
     }, [extractedDir]);
 
@@ -177,7 +204,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
                     onSkip={handleSkipDocConversion}
                 />
                 {embedded ? (
-                    <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                    <div className="flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500" style={{ flex: 1, minHeight: 0 }}>
                         <div className="mb-6 relative">
                             <div className="absolute inset-0 bg-[#0078d4] blur-[30px] opacity-20 rounded-full"></div>
                             <RefreshCw className="w-12 h-12 text-[#0078d4] animate-spin relative z-10" />
@@ -209,20 +236,34 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
 
         if (embedded) {
             return (
-                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
-                    <div className="mb-6 relative">
-                        <div className="absolute inset-0 bg-[#0078d4] blur-[30px] opacity-20 rounded-full"></div>
-                        <RefreshCw className="w-12 h-12 text-[#0078d4] animate-spin relative z-10" />
+                <div className="animate-in fade-in duration-500" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 24px 14px', textAlign: 'center' }}>
+                        <div style={{ position: 'relative', marginBottom: 10 }}>
+                            <div style={{ position: 'absolute', inset: 0, background: '#0078d4', filter: 'blur(30px)', opacity: 0.2, borderRadius: '50%' }} />
+                            <RefreshCw className="w-9 h-9 text-[#0078d4] animate-spin relative z-10" />
+                        </div>
+                        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+                            {stage === 'loading' ? 'Preparando vista previa...' : 'Analizando base de datos completa...'}
+                        </h2>
+                        <p style={{ color: '#a0a0a0', fontSize: 12, marginBottom: 12 }}>{progressMessage}</p>
+                        <div style={{ width: '100%', maxWidth: 320 }}>
+                            <div style={{ height: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 1, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${progressValue}%`, background: '#0078d4', transition: 'width 0.4s ease-out' }} />
+                            </div>
+                        </div>
                     </div>
-                    <h2 className="text-xl font-semibold mb-2">
-                        {stage === 'loading' ? 'Preparando vista previa...' : 'Analizando todo...'}
-                    </h2>
-                    <p className="text-[#a0a0a0] text-sm mb-6">
-                        {progressMessage}
-                    </p>
-                    <div className="w-full max-w-sm space-y-2">
-                        <div className="h-1 w-full bg-[#333] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#0078d4] transition-all duration-500 ease-out" style={{ width: `${progressValue}%` }} />
+                    <div style={{ flex: 1, minHeight: 0, margin: '0 16px 16px', background: '#0c0c0c', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 6, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'Cascadia Code','Consolas',monospace" }}>
+                        <div style={{ padding: '5px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 10, color: 'rgba(255,255,255,0.28)', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Log de proceso</div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', fontSize: 11 }}>
+                            {logs.length === 0 ? (
+                                <span style={{ color: '#444' }}>Esperando datos del pipeline...</span>
+                            ) : logs.map((log, i) => (
+                                <div key={i} style={{ color: '#ccc', padding: '1px 0', display: 'flex', gap: 8 }}>
+                                    <span style={{ color: '#60cdff', flexShrink: 0 }}>›</span>
+                                    <span>{log}</span>
+                                </div>
+                            ))}
+                            <div ref={logsEndRef} />
                         </div>
                     </div>
                 </div>
@@ -265,7 +306,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
     if (stage === 'error') {
         if (embedded) {
             return (
-                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in zoom-in-95 duration-300">
+                <div className="flex flex-col items-center justify-center p-8 text-center animate-in zoom-in-95 duration-300" style={{ flex: 1, minHeight: 0 }}>
                     <div className="mb-6 bg-[#3b1717] p-4 rounded-full border border-[#442222]">
                         <XCircle className="w-10 h-10 text-[#ff4b4b]" />
                     </div>
@@ -297,16 +338,31 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
     if (stage === 'importing') {
         if (embedded) {
             return (
-                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
-                    <div className="mb-8 relative">
-                        <div className="absolute inset-0 bg-[#107c10] blur-[40px] opacity-20 rounded-full"></div>
-                        <Database className="w-16 h-16 text-[#107c10] animate-pulse relative z-10" />
+                <div className="animate-in fade-in duration-500" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 24px 14px', textAlign: 'center' }}>
+                        <div style={{ position: 'relative', marginBottom: 10 }}>
+                            <div style={{ position: 'absolute', inset: 0, background: '#107c10', filter: 'blur(40px)', opacity: 0.2, borderRadius: '50%' }} />
+                            <Database className="w-12 h-12 text-[#107c10] animate-pulse relative z-10" />
+                        </div>
+                        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 3 }}>Escribiendo en base de datos...</h2>
+                        <p style={{ color: '#a0a0a0', fontSize: 12, marginBottom: 12 }}>{progressMessage}</p>
+                        <div style={{ width: '100%', maxWidth: 320, height: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 1, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', background: '#107c10', width: '100%' }} />
+                        </div>
                     </div>
-                    <h2 className="text-2xl font-semibold mb-2">Importando...</h2>
-                    <p className="text-[#a0a0a0] mb-2">No cierre la aplicación.</p>
-                    <p className="text-xs text-[#666] mb-8 font-mono">{progressMessage}</p>
-                    <div className="w-full max-w-md h-1 bg-[#333] rounded-full overflow-hidden">
-                        <div className="h-full bg-[#107c10] w-full animate-[shimmer_2s_infinite_linear] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)]" />
+                    <div style={{ flex: 1, minHeight: 0, margin: '0 16px 16px', background: '#0c0c0c', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 6, display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: "'Cascadia Code','Consolas',monospace" }}>
+                        <div style={{ padding: '5px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 10, color: 'rgba(255,255,255,0.28)', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.6px' }}>Log de importación</div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', fontSize: 11 }}>
+                            {logs.length === 0 ? (
+                                <span style={{ color: '#444' }}>Iniciando motor de importación...</span>
+                            ) : logs.map((log, i) => (
+                                <div key={i} style={{ color: '#ccc', padding: '1px 0', display: 'flex', gap: 8 }}>
+                                    <span style={{ color: '#6ccb5f', flexShrink: 0 }}>›</span>
+                                    <span>{log}</span>
+                                </div>
+                            ))}
+                            <div ref={logsEndRef} />
+                        </div>
                     </div>
                 </div>
             );
@@ -333,7 +389,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
     if (stage === 'complete') {
         if (embedded) {
             return (
-                <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-in zoom-in-95 duration-500">
+                <div className="flex flex-col items-center justify-center p-8 text-center animate-in zoom-in-95 duration-500" style={{ flex: 1, minHeight: 0 }}>
                     <div className="mb-6 bg-[#162916] p-4 rounded-full border border-[#1b3d1b]">
                         <CheckCircle className="w-12 h-12 text-[#6ccb5f]" />
                     </div>
@@ -393,7 +449,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
 
     if (embedded) {
         return (
-            <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ flex: 1, minHeight: 0 }}>
                 {/* Header Embebido */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
@@ -439,18 +495,35 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
                     </div>
 
                     {/* Validation Brief */}
-                    <div className={`rounded-[6px] border p-4 flex items-center justify-between ${preview.can_proceed ? 'bg-[#1b2b1b] border-[#1b3d1b]' : 'bg-[#2b1b1b] border-[#442222]'}`}>
-                        <div className="flex items-center gap-3">
-                            {preview.can_proceed ? <CheckCircle className="w-5 h-5 text-[#6ccb5f]" /> : <XCircle className="w-5 h-5 text-[#ff4b4b]" />}
-                            <span className={`font-semibold text-sm ${preview.can_proceed ? 'text-[#6ccb5f]' : 'text-[#ff4b4b]'}`}>
-                                {preview.can_proceed ? 'Validación Correcta' : 'Errores Detectados'}
-                            </span>
+                    <div className={`rounded-[6px] border p-3 ${preview.can_proceed ? 'bg-[#1b2b1b] border-[#1b3d1b]' : 'bg-[#2b1b1b] border-[#442222]'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                {preview.can_proceed ? <CheckCircle className="w-4 h-4 text-[#6ccb5f]" /> : <XCircle className="w-4 h-4 text-[#ff4b4b]" />}
+                                <span className={`font-semibold text-xs ${preview.can_proceed ? 'text-[#6ccb5f]' : 'text-[#ff4b4b]'}`}>
+                                    {preview.can_proceed ? 'Validación Correcta' : 'Problemas detectados'}
+                                </span>
+                            </div>
+                            {!preview.can_proceed && (
+                                <span className="text-xs text-[#ff99a4] bg-[#3b1717] px-2 py-0.5 rounded">
+                                    {preview.validation_report.total_issues} problemas
+                                </span>
+                            )}
                         </div>
-                        {/* Mostrar conteo de errores si hay */}
                         {!preview.can_proceed && (
-                            <span className="text-xs text-[#ff99a4] bg-[#3b1717] px-2 py-1 rounded">
-                                {preview.validation_report.total_issues} problemas
-                            </span>
+                            <div className="space-y-1 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                {preview.validation_report.critical_issues.slice(0, 5).map((msg, i) => (
+                                    <div key={i} className="text-[10px] text-[#ff4b4b] font-mono bg-[#3b1717] rounded px-2 py-0.5">🔴 {msg}</div>
+                                ))}
+                                {preview.validation_report.errors.slice(0, 5).map((msg, i) => (
+                                    <div key={i} className="text-[10px] text-[#ff99a4] font-mono bg-[#3b1717] rounded px-2 py-0.5">⚠ {msg}</div>
+                                ))}
+                                {preview.validation_report.warnings.slice(0, 3).map((msg, i) => (
+                                    <div key={i} className="text-[10px] text-[#fce100] font-mono opacity-70 px-2 py-0.5">• {msg}</div>
+                                ))}
+                                {(preview.validation_report.critical_issues.length > 5 || preview.validation_report.errors.length > 5) && (
+                                    <div className="text-[10px] text-[#808080] px-2 py-0.5">... y {preview.validation_report.total_issues - 8} más</div>
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -483,6 +556,23 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
                             </table>
                         </div>
                     </div>
+
+                    {/* Log del análisis */}
+                    {logs.length > 0 && (
+                        <div style={{ background: '#0c0c0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, overflow: 'hidden', fontFamily: "'Cascadia Code','Consolas',monospace" }}>
+                            <div style={{ padding: '5px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 10, color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                                Log del análisis ({logs.length})
+                            </div>
+                            <div style={{ maxHeight: 96, overflowY: 'auto', padding: '6px 12px', fontSize: 11 }}>
+                                {logs.slice(-20).map((log, i) => (
+                                    <div key={i} style={{ color: '#888', padding: '1px 0', display: 'flex', gap: 8 }}>
+                                        <span style={{ color: '#60cdff', flexShrink: 0 }}>›</span>
+                                        <span>{log}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-[#333] mt-2">

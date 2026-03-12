@@ -21,6 +21,11 @@ interface ShellContextType {
     setShowCompanion: (show: boolean) => void;
     toggleCompanion: () => void;
 
+    // Galeno Intellisense panel (panel independiente)
+    showIntelliSense: boolean;
+    setShowIntelliSense: (show: boolean) => void;
+    toggleIntelliSense: () => void;
+
     toggleSearch: () => void;
     toggleNotifications: () => void;
     toggleCalendar: () => void;
@@ -42,6 +47,9 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
 
     // Companion panel state (independent)
     const [showCompanion, setShowCompanion] = useState(false);
+
+    // Intellisense panel state (independent)
+    const [showIntelliSense, setShowIntelliSense] = useState(false);
 
     const closeAll = useCallback(() => {
         setShowSearch(false);
@@ -88,6 +96,11 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
         setShowCompanion(s => !s);
     }, []);
 
+    const toggleIntelliSense = useCallback(() => {
+        // Intellisense panel toggles independently (does NOT call `closeAll`).
+        setShowIntelliSense(s => !s);
+    }, []);
+
     return (
         <ShellContext.Provider value={{
             showSearch, setShowSearch,
@@ -100,6 +113,9 @@ export function ShellProvider({ children }: { children: React.ReactNode }) {
 
             // Companion
             showCompanion, setShowCompanion, toggleCompanion,
+
+            // Intellisense
+            showIntelliSense, setShowIntelliSense, toggleIntelliSense,
 
             toggleSearch,
             toggleNotifications,

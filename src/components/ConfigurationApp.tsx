@@ -1,22 +1,23 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef } from 'react';
 import {
     Monitor, HardDrive, User, Shield, Sliders,
-    Search, ChevronRight, Download, FileText,
+    Search, ChevronRight, FileText,
     Wifi, Bluetooth, LayoutGrid, Battery,
-    Volume2, Bell, Focus, MousePointer2,
-    Globe, Gamepad2, Accessibility, RefreshCcw,
-    Image as ImageIcon
+    Volume2, Bell, MousePointer2,
+    Globe, Accessibility, RefreshCcw,
+    Image as ImageIcon, Package, ChevronLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useConfig } from '@/hooks/useConfig';
 import { useSession } from '@/hooks/useSession';
 import { useWallpaperContext } from '@/contexts/WallpaperContext';
 import { ConfigDefinition } from '@/types/config';
 import { TemplateManager } from '@/components/templates';
+import { GalenoUpdateApp } from '@/apps/GalenoUpdate';
 
-// --- Tipos ---
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 type ConfigEntry = {
     key: string;
     definition: ConfigDefinition;
@@ -25,441 +26,665 @@ type ConfigEntry = {
 
 type SectionConfig = {
     section: string;
-    id: string; // ID seguro para URL/Selección
+    id: string;
     fields: ConfigEntry[];
 };
 
-// --- Helpers de Estilo ---
-const fluentCard = "bg-[#2c2c2c] border border-[#383838] rounded-lg overflow-hidden mb-4 shadow-sm";
-const fluentInput = "bg-[#333333] border border-[#454545] border-b-[#888] hover:bg-[#3a3a3a] focus:bg-[#1f1f1f] focus:border-b-blue-400 text-white text-sm rounded-md px-3 py-1.5 outline-none transition-colors w-full";
-const fluentSelect = "appearance-none bg-[#333333] border border-[#454545] hover:bg-[#3a3a3a] text-white text-sm rounded-md pl-3 pr-8 py-1.5 outline-none transition-colors w-full cursor-pointer";
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-// Mapeo de iconos estilo Windows 11 Sidebar
-const getSectionIcon = (sectionName: string) => {
-    const lower = sectionName.toLowerCase();
-    if (lower.includes('sistema') || lower.includes('general')) return Monitor;
-    if (lower.includes('red') || lower.includes('internet')) return Wifi;
-    if (lower.includes('bluetooth') || lower.includes('dispositivos')) return Bluetooth;
-    if (lower.includes('personalización') || lower.includes('apariencia')) return LayoutGrid;
-    if (lower.includes('aplicaciones')) return LayoutGrid;
-    if (lower.includes('cuentas') || lower.includes('usuario')) return User;
-    if (lower.includes('hora') || lower.includes('idioma')) return Globe;
-    if (lower.includes('juegos')) return Gamepad2;
-    if (lower.includes('accesibilidad')) return Accessibility;
-    if (lower.includes('seguridad') || lower.includes('privacidad')) return Shield;
-    if (lower.includes('update') || lower.includes('actualización')) return RefreshCcw;
-    return Sliders; // Default
+// ─── i18n Labels ─────────────────────────────────────────────────────────────
+
+/** Traducciones de claves del schema → etiqueta visible. Ampliar según nuevas keys. */
+const FIELD_LABELS: Record<string, string> = {
+    showAccountSelector: 'Mostrar selector de cuentas',
+    layoutStyle: 'Estilo de interfaz',
+    enforceSystemPasswordForImports: 'Contraseña para importaciones masivas',
+    wallpaperProvider: 'Proveedor de fondo de pantalla',
+    soundTheme: 'Tema de sonidos',
+    playBootSound: 'Sonido de arranque',
 };
 
-// Iconos decorativos para los items dentro de las tarjetas (simulación)
-const getFieldIcon = (key: string) => {
-    const lower = key.toLowerCase();
-    if (lower.includes('wallpaper') || lower.includes('fondo')) return ImageIcon;
-    if (lower.includes('pantalla') || lower.includes('brillo')) return Monitor;
-    if (lower.includes('sonido') || lower.includes('volumen')) return Volume2;
-    if (lower.includes('notific')) return Bell;
-    if (lower.includes('batería') || lower.includes('energía')) return Battery;
-    if (lower.includes('almacenamiento')) return HardDrive;
-    if (lower.includes('mouse') || lower.includes('cursor')) return MousePointer2;
-    if (lower.includes('concentración')) return Focus;
+/** Traducciones de ui_section del schema → nombre visible en sidebar. */
+const SECTION_LABELS: Record<string, string> = {
+    system: 'Sistema',
+    general: 'General',
+    customization: 'Personalización',
+    security: 'Seguridad',
+    network: 'Red',
+    accounts: 'Cuentas',
+    accessibility: 'Accesibilidad',
+    updates: 'Actualizaciones',
+};
+
+const SECTION_ICONS: Record<string, React.ElementType> = {
+    // Español
+    sistema: Monitor,
+    general: Monitor,
+    red: Wifi,
+    internet: Wifi,
+    bluetooth: Bluetooth,
+    dispositivos: Bluetooth,
+    'personalización': LayoutGrid,
+    apariencia: LayoutGrid,
+    aplicaciones: LayoutGrid,
+    cuentas: User,
+    usuario: User,
+    hora: Globe,
+    idioma: Globe,
+    accesibilidad: Accessibility,
+    seguridad: Shield,
+    privacidad: Shield,
+    update: RefreshCcw,
+    actualizaciones: RefreshCcw,
+    // English (schema values)
+    system: Monitor,
+    customization: LayoutGrid,
+    network: Wifi,
+    accounts: User,
+    accessibility: Accessibility,
+    security: Shield,
+    updates: RefreshCcw,
+};
+
+const FIELD_ICONS: Record<string, React.ElementType> = {
+    wallpaper: ImageIcon,
+    fondo: ImageIcon,
+    pantalla: Monitor,
+    brillo: Monitor,
+    sonido: Volume2,
+    volumen: Volume2,
+    notific: Bell,
+    batería: Battery,
+    energía: Battery,
+    almacenamiento: HardDrive,
+    mouse: MousePointer2,
+    cursor: MousePointer2,
+};
+
+const getSectionIcon = (name: string): React.ElementType => {
+    const lower = name.toLowerCase();
+    for (const [key, icon] of Object.entries(SECTION_ICONS)) {
+        if (lower.includes(key)) return icon;
+    }
     return Sliders;
 };
 
-// Formateo de texto (CamelCase a Texto Legible)
-const formatLabel = (value: string) =>
-    value
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-        .trim();
+const getFieldIcon = (key: string): React.ElementType => {
+    const lower = key.toLowerCase();
+    for (const [k, icon] of Object.entries(FIELD_ICONS)) {
+        if (lower.includes(k)) return icon;
+    }
+    return Sliders;
+};
 
-export function ConfigurationApp() {
-    const { schema, values, isLoading, setConfigValue, reload } = useConfig();
+const formatLabel = (value: string) =>
+    FIELD_LABELS[value] ??
+    value.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase()).trim();
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const Toggle = ({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) => (
+    <button
+        onClick={onChange}
+        disabled={disabled}
+        style={{
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            width: '44px',
+            height: '26px',
+            borderRadius: '13px',
+            background: checked ? '#2997FF' : 'rgba(120,120,128,0.36)',
+            border: 'none',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            transition: 'background 0.25s cubic-bezier(0.4,0,0.2,1)',
+            opacity: disabled ? 0.5 : 1,
+            outline: 'none',
+            flexShrink: 0,
+            boxShadow: checked ? '0 0 0 0 rgba(41,151,255,0)' : 'none',
+        }}
+    >
+        <span style={{
+            position: 'absolute',
+            left: checked ? '20px' : '2px',
+            width: '22px',
+            height: '22px',
+            borderRadius: '50%',
+            background: '#fff',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+            transition: 'left 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+        }} />
+    </button>
+);
+
+const SidebarItem = ({
+    section,
+    isActive,
+    onClick,
+    style,
+}: {
+    section: SectionConfig | { id: string; section: string };
+    isActive: boolean;
+    onClick: () => void;
+    style?: React.CSSProperties;
+}) => {
+    const Icon = getSectionIcon(section.section);
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '7px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
+                color: isActive ? '#fff' : 'rgba(255,255,255,0.7)',
+                fontSize: '13px',
+                fontWeight: isActive ? 500 : 400,
+                fontFamily: "-apple-system, 'SF Pro Text', sans-serif",
+                textAlign: 'left',
+                transition: 'background 0.15s ease, color 0.15s ease',
+                backdropFilter: isActive ? 'blur(8px)' : 'none',
+                boxShadow: isActive ? 'inset 0 1px 0 rgba(255,255,255,0.08)' : 'none',
+                ...style,
+            }}
+            onMouseEnter={e => {
+                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)';
+            }}
+            onMouseLeave={e => {
+                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
+            }}
+        >
+            <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '7px',
+                background: isActive
+                    ? 'linear-gradient(145deg,#3a7bd5,#2563eb)'
+                    : 'rgba(255,255,255,0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s ease',
+            }}>
+                <Icon size={14} color={isActive ? '#fff' : 'rgba(255,255,255,0.6)'} />
+            </div>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {section.section}
+            </span>
+        </button>
+    );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function ConfigurationApp({ data }: { data?: { section?: string }; windowId?: string } = {}) {
+    const { schema, values, isLoading, setConfigValue } = useConfig();
     const { currentUser, updatePreferences, getUserPreferences } = useSession();
     const { openWindow } = useWindowManager();
     const [savingKey, setSavingKey] = useState<string | null>(null);
     const [showTemplates, setShowTemplates] = useState(false);
-
-    // Obtener preferences del usuario
-    const userPrefs = getUserPreferences();
-
-    // Usar el contexto compartido de wallpaper
-    const { wallpapers, isLoading: wallpapersLoading, currentWallpaper: providerCurrentWallpaper } = useWallpaperContext();
-
-    // Estado para la navegación lateral (Fluent Sidebar)
-    const [activeSectionId, setActiveSectionId] = useState<string>('sistema');
+    const [activeSectionId, setActiveSectionId] = useState<string>(data?.section ?? 'system');
     const [searchQuery, setSearchQuery] = useState('');
+    const contentRef = useRef<HTMLDivElement>(null);
 
+    const { wallpapers, isLoading: wallpapersLoading, currentWallpaper } = useWallpaperContext();
     const isAdmin = currentUser?.role === 'admin';
 
-    // Procesar secciones
+    // ── Derived data ──────────────────────────────────────────────────────────
+
     const sections = useMemo<SectionConfig[]>(() => {
         if (!schema) return [];
         const map = new Map<string, ConfigEntry[]>();
+        const userPrefs = getUserPreferences();
 
         Object.entries(schema).forEach(([key, definition]) => {
             if (definition.admin_only && !isAdmin) return;
-            const sectionName = definition.ui_section?.trim() || 'Sistema';
+            const sectionName = definition.ui_section?.trim() ?? 'Sistema';
+            const prefKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+            const value = definition.user_preference
+                ? (userPrefs[prefKey] ?? definition.default)
+                : values[key];
             const group = map.get(sectionName) ?? [];
-
-            // Para configuraciones por usuario, obtener el valor de las preferences del usuario
-            let value = values[key];
-            if (definition.user_preference) {
-                const userPrefs = getUserPreferences();
-                // Convertir key a snake_case para las preferences
-                const prefKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-                value = userPrefs[prefKey] ?? definition.default;
-            }
-
             group.push({ key, definition, value });
             map.set(sectionName, group);
         });
 
-        // Aseguramos que siempre haya una sección "Sistema" o la primera disponible
-        const list = Array.from(map.entries()).map(([section, fields]) => ({
-            section,
-            id: section.toLowerCase().replace(/\s+/g, '-'),
-            fields
-        }));
-
-        // Ordenar: Sistema primero si existe
-        list.sort((a, b) => (a.id === 'sistema' ? -1 : 1));
-        return list;
+        return Array.from(map.entries())
+            .map(([section, fields]) => ({
+                section: SECTION_LABELS[section.toLowerCase()] ?? section,
+                id: section.toLowerCase().replace(/\s+/g, '-'),
+                fields,
+            }))
+            .sort((a) => (a.id === 'sistema' || a.id === 'system' ? -1 : 0));
     }, [schema, values, isAdmin, getUserPreferences]);
 
-    // Efecto para seleccionar la primera sección por defecto si la actual no existe
-    useMemo(() => {
-        if (sections.length > 0 && !sections.find(s => s.id === activeSectionId)) {
-            setActiveSectionId(sections[0].id);
-        }
-    }, [sections, activeSectionId]);
+    const filteredSections = useMemo(() => {
+        if (!searchQuery.trim()) return sections;
+        const q = searchQuery.toLowerCase();
+        return sections.filter(s =>
+            s.section.toLowerCase().includes(q) ||
+            s.fields.some(f =>
+                f.key.toLowerCase().includes(q) ||
+                formatLabel(f.key).toLowerCase().includes(q)
+            )
+        );
+    }, [sections, searchQuery]);
 
-    const handleSave = useCallback(
-        async (key: string, nextValue: unknown) => {
-            setSavingKey(key);
-            try {
-                const definition = schema?.[key];
-                if (definition?.user_preference) {
-                    // Guardar en preferences del usuario
-                    const prefKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-                    await updatePreferences({ [prefKey]: nextValue });
-                } else {
-                    // Guardar en configuración global
-                    await setConfigValue(key, nextValue);
-                }
-                toast.success('Configuración guardada');
-            } catch (error: any) {
-                console.error(error);
-                toast.error('Error al guardar');
-            } finally {
-                setSavingKey(null);
-            }
-        },
-        [schema, setConfigValue, updatePreferences]
+    const currentSection = useMemo(
+        () => sections.find(s => s.id === activeSectionId),
+        [sections, activeSectionId]
     );
 
-    // --- Renderizado de Controles Fluent ---
-    const renderControl = (entry: ConfigEntry) => {
+    const isPersonalization = activeSectionId.includes('personalización') || activeSectionId.includes('apariencia') || activeSectionId === 'customization';
+    const showUpdates = activeSectionId === 'actualizaciones';
+
+    // ── Handlers ─────────────────────────────────────────────────────────────
+
+    const handleSave = useCallback(async (key: string, nextValue: unknown) => {
+        setSavingKey(key);
+        try {
+            const definition = schema?.[key];
+            if (definition?.user_preference) {
+                const prefKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+                await updatePreferences({ [prefKey]: nextValue });
+            } else {
+                await setConfigValue(key, nextValue);
+            }
+            toast.success('Guardado');
+        } catch {
+            toast.error('Error al guardar');
+        } finally {
+            setSavingKey(null);
+        }
+    }, [schema, setConfigValue, updatePreferences]);
+
+    const handleSectionChange = useCallback((id: string) => {
+        setActiveSectionId(id);
+        contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+
+    // ── Controls ──────────────────────────────────────────────────────────────
+
+    const renderControl = useCallback((entry: ConfigEntry) => {
         const effectiveValue = entry.value ?? entry.definition.default;
         const isSaving = savingKey === entry.key;
 
-        // Toggle Switch estilo Windows 11
         if (entry.definition.type === 'boolean') {
-            const boolValue = typeof effectiveValue === 'boolean' ? effectiveValue : Boolean(entry.definition.default);
             return (
-                <button
-                    onClick={() => handleSave(entry.key, !boolValue)}
+                <Toggle
+                    checked={Boolean(effectiveValue)}
+                    onChange={() => handleSave(entry.key, !effectiveValue)}
                     disabled={isSaving}
-                    className={`
-                        relative inline-flex h-5 w-10 items-center rounded-full transition-colors duration-200 border border-transparent
-                        ${boolValue ? 'bg-[#0078d4] hover:bg-[#006cc1]' : 'bg-[#5c5c5c] hover:bg-[#6e6e6e] border-[#707070]'}
-                        ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
-                    `}
-                >
-                    <span
-                        className={`
-                            inline-block h-3 w-3 transform rounded-full bg-white transition-transform duration-200
-                            ${boolValue ? 'translate-x-6' : 'translate-x-1'}
-                            ${boolValue ? 'shadow-sm' : ''}
-                        `}
-                    />
-                </button>
+                />
             );
         }
 
-        // Select estilo Windows 11
         if (entry.definition.type === 'enum') {
-            const selected = String(effectiveValue ?? '');
             return (
-                <div className="relative w-48">
+                <div style={{ position: 'relative', width: '180px' }}>
                     <select
-                        value={selected}
-                        onChange={(e) => handleSave(entry.key, e.target.value)}
+                        value={String(effectiveValue ?? '')}
+                        onChange={e => handleSave(entry.key, e.target.value)}
                         disabled={isSaving}
-                        className={fluentSelect}
+                        style={{
+                            appearance: 'none',
+                            width: '100%',
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '8px',
+                            color: '#fff',
+                            fontSize: '13px',
+                            fontFamily: "-apple-system, 'SF Pro Text', sans-serif",
+                            padding: '5px 28px 5px 10px',
+                            outline: 'none',
+                            cursor: 'pointer',
+                        }}
                     >
-                        {(entry.definition.choices ?? []).map((option) => (
-                            <option key={String(option)} value={String(option)}>
-                                {String(option)}
-                            </option>
+                        {(entry.definition.choices ?? []).map(o => (
+                            <option key={String(o)} value={String(o)}>{String(o)}</option>
                         ))}
                     </select>
-                    <ChevronRight className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-white/50 rotate-90" />
+                    <ChevronRight size={12} style={{
+                        position: 'absolute', right: '8px', top: '50%',
+                        transform: 'translateY(-50%) rotate(90deg)',
+                        color: 'rgba(255,255,255,0.4)', pointerEvents: 'none',
+                    }} />
                 </div>
             );
         }
 
-        // Input Texto/Numérico estilo Windows 11
-        const inputType = entry.definition.type === 'integer' || entry.definition.type === 'float' ? 'number' : 'text';
         return (
-            <div className="w-48">
-                <input
-                    type={inputType}
-                    defaultValue={String(effectiveValue ?? '')}
-                    onBlur={(e) => {
-                        const val = e.target.value;
-                        if (inputType === 'number') {
-                            const parsed = Number(val);
-                            if (!Number.isNaN(parsed)) handleSave(entry.key, parsed);
-                        } else {
-                            handleSave(entry.key, val);
-                        }
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                    disabled={isSaving}
-                    className={fluentInput}
-                />
+            <input
+                type={entry.definition.type === 'integer' || entry.definition.type === 'float' ? 'number' : 'text'}
+                defaultValue={String(effectiveValue ?? '')}
+                onBlur={e => {
+                    const v = e.target.value;
+                    if (entry.definition.type === 'integer' || entry.definition.type === 'float') {
+                        const n = Number(v);
+                        if (!isNaN(n)) handleSave(entry.key, n);
+                    } else {
+                        handleSave(entry.key, v);
+                    }
+                }}
+                onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+                disabled={isSaving}
+                style={{
+                    width: '180px',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    borderBottom: '1px solid rgba(255,255,255,0.25)',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontFamily: "-apple-system, 'SF Pro Text', sans-serif",
+                    padding: '5px 10px',
+                    outline: 'none',
+                }}
+            />
+        );
+    }, [savingKey, handleSave]);
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    if (isLoading) {
+        return (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1c1e', color: 'rgba(255,255,255,0.5)', fontFamily: "-apple-system, sans-serif", fontSize: '13px' }}>
+                Cargando configuración…
             </div>
         );
-    };
+    }
 
-    if (isLoading) return <div className="flex h-full items-center justify-center text-white">Cargando...</div>;
-    if (showTemplates) return <TemplateManager onBack={() => setShowTemplates(false)} />;
-
-    const currentSection = sections.find(s => s.id === activeSectionId);
-    const isPersonalization = activeSectionId.includes('personalización') || activeSectionId.includes('apariencia');
+    if (showTemplates) {
+        return (
+            <div style={{ height: '100%', position: 'relative' }}>
+                <button
+                    onClick={() => setShowTemplates(false)}
+                    style={{
+                        position: 'absolute', top: '16px', left: '16px', zIndex: 10,
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        background: 'none', border: 'none', color: '#2997FF',
+                        fontFamily: "-apple-system, 'SF Pro Text', sans-serif",
+                        fontSize: '14px', cursor: 'pointer',
+                    }}
+                >
+                    <ChevronLeft size={16} /> Volver
+                </button>
+                <TemplateManager onBack={() => setShowTemplates(false)} />
+            </div>
+        );
+    }
 
     return (
-        <div className="flex h-full w-full bg-[#202020] text-white overflow-hidden font-segoe select-none">
+        <div style={{
+            display: 'flex',
+            height: '100%',
+            background: '#1c1c1e',
+            fontFamily: "-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif",
+            color: '#fff',
+            overflow: 'hidden',
+        }}>
 
-            {/* --- SIDEBAR (Navegación) --- */}
-            <div className="w-[280px] flex-none flex flex-col pt-8 pb-4 px-2 bg-[#202020]/95 backdrop-blur-xl border-r border-white/5">
-                {/* Search Box estilo Sidebar */}
-                <div className="px-4 mb-6">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
+            {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
+            <div style={{
+                width: '260px',
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'rgba(28,28,30,0.95)',
+                backdropFilter: 'blur(40px) saturate(180%)',
+                borderRight: '1px solid rgba(255,255,255,0.06)',
+                paddingTop: '16px',
+            }}>
+
+                {/* Search */}
+                <div style={{ padding: '0 12px 12px' }}>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={13} style={{
+                            position: 'absolute', left: '10px', top: '50%',
+                            transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.35)',
+                        }} />
                         <input
                             type="text"
-                            placeholder="Buscar una configuración"
+                            placeholder="Buscar"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-[#2d2d2d] border border-b border-transparent focus:border-b-[#0078d4] border-white/5 rounded-md py-1.5 pl-9 pr-3 text-sm text-white placeholder-white/40 outline-none transition-all"
+                            onChange={e => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '10px',
+                                color: '#fff',
+                                fontSize: '13px',
+                                padding: '6px 10px 6px 30px',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                            }}
                         />
                     </div>
                 </div>
 
-                {/* Lista de Secciones */}
-                <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar px-2">
-                    {/* Botón de Perfil (Pseudo-Header del Sidebar) */}
-                    <div className="mb-4 px-2 flex items-center gap-3 py-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors group">
-                        <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold overflow-hidden border border-white/10">
-                            {currentUser?.avatar_url ? (
-                                <img src={currentUser.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
-                            ) : (
-                                currentUser?.name?.substring(0, 1)
-                            )}
+                {/* User profile */}
+                <div style={{
+                    margin: '0 12px 12px',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255,255,255,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    cursor: 'pointer',
+                }}>
+                    <div style={{
+                        width: '36px', height: '36px', borderRadius: '50%',
+                        background: 'linear-gradient(135deg,#3b82f6,#6366f1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '14px', fontWeight: 600, color: '#fff', flexShrink: 0,
+                        overflow: 'hidden',
+                    }}>
+                        {currentUser?.avatar_url
+                            ? <img src={currentUser.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                            : currentUser?.name?.charAt(0)
+                        }
+                    </div>
+                    <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {currentUser?.name}
                         </div>
-                        <div className="flex flex-col text-left">
-                            <span className="text-sm font-semibold text-white/90">{currentUser?.name}</span>
-                            <span className="text-xs text-white/50">{currentUser?.email || currentUser?.username}</span>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {currentUser?.email || currentUser?.username}
                         </div>
                     </div>
+                </div>
 
-                    {sections.map((section) => {
-                        const Icon = getSectionIcon(section.section);
-                        const isActive = activeSectionId === section.id;
-                        return (
-                            <button
-                                key={section.id}
-                                onClick={() => setActiveSectionId(section.id)}
-                                className={`
-                                    relative w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200
-                                    ${isActive ? 'bg-[#353535] text-white' : 'text-white/70 hover:bg-[#2d2d2d] hover:text-white/90'}
-                                `}
-                            >
-                                {/* Indicador activo (Pill lateral) */}
-                                {isActive && (
-                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-1 bg-[#0078d4] rounded-r-full" />
-                                )}
-                                <Icon className={`h-4 w-4 ${isActive ? 'text-[#0078d4]' : ''}`} />
-                                {section.section}
-                            </button>
-                        );
-                    })}
+                {/* Sections list */}
+                <div style={{
+                    flex: 1, overflowY: 'auto', padding: '0 8px',
+                    scrollbarWidth: 'none',
+                }}>
+                    {filteredSections.map(section => (
+                        <SidebarItem
+                            key={section.id}
+                            section={section}
+                            isActive={activeSectionId === section.id}
+                            onClick={() => handleSectionChange(section.id)}
+                        />
+                    ))}
 
-                    {/* Links especiales hardcodeados para parecer Windows */}
-                    <div className="pt-4 mt-2 border-t border-white/5">
+                    {/* Fixed bottom items */}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '8px', paddingTop: '8px' }}>
                         {isAdmin && (
-                            <button onClick={() => openWindow('system-tools')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
-                                <Shield className="h-4 w-4 text-red-400" />
-                                Herramientas Admin
-                            </button>
+                            <SidebarItem
+                                section={{ id: 'admin', section: 'Herramientas Admin' }}
+                                isActive={false}
+                                onClick={() => openWindow('system-tools')}
+                            />
                         )}
-                        <button onClick={() => openWindow('galeno-update')} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
-                            <Download className="h-4 w-4 text-blue-400" />
-                            Galeno Update
-                        </button>
-                        <button onClick={() => setShowTemplates(true)} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:bg-[#2d2d2d]">
-                            <FileText className="h-4 w-4 text-purple-400" />
-                            Plantillas
-                        </button>
+                        <SidebarItem
+                            section={{ id: 'actualizaciones', section: 'Actualizaciones' }}
+                            isActive={activeSectionId === 'actualizaciones'}
+                            onClick={() => handleSectionChange('actualizaciones')}
+                        />
+                        <SidebarItem
+                            section={{ id: 'plantillas', section: 'Plantillas' }}
+                            isActive={false}
+                            onClick={() => setShowTemplates(true)}
+                        />
                     </div>
                 </div>
             </div>
 
-            {/* --- CONTENIDO PRINCIPAL --- */}
-            <div className="flex-1 flex flex-col bg-[#202020] overflow-hidden relative">
+            {/* ── CONTENT ─────────────────────────────────────────────────── */}
+            <div ref={contentRef} style={{
+                flex: 1, overflowY: 'auto',
+                background: '#1c1c1e',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(255,255,255,0.12) transparent',
+            }}>
 
-                {/* Header (Breadcrumb + Titulo) */}
-                <div className="flex-none pt-8 pb-6 px-8">
-                    {/* Hero específico si es la sección "Sistema" */}
-                    {activeSectionId === 'sistema' ? (
-                        <div className="flex items-start gap-6 mb-6">
-                            <div className="w-32 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg flex items-center justify-center shrink-0">
-                                <Monitor className="h-8 w-8 text-white/90" />
-                            </div>
-                            <div className="space-y-1 pt-1">
-                                <h1 className="text-2xl font-semibold tracking-tight uppercase">{currentUser?.name?.split(' ')[0]}</h1>
-                                <p className="text-sm text-white/60">
-                                    Nuevo Galeno OS
-                                </p>
-                                <button className="text-sm text-[#4cc2ff] hover:underline mt-1">Cambiar nombre</button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="mb-6">
-                            <p className="text-xs text-white/50 mb-1">Sistema &gt; Configuración</p>
-                            <h1 className="text-2xl font-semibold">{currentSection?.section}</h1>
-                        </div>
-                    )}
-                </div>
+                {showUpdates ? (
+                    <GalenoUpdateApp />
+                ) : (
+                    <div style={{ maxWidth: '680px', margin: '0 auto', padding: '32px 24px 48px' }}>
 
-                {/* Scroll Area */}
-                <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
-                    <div className="max-w-4xl space-y-1">
+                        {/* Page title */}
+                        <h1 style={{
+                            fontSize: '22px',
+                            fontWeight: 600,
+                            letterSpacing: '-0.3px',
+                            color: '#fff',
+                            marginBottom: '24px',
+                        }}>
+                            {SECTION_LABELS[currentSection?.id ?? ''] ?? currentSection?.section ?? 'Configuración'}
+                        </h1>
 
-                        {/* --- PREVIEW DE WALLPAPER (Estilo OS) --- */}
+                        {/* Wallpaper preview */}
                         {isPersonalization && (
-                            <div className="mb-8 flex justify-center">
-                                <div className="relative aspect-video w-full max-w-[480px] rounded-xl border-8 border-[#1a1a1a] shadow-2xl overflow-hidden bg-black group">
-                                    <img
-                                        src={String(providerCurrentWallpaper || values['wallpaper'] || '/api/placeholder/800/450')}
-                                        className="w-full h-full object-cover"
-                                        alt="Fondo actual"
-                                    />
-                                    {/* Superposición que simula la UI de Windows */}
-                                    <div className="absolute inset-0 bg-black/10" />
-                                    <div className="absolute bottom-4 right-4 w-24 h-16 bg-white/10 backdrop-blur-md rounded border border-white/20 p-2 pointer-events-none">
-                                        <div className="w-full h-1.5 bg-white/40 rounded-full mb-1.5" />
-                                        <div className="w-2/3 h-1 bg-white/20 rounded-full mb-4" />
-                                        <div className="absolute bottom-2 right-2 w-3 h-3 bg-blue-500 rounded-sm" />
-                                    </div>
-                                </div>
+                            <div style={{
+                                borderRadius: '16px',
+                                overflow: 'hidden',
+                                aspectRatio: '16/9',
+                                marginBottom: '24px',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                background: '#000',
+                                position: 'relative',
+                            }}>
+                                <img
+                                    src={String(currentWallpaper || values['wallpaper'] || '')}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    alt="Fondo actual"
+                                />
                             </div>
                         )}
 
-                        <div className={fluentCard}>
-                            {currentSection?.fields.map((field, index) => {
-                                const FieldIcon = getFieldIcon(field.key);
-                                const isLast = index === currentSection.fields.length - 1;
-                                const isWallpaperField = field.key.toLowerCase().includes('wallpaper');
+                        {/* Fields card */}
+                        {currentSection && (
+                            <div style={{
+                                borderRadius: '14px',
+                                overflow: 'hidden',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                background: 'rgba(255,255,255,0.04)',
+                            }}>
+                                {currentSection.fields.map((field, idx) => {
+                                    const FieldIcon = getFieldIcon(field.key);
+                                    const isLast = idx === currentSection.fields.length - 1;
+                                    const isWallpaper = field.key.toLowerCase().includes('wallpaper') && isPersonalization;
 
-                                return (
-                                    <div key={field.key} className={`flex flex-col ${!isLast ? 'border-b border-[#383838]' : ''}`}>
-                                        <div
-                                            className="group flex items-center justify-between p-4 pl-5 hover:bg-[#323232] transition-colors cursor-default"
-                                        >
-                                            <div className="flex items-center gap-4 overflow-hidden">
-                                                <div className="flex-none text-white/40 group-hover:text-white/80 transition-colors">
-                                                    <FieldIcon className="h-5 w-5" strokeWidth={1.5} />
-                                                </div>
-
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="text-[15px] text-white/90 font-normal truncate">
-                                                        {formatLabel(field.key)}
-                                                    </span>
-                                                    {field.definition.description && (
-                                                        <span className="text-xs text-white/50 truncate max-w-lg block">
-                                                            {field.definition.description}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex-none pl-6 flex items-center gap-4">
-                                                {field.definition.admin_only && (
-                                                    <Shield className="h-3 w-3 text-amber-500" title="Requiere Admin" />
-                                                )}
-                                                {renderControl(field)}
-                                            </div>
-                                        </div>
-
-                                        {/* Grid de imágenes del proveedor actual si es el campo de Wallpaper */}
-                                        {isWallpaperField && isPersonalization && (
-                                            <div className="px-5 pb-5 pt-2">
-                                                <p className="text-xs font-medium text-white/60 mb-3">
-                                                    Con este proveedor tendrás imágenes como estas
-                                                </p>
-                                                {wallpapersLoading ? (
-                                                    <div className="grid grid-cols-5 gap-2">
-                                                        {[1, 2, 3, 4, 5].map((i) => (
-                                                            <div
-                                                                key={i}
-                                                                className="aspect-video rounded-md bg-white/5 animate-pulse"
-                                                            />
-                                                        ))}
+                                    return (
+                                        <div key={field.key}>
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '13px 16px',
+                                                borderBottom: isLast && !isWallpaper ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                                                gap: '12px',
+                                                transition: 'background 0.12s ease',
+                                            }}
+                                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'}
+                                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                                                    <div style={{
+                                                        width: '30px', height: '30px', borderRadius: '7px',
+                                                        background: 'rgba(255,255,255,0.07)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        flexShrink: 0,
+                                                    }}>
+                                                        <FieldIcon size={15} color="rgba(255,255,255,0.55)" />
                                                     </div>
-                                                ) : wallpapers.length > 0 ? (
-                                                    <div className="grid grid-cols-5 gap-2">
-                                                        {wallpapers.slice(0, 5).map((wallpaper, index) => (
-                                                            <div
-                                                                key={index}
-                                                                className="aspect-video rounded-md overflow-hidden border border-white/5 hover:border-blue-500 cursor-pointer transition-all active:scale-95 group relative"
-                                                            >
-                                                                <img
-                                                                    src={wallpaper.url}
-                                                                    className="w-full h-full object-cover"
-                                                                    alt={wallpaper.name}
-                                                                    loading="lazy"
-                                                                />
-                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <p className="text-xs text-white font-medium truncate">
-                                                                        {wallpaper.location}
-                                                                    </p>
-                                                                </div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.9)', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {formatLabel(field.key)}
+                                                        </div>
+                                                        {field.definition.description && (
+                                                            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.38)', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {field.definition.description}
                                                             </div>
-                                                        ))}
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <div className="text-xs text-white/40 text-center py-4">
-                                                        No se pudieron cargar las imágenes de ejemplo
-                                                    </div>
-                                                )}
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                                    {field.definition.admin_only && <Shield size={12} color="#f59e0b" />}
+                                                    {renderControl(field)}
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
 
-                        {/* Banner de ayuda al final */}
-                        <div className="mt-8 flex items-center gap-2 text-sm text-white/40 hover:text-white/60 cursor-pointer w-fit transition-colors">
-                            <span className="underline decoration-dotted">Obtener ayuda</span>
-                        </div>
+                                            {/* Wallpaper grid */}
+                                            {isWallpaper && (
+                                                <div style={{ padding: '12px 16px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.06)' }}>
+                                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginBottom: '10px' }}>
+                                                        Vista previa del proveedor
+                                                    </div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+                                                        {wallpapersLoading
+                                                            ? Array.from({ length: 5 }).map((_, i) => (
+                                                                <div key={i} style={{ aspectRatio: '16/9', borderRadius: '6px', background: 'rgba(255,255,255,0.05)' }} />
+                                                            ))
+                                                            : wallpapers.slice(0, 5).map((w, i) => (
+                                                                <div key={i} style={{
+                                                                    aspectRatio: '16/9', borderRadius: '6px', overflow: 'hidden',
+                                                                    border: '1px solid rgba(255,255,255,0.06)',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'transform 0.15s ease, border-color 0.15s ease',
+                                                                }}
+                                                                    onMouseEnter={e => {
+                                                                        (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)';
+                                                                        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(41,151,255,0.5)';
+                                                                    }}
+                                                                    onMouseLeave={e => {
+                                                                        (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
+                                                                        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)';
+                                                                    }}
+                                                                >
+                                                                    <img src={w.url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={w.name} loading="lazy" />
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Empty state for search */}
+                        {filteredSections.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
+                                No se encontraron resultados para "{searchQuery}"
+                            </div>
+                        )}
 
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

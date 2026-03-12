@@ -1,14 +1,14 @@
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useShell } from '@/contexts/ShellContext';
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, Sparkles } from 'lucide-react';
 import { AppIcon } from './AppIcon';
 import { motion } from 'motion/react';
 
 export function Dock() {
     const { windows, apps, openWindow, focusWindow } = useWindowManager();
     const { notifications } = useNotifications();
-    const { toggleSearch, toggleNotifications, showNotifications } = useShell();
+    const { toggleSearch, toggleNotifications, showNotifications, toggleIntelliSense, showIntelliSense } = useShell();
 
     // Filtramos las apps que están abiertas (tienen ventana) o son fijas (opcional)
     // En este caso, mostramos todas las apps fijas que no tengan showOnDesktop false
@@ -71,6 +71,15 @@ export function Dock() {
                     className="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
                 >
                     <Search className="w-5 h-5 text-white/80" />
+                </motion.button>
+
+                <motion.button
+                    whileHover={{ scale: 1.2, y: -10 }}
+                    onClick={() => toggleIntelliSense()}
+                    title="Galeno Intellisense"
+                    className={`w-12 h-12 flex items-center justify-center rounded-xl transition-colors ${showIntelliSense ? 'bg-purple-500/30' : 'bg-white/5 hover:bg-white/10'}`}
+                >
+                    <Sparkles className={`w-5 h-5 ${showIntelliSense ? 'text-purple-300' : 'text-white/80'}`} />
                 </motion.button>
 
                 <motion.button

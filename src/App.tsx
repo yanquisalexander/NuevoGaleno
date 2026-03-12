@@ -27,7 +27,8 @@ import { useAutoUpdate } from '@/hooks/useAutoUpdate';
 import { LicenseWatermark } from '@/components/LicenseWatermark';
 import { useLicense } from '@/hooks/useLicense';
 import { ShutdownScreen } from "./components/kiosk/ShutdownScreen";
-import { Toaster } from 'sonner';
+import { DynamicIslandToaster } from '@/components/DynamicIslandToaster';
+import { DailyBriefingToast } from '@/components/intellisense/DailyBriefingToast';
 
 
 interface User {
@@ -297,9 +298,7 @@ function KioskContent() {
             <LockScreen
               user={currentUser || undefined}
               onUnlock={async (password, isPin) => {
-                if (currentUser) {
-                  await unlock(password, isPin);
-                }
+                await unlock(password, isPin);
                 setIsInitialLock(false);
               }}
             />
@@ -321,7 +320,8 @@ function App() {
   return (
     <>
       <KioskContent />
-      <Toaster />
+      <DynamicIslandToaster />
+      <DailyBriefingToast />
     </>
   );
 }

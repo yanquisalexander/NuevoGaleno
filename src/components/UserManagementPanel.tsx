@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
+import { normalizeUsername, generateUsernameFromName } from '@/utils/username';
 
 interface User {
     id: number;
@@ -72,6 +73,7 @@ export function UserManagementPanel() {
     const toast = useToast();
 
     // Form states
+    const [usernameEdited, setUsernameEdited] = useState(false);
     const [formData, setFormData] = useState({
         username: '',
         name: '',
@@ -200,6 +202,7 @@ export function UserManagementPanel() {
     };
 
     const resetForm = () => {
+        setUsernameEdited(false);
         setFormData({
             username: '',
             name: '',
@@ -385,7 +388,14 @@ export function UserManagementPanel() {
                                 id="name"
                                 placeholder="Ej: Dr. Juan Pérez"
                                 value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                onChange={(e) => {
+                                    const newName = e.target.value;
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        name: newName,
+                                        username: usernameEdited ? prev.username : generateUsernameFromName(newName),
+                                    }));
+                                }}
                                 className="bg-[#333] border-white/10 text-white"
                             />
                         </div>
@@ -398,7 +408,11 @@ export function UserManagementPanel() {
                                 id="username"
                                 placeholder="Ej: jperez"
                                 value={formData.username}
-                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                onChange={(e) => {
+                                    const normalized = normalizeUsername(e.target.value);
+                                    setUsernameEdited(normalized.length > 0);
+                                    setFormData({ ...formData, username: normalized });
+                                }}
                                 className="bg-[#333] border-white/10 text-white"
                             />
                         </div>

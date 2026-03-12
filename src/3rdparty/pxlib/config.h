@@ -16,7 +16,10 @@
 #define HAVE_TIME_H 1
 #define HAVE_MEMORY_H 1
 #define HAVE_SYS_TIME_H 1
-#define WORDS_BIGENDIAN 0
+/* WORDS_BIGENDIAN must NOT be defined on little-endian (x86/x64 Windows).
+   get_double_be uses #ifdef WORDS_BIGENDIAN (not #if), so defining it as 0
+   still activates the memcpy branch instead of the correct byte-swap. */
+#undef WORDS_BIGENDIAN
 #define HAVE_GSF 0
 
 #endif /* PXLIB_CONFIG_H */

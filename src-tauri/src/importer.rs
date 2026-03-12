@@ -26,6 +26,15 @@ const FIELD_TYPE_BYTES: u8 = 0x0E;
 const FIELD_TYPE_TIMESTAMP: u8 = 0x14;
 const FIELD_TYPE_AUTOINCREMENT: u8 = 0x16;
 
+fn emit_log(job_id: &str, message: impl AsRef<str>) {
+    if let Some(app) = GLOBAL_APP_HANDLE.lock().unwrap().as_ref() {
+        let _ = app.emit(
+            "import:log",
+            serde_json::json!({"job_id": job_id, "message": message.as_ref()}),
+        );
+    }
+}
+
 #[tauri::command]
 pub fn select_gln(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let picked = app.dialog().file().blocking_pick_file();
@@ -76,6 +85,10 @@ pub fn extract_gln(glnPath: String) -> Result<String, String> {
 
     tauri::async_runtime::spawn(async move {
         debug!("🚀 Iniciando extracción de archivo: {}", input);
+        emit_log(
+            &job_id_for_emit,
+            "🚀 Iniciando extracción del archivo GLN...",
+        );
 
         if let Some(app) = GLOBAL_APP_HANDLE.lock().unwrap().as_ref() {
             let _ = app.emit(
@@ -84,20 +97,25 @@ pub fn extract_gln(glnPath: String) -> Result<String, String> {
             );
         }
 
+        let job_id_for_log = job_id_for_emit.clone();
         let extraction = tauri::async_runtime::spawn_blocking(move || -> Result<serde_json::Value, String> {
             let file = File::open(&input).map_err(|e| format!("error abriendo archivo: {}", e))?;
             debug!("📂 Archivo .gln abierto correctamente");
+            emit_log(&job_id_for_log, "📂 Archivo GLN abierto correctamente");
 
             let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("no es un ZIP válido: {}", e))?;
             debug!("📦 Contenedor ZIP válido, {} entradas detectadas", archive.len());
+            emit_log(&job_id_for_log, format!("📦 Contenedor ZIP válido — {} entradas detectadas", archive.len()));
 
             let ts2 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
             let out_dir = std::env::temp_dir().join(format!("nuevogaleno_import_{}", ts2));
             fs::create_dir_all(&out_dir).map_err(|e| format!("no se pudo crear directorio temporal: {}", e))?;
             debug!("📁 Directorio temporal creado: {:?}", out_dir);
+            emit_log(&job_id_for_log, "📁 Directorio temporal preparado");
 
             let mut entries: Vec<String> = Vec::new();
             let total = archive.len();
+            emit_log(&job_id_for_log, format!("⏳ Extrayendo {} archivos...", total));
             for i in 0..total {
                 let mut file = archive.by_index(i).map_err(|e| format!("zip error: {}", e))?;
                 let outpath = match file.enclosed_name() {
@@ -119,15 +137,25 @@ pub fn extract_gln(glnPath: String) -> Result<String, String> {
                 entries.push(outpath.to_string_lossy().to_string());
 
                 let _ = tx.send((i, total));
+
+                // Log cada 10 archivos y en el último
+                if total > 0 && (i % 10 == 0 || i == total - 1) {
+                    emit_log(&job_id_for_log, format!("⏳ [{}/{}] extraídos...", i + 1, total));
+                }
             }
 
             debug!("✅ Extracción completada: {} archivos extraídos", entries.len());
+            emit_log(&job_id_for_log, format!("✅ Extracción completada: {} archivos", entries.len()));
             Ok(serde_json::json!({"extracted_to": out_dir.to_string_lossy().to_string(), "entries": entries}))
         }).await;
 
         match extraction {
             Ok(Ok(payload)) => {
                 debug!("🎉 Importación finalizada exitosamente");
+                emit_log(
+                    &job_id_for_emit,
+                    "🎉 Importación finalizada — listo para migración",
+                );
                 let mut p = payload;
                 if let serde_json::Value::Object(ref mut map) = p {
                     map.insert(
@@ -141,6 +169,10 @@ pub fn extract_gln(glnPath: String) -> Result<String, String> {
             }
             Ok(Err(err_str)) => {
                 error!("❌ Error durante la extracción: {}", err_str);
+                emit_log(
+                    &job_id_for_emit,
+                    format!("❌ Error durante la extracción: {}", err_str),
+                );
                 if let Some(app) = GLOBAL_APP_HANDLE.lock().unwrap().as_ref() {
                     let _ = app.emit(
                         "import:error",
@@ -150,6 +182,7 @@ pub fn extract_gln(glnPath: String) -> Result<String, String> {
             }
             Err(join_err) => {
                 error!("❌ Error crítico en thread de extracción: {}", join_err);
+                emit_log(&job_id_for_emit, format!("❌ Error crítico: {}", join_err));
                 if let Some(app) = GLOBAL_APP_HANDLE.lock().unwrap().as_ref() {
                     let _ = app.emit("import:error", serde_json::json!({"job_id": job_id_for_emit, "error": format!("join error: {}", join_err)}));
                 }

@@ -6,7 +6,7 @@ interface TreatmentStatusBadgeProps {
     size?: 'sm' | 'md';
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; icon: string }> = {
     Pending: {
         label: 'Por Hacer',
         color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
@@ -29,8 +29,10 @@ const statusConfig = {
     }
 };
 
+const fallbackConfig = { label: 'Desconocido', color: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/30', icon: '❓' };
+
 export function TreatmentStatusBadge({ status, size = 'md' }: TreatmentStatusBadgeProps) {
-    const config = statusConfig[status];
+    const config = statusConfig[status] ?? fallbackConfig;
     const sizeClass = size === 'sm' ? 'text-xs px-2 py-1' : 'text-sm px-3 py-1.5';
 
     return (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSession } from '@/hooks/useSession';
+import { useBingImage } from '@/hooks/useBingImage';
 import { useNode } from '@/contexts/NodeContext';
 import { useGalenoClient } from '@/hooks/useGalenoClient';
 import { useNodeDiscovery } from '@/hooks/useNodeDiscovery';
@@ -58,11 +59,11 @@ const Clock = () => {
 };
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
-    const { login, loginWithPin } = useSession();
+    const { login, loginWithPin, lockScreen } = useSession();
     const { setTemporaryRemoteConnection, activeContext } = useNode();
     const { discoveredNodes, isDiscovering, startDiscovery, stopDiscovery } = useNodeDiscovery();
     const client = useGalenoClient();
-    const { lockScreen } = useSession();
+    const bgImage = useBingImage();
 
     // Estados
     const [username, setUsername] = useState('');
@@ -178,7 +179,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 <div
                     className="absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-out scale-[1.02]"
                     style={{
-                        backgroundImage: `url('https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=2064')`, // Abstract Fluid
+                        backgroundImage: `url('${bgImage}')`,
                         filter: viewState !== 'selection' ? 'blur(20px) brightness(0.6) saturate(1.2)' : 'blur(0px) brightness(0.85) saturate(1.1)'
                     }}
                 />

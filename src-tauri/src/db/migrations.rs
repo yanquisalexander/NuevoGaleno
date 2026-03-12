@@ -104,6 +104,12 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
     }
 
+    if current_version < 14 {
+        migrate_v14(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (14)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+    }
+
     Ok(())
 }
 
@@ -964,4 +970,38 @@ fn migrate_v13(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v13 err: {}", e))
+}
+
+/// Migración v14: Tablas para Galeno Intellisense
+fn migrate_v14(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS intellisense_events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     TEXT    NOT NULL,
+            event_type  TEXT    NOT NULL,
+            payload     TEXT,
+            hour        INTEGER NOT NULL,
+            day_of_week INTEGER NOT NULL,
+            created_at  TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS intellisense_workflows (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            app_ids    TEXT NOT NULL,
+            icon       TEXT,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ile_user_type
+            ON intellisense_events(user_id, event_type);
+        CREATE INDEX IF NOT EXISTS idx_ile_created
+            ON intellisense_events(user_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_ilw_user
+            ON intellisense_workflows(user_id);
+        "#,
+    )
+    .map_err(|e| format!("migration v14 err: {}", e))
 }

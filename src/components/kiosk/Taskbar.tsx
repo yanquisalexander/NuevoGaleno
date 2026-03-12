@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
     Search, Battery, BatteryCharging, Wifi, Volume2, User, Power,
     LayoutGrid, Bell, RefreshCcwIcon, Lock, ChevronDown, FileText,
-    Settings, X, ChevronRight, Smartphone,
+    Settings, X, ChevronRight, Smartphone, Sparkles,
 } from 'lucide-react';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
 import { useSession } from '@/hooks/useSession';
@@ -16,6 +16,7 @@ import { RemoteConnectionIndicator } from './RemoteConnectionIndicator';
 import { TaskbarContextMenu } from './TaskbarContextMenu';
 import { AppIcon } from './AppIcon';
 import { GalenoCompanionPanel } from './GalenoCompanionPanel';
+import { IntelliSensePanel } from '@/components/intellisense/IntelliSensePanel';
 import { useNotImplemented } from '@/utils/system/NotImplemented';
 import { useGalenoClient } from '@/hooks/useGalenoClient';
 import { usePatients } from '@/hooks/usePatients';
@@ -84,6 +85,8 @@ export function Taskbar() {
 
         // Companion panel (estado independiente)
         showCompanion, setShowCompanion, toggleCompanion,
+        // Intellisense panel (estado independiente)
+        showIntelliSense, setShowIntelliSense, toggleIntelliSense,
     } = useShell();
     const client = useGalenoClient();
 
@@ -335,6 +338,14 @@ export function Taskbar() {
                     </AnimatePresence>
 
                     <TBButton
+                        onClick={toggleIntelliSense}
+                        active={showIntelliSense}
+                        title="Galeno Intellisense"
+                    >
+                        <Sparkles style={{ width: 18, height: 18, color: showIntelliSense ? '#a78bfa' : 'inherit' }} />
+                    </TBButton>
+
+                    <TBButton
                         onClick={() => setShowNotifications(!showNotifications)}
                         active={showNotifications}
                         title="Centro de notificaciones"
@@ -412,12 +423,12 @@ export function Taskbar() {
             {/* ── Start menu (portal) ── */}
             {createPortal(
                 <AnimatePresence>
-                    {(showStartMenu || showCompanion) && (
+                    {(showStartMenu || showCompanion || showIntelliSense) && (
                         <>
-                            {/* Backdrop: cierra Start y/o Companion al hacer click fuera */}
+                            {/* Backdrop: cierra Start y/o Companion y/o Intellisense al hacer click fuera */}
                             <div
                                 style={{ position: 'fixed', inset: 0, zIndex: 48 }}
-                                onClick={() => { setShowStartMenu(false); setShowCompanion(false); }}
+                                onClick={() => { setShowStartMenu(false); setShowCompanion(false); setShowIntelliSense(false); }}
                             />
 
                             {/* Start + Companion wrapper */}
@@ -795,6 +806,9 @@ export function Taskbar() {
 
                     {/* Companion panel — anchored a la tray (derecha) */}
                     <GalenoCompanionPanel visible={showCompanion} placement="tray" right={12} />
+
+                    {/* Intellisense panel */}
+                    <IntelliSensePanel visible={showIntelliSense} onClose={() => setShowIntelliSense(false)} />
                 </AnimatePresence>,
                 document.body
             )}

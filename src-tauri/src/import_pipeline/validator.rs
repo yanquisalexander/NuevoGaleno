@@ -297,13 +297,20 @@ fn validate_treatment(treatment: &TreatmentDto) -> Vec<ValidationIssue> {
 fn validate_payment(payment: &PaymentDto) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
-    // Monto obligatorio y positivo
-    if payment.amount <= 0.0 {
+    // Monto: warning para datos legacy (puede haber registros con monto 0)
+    if payment.amount < 0.0 {
         issues.push(ValidationIssue::error(
             "payment",
             &payment.temp_id,
             "amount",
-            format!("Monto de pago inválido: {}", payment.amount),
+            format!("Monto de pago negativo: {}", payment.amount),
+        ));
+    } else if payment.amount == 0.0 {
+        issues.push(ValidationIssue::warning(
+            "payment",
+            &payment.temp_id,
+            "amount",
+            "Pago con monto cero (registro legacy sin importe)".to_string(),
         ));
     }
 

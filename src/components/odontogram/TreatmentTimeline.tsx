@@ -41,7 +41,11 @@ const STATUS_CONFIG = {
     InProgress: { label: 'En Proceso', color: tokens.colorBrandForeground, icon: AlertCircle },
     Completed: { label: 'Completado', color: tokens.colorPaletteGreenForeground, icon: CheckCircle2 },
     Cancelled: { label: 'Cancelado', color: tokens.colorPaletteRedForeground, icon: AlertCircle },
-} as const;
+};
+
+const FALLBACK_STATUS = { label: 'Desconocido', color: tokens.colorNeutralForeground3, icon: AlertCircle };
+const getStatusConfig = (status: string) =>
+    (STATUS_CONFIG as Record<string, typeof FALLBACK_STATUS>)[status] ?? FALLBACK_STATUS;
 
 export function TreatmentTimeline({ patientId, selectedTooth, onTreatmentClick, refreshTrigger }: TreatmentTimelineProps) {
     const [treatments, setTreatments] = useState<Treatment[]>([]);
@@ -120,7 +124,7 @@ export function TreatmentTimeline({ patientId, selectedTooth, onTreatmentClick, 
             t.name,
             t.tooth_number,
             t.sector,
-            STATUS_CONFIG[t.status].label,
+            getStatusConfig(t.status).label,
             `$${t.total_cost.toFixed(2)}`,
             `$${t.balance.toFixed(2)}`,
         ]);
@@ -349,7 +353,7 @@ export function TreatmentTimeline({ patientId, selectedTooth, onTreatmentClick, 
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {filteredTreatments.map(treatment => {
-                            const StatusIcon = STATUS_CONFIG[treatment.status].icon;
+                            const StatusIcon = getStatusConfig(treatment.status).icon;
                             const isExpanded = expandedId === treatment.id;
 
                             return (
@@ -417,14 +421,14 @@ export function TreatmentTimeline({ patientId, selectedTooth, onTreatmentClick, 
                                             alignItems: 'center',
                                             gap: 6,
                                             padding: '4px 10px',
-                                            background: `${STATUS_CONFIG[treatment.status].color}20`,
+                                            background: `${getStatusConfig(treatment.status).color}20`,
                                             borderRadius: 20,
                                             fontSize: 11,
                                             fontWeight: 500,
-                                            color: STATUS_CONFIG[treatment.status].color,
+                                            color: getStatusConfig(treatment.status).color,
                                         }}>
                                             <StatusIcon style={{ width: 12, height: 12 }} />
-                                            {STATUS_CONFIG[treatment.status].label}
+                                            {getStatusConfig(treatment.status).label}
                                         </div>
 
                                         {/* Cost */}

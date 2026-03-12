@@ -207,7 +207,13 @@ pub fn identify_patients_table(data: &RawParadoxData) -> Option<&RawTable> {
     best
 }
 
-/// Identifica qué tabla contiene tratamientos
+/// Identifica qué tabla contiene instancias de tratamientos por paciente.
+/// En Galeno 2000, esto es la tabla Odontograma:
+///   - ClavePac  → referencia al paciente
+///   - Consecutivo → ID único de la instancia (lo que Pagos.ClaveTratam referencia)
+///   - Precio    → costo del tratamiento
+///   - NoDiente  → pieza dental
+///   - Notrata   → referencia al catálogo Tratam
 pub fn identify_treatments_table(data: &RawParadoxData) -> Option<&RawTable> {
     let mut best: Option<&RawTable> = None;
     let mut best_score = 0i32;
@@ -218,45 +224,48 @@ pub fn identify_treatments_table(data: &RawParadoxData) -> Option<&RawTable> {
         for f in &table.fields {
             let name_lower = f.name.to_lowercase();
 
-            // Columnas específicas de Tratam.db
-            if name_lower.contains("notrat")
-                || (name_lower.contains("trat") && name_lower.contains("id"))
-            {
+            // Referencia al paciente — obligatoria en instancias (no en catálogos)
+            if name_lower.contains("clavepac") || name_lower.contains("clavpac") {
                 score += 10;
             }
-            if name_lower.contains("descripcio") || name_lower.contains("descripcion") {
-                score += 5;
+
+            // ID único de instancia (Consecutivo en Odontograma = lo que ClaveTratam referencia)
+            if name_lower == "consecutivo" {
+                score += 8;
             }
+
+            // Precio/costo de la instancia
             if name_lower.contains("precio") || name_lower.contains("honorario") {
                 score += 5;
             }
-            if name_lower.contains("referencia") {
-                score += 3;
+
+            // Pieza dental — señal fuerte de registro odontológico por paciente
+            if name_lower.contains("nodiente") || name_lower.contains("diente") {
+                score += 5;
             }
-            if name_lower.contains("categoria") || name_lower.contains("tipo") {
+
+            // Referencia al catálogo de tratamientos
+            if name_lower.contains("notrat") {
                 score += 3;
             }
 
-            // Términos genéricos
-            if name_lower.contains("tratamiento") || name_lower.contains("treatment") {
-                score += 4;
-            }
-            if name_lower.contains("procedimiento") || name_lower.contains("procedure") {
-                score += 4;
-            }
-            if name_lower.contains("costo") || name_lower.contains("cost") {
+            // Concepto / descripción de la instancia
+            if name_lower.contains("concepto") || name_lower.contains("descripcio") {
                 score += 3;
+            }
+
+            // Estado / avance
+            if name_lower.contains("avance") || name_lower.contains("tipo") {
+                score += 2;
             }
         }
 
-        // Penalizar si parece tabla de pacientes
-        let looks_like_patients = table.fields.iter().any(|f| {
+        // Penalizar catálogos puros (sin reference al paciente = no es instancia)
+        let is_catalog = !table.fields.iter().any(|f| {
             let n = f.name.to_lowercase();
-            n.contains("clavpac")
-                || n.contains("clavepac")
-                || (n.contains("nombre") && table.fields.len() > 10)
+            n.contains("clavepac") || n.contains("clavpac")
         });
-        if looks_like_patients {
+        if is_catalog {
             score -= 20;
         }
 
@@ -277,9 +286,32 @@ pub fn identify_payments_table(data: &RawParadoxData) -> Option<&RawTable> {
     for table in &data.tables {
         let mut score = 0i32;
 
+        // Discriminador fuerte: "Consecutivo" es exclusivo de Pagos.DB
+        let has_consecutivo = table.fields.iter().any(|f| {
+            let name_lower = f.name.to_lowercase();
+            if name_lower.contains("consecutivo") {
+                score += 15;
+                true
+            } else {
+                false
+            }
+        });
+
+        // "Norecivo" / "Norecibo" también es exclusivo de Pagos.DB
+        let _has_receipt = table.fields.iter().any(|f| {
+            let name_lower = f.name.to_lowercase();
+            if name_lower.contains("noreciv") || name_lower.contains("norecib") {
+                score += 10;
+                true
+            } else {
+                false
+            }
+        });
+
         let has_payment_fields = table.fields.iter().any(|f| {
             let name_lower = f.name.to_lowercase();
-            if name_lower.contains("pago") || name_lower.contains("payment") {
+            // Solo contar "pago" si el campo se llama exactamente "pago", no "pagado"
+            if name_lower == "pago" || name_lower.contains("payment") {
                 score += 5;
                 true
             } else {
@@ -309,7 +341,20 @@ pub fn identify_payments_table(data: &RawParadoxData) -> Option<&RawTable> {
             }
         });
 
-        if (has_payment_fields || has_key_fields) && score > best_score {
+        // Penalizar si parece tabla de tratamientos
+        let looks_like_treatments = table.fields.iter().any(|f| {
+            let n = f.name.to_lowercase();
+            n.contains("notrat") || n.contains("descripcio") || n.contains("precio")
+        });
+        if looks_like_treatments {
+            score -= 20;
+        }
+
+        // Umbral mínimo de 5 para evitar falsos positivos
+        if (has_payment_fields || has_key_fields || has_consecutivo)
+            && score > best_score
+            && score >= 5
+        {
             best_score = score;
             best = Some(table);
         }

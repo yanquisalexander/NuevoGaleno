@@ -164,91 +164,102 @@ export function CommandShellApp({ windowId, data }: { windowId: WindowId; data?:
                     if (!p) return `No se encontró el paciente con ID ${id}`;
 
                     // Crear componente enriquecido con gradiente y botón
+                    // Reemplaza el componente del resultado `patients show` dentro de `dynamicCommands`
+
                     const comp = (
                         <div
                             onClick={() => openWindow('patient-record', { patientId: p.id })}
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '12px',
-                                padding: '10px 14px',
-                                borderRadius: '8px',
-                                background: 'linear-gradient(135deg, #0d2137 0%, #0f3058 50%, #0a1e32 100%)',
-                                border: '1px solid rgba(71,158,245,0.2)',
+                                gap: '14px',
+                                padding: '12px 16px',
+                                borderRadius: '14px',
+                                background: 'rgba(255, 255, 255, 0.06)',
+                                backdropFilter: 'blur(20px) saturate(180%)',
+                                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                                border: '1px solid rgba(255, 255, 255, 0.10)',
+                                boxShadow: '0 4px 24px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset',
                                 cursor: 'pointer',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
-                                transition: 'filter 0.15s ease, border-color 0.15s ease',
-                                maxWidth: '420px',
+                                maxWidth: '380px',
                                 userSelect: 'none',
+                                transition: 'transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease, background 0.18s ease',
                             }}
                             onMouseEnter={e => {
-                                (e.currentTarget as HTMLElement).style.filter = 'brightness(1.15)';
-                                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(71,158,245,0.45)';
+                                const el = e.currentTarget as HTMLElement;
+                                el.style.transform = 'scale(1.025)';
+                                el.style.background = 'rgba(255,255,255,0.10)';
+                                el.style.boxShadow = '0 8px 32px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.10) inset';
                             }}
                             onMouseLeave={e => {
-                                (e.currentTarget as HTMLElement).style.filter = 'brightness(1)';
-                                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(71,158,245,0.2)';
+                                const el = e.currentTarget as HTMLElement;
+                                el.style.transform = 'scale(1)';
+                                el.style.background = 'rgba(255,255,255,0.06)';
+                                el.style.boxShadow = '0 4px 24px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.06) inset';
+                            }}
+                            onMouseDown={e => {
+                                (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)';
+                            }}
+                            onMouseUp={e => {
+                                (e.currentTarget as HTMLElement).style.transform = 'scale(1.025)';
                             }}
                         >
-                            {/* Avatar con iniciales */}
+                            {/* Avatar */}
                             <div style={{
                                 flexShrink: 0,
-                                width: '34px',
-                                height: '34px',
+                                width: '40px',
+                                height: '40px',
                                 borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #0078D4, #2B88D8)',
-                                boxShadow: '0 0 10px rgba(0,120,212,0.5)',
+                                background: 'linear-gradient(145deg, #3a8ef6 0%, #5b6ee1 100%)',
+                                boxShadow: '0 2px 12px rgba(58,142,246,0.45)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '12px',
-                                fontWeight: 700,
+                                fontSize: '13px',
+                                fontWeight: 600,
                                 color: '#fff',
-                                fontFamily: "'Segoe UI Variable', 'Segoe UI', sans-serif",
-                                letterSpacing: '0.5px',
+                                fontFamily: "-apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif",
+                                letterSpacing: '0.3px',
                             }}>
                                 {p.first_name[0]}{p.last_name[0]}
                             </div>
 
                             {/* Info */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
                                 <span style={{
-                                    fontSize: '13px',
-                                    fontWeight: 600,
-                                    color: '#fff',
-                                    fontFamily: "'Segoe UI Variable', 'Segoe UI', sans-serif",
+                                    fontSize: '14px',
+                                    fontWeight: 590,
+                                    color: 'rgba(255,255,255,0.92)',
+                                    fontFamily: "-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif",
                                     lineHeight: '1.3',
+                                    letterSpacing: '-0.1px',
                                 }}>
                                     {p.first_name} {p.last_name}
                                 </span>
                                 <span style={{
-                                    fontSize: '11px',
-                                    color: 'rgba(255,255,255,0.45)',
-                                    fontFamily: "'Cascadia Code', 'Consolas', monospace",
+                                    fontSize: '11.5px',
+                                    color: 'rgba(255,255,255,0.38)',
+                                    fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', monospace",
+                                    letterSpacing: '0.3px',
                                 }}>
                                     ID #{p.id}
                                 </span>
                             </div>
 
-                            {/* Spacer */}
-                            <div style={{ flex: 1 }} />
-
-                            {/* CTA */}
+                            {/* Chevron CTA */}
                             <div style={{
+                                flexShrink: 0,
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '5px',
-                                padding: '4px 10px',
-                                borderRadius: '5px',
-                                background: 'rgba(71,158,245,0.15)',
-                                border: '1px solid rgba(71,158,245,0.25)',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                color: '#479ef5',
-                                fontFamily: "'Segoe UI Variable', 'Segoe UI', sans-serif",
-                                letterSpacing: '0.2px',
+                                justifyContent: 'center',
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '50%',
+                                background: 'rgba(255,255,255,0.08)',
                             }}>
-                                Abrir ficha →
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                    <path d="M3.5 2L6.5 5L3.5 8" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
                             </div>
                         </div>
                     );

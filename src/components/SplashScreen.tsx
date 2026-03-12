@@ -60,247 +60,109 @@ function XPProgressBar({ active }: { active: boolean }) {
 }
 
 export function SplashScreen({ onComplete }: { onComplete: () => void }) {
-    const [phase, setPhase] = useState<'enter' | 'boot' | 'exiting'>('enter');
-    const [statusText, setStatusText] = useState('');
-    const [progress, setProgress] = useState(0);
-    const [logoVisible, setLogoVisible] = useState(false);
-    const [taglineVisible, setTaglineVisible] = useState(false);
-    const [barVisible, setBarVisible] = useState(false);
-    const [statusVisible, setStatusVisible] = useState(false);
+    const [visible, setVisible] = useState(false);
+    const [exiting, setExiting] = useState(false);
 
     useEffect(() => {
-        // Staggered entrance — mimics XP boot sequence timing
-        const t0 = setTimeout(() => setLogoVisible(true), 300);
-        const t1 = setTimeout(() => setTaglineVisible(true), 700);
-        const t2 = setTimeout(() => { setBarVisible(true); setPhase('boot'); }, 1100);
-        const t3 = setTimeout(() => setStatusVisible(true), 1300);
-        return () => [t0, t1, t2, t3].forEach(clearTimeout);
+        const t1 = setTimeout(() => setVisible(true), 100);
+        const t2 = setTimeout(() => setExiting(true), 3200);
+        const t3 = setTimeout(() => onComplete?.(), 3900);
+        return () => [t1, t2, t3].forEach(clearTimeout);
     }, []);
-
-    useEffect(() => {
-        if (phase !== 'boot') return;
-        const steps = [
-            { at: 200, pct: 15, text: 'Iniciando servicios…' },
-            { at: 900, pct: 35, text: 'Cargando módulos…' },
-            { at: 1800, pct: 58, text: 'Aplicando configuración…' },
-            { at: 2800, pct: 78, text: 'Preparando interfaz…' },
-            { at: 3600, pct: 92, text: 'Finalizando…' },
-            { at: 4400, pct: 100, text: 'Listo' },
-        ];
-        const timers = steps.map(s =>
-            setTimeout(() => {
-                setProgress(s.pct);
-                setStatusText(s.text);
-                if (s.pct === 100) {
-                    setTimeout(() => setPhase('exiting'), 600);
-                    setTimeout(onComplete, 1500);
-                }
-            }, s.at)
-        );
-        return () => timers.forEach(clearTimeout);
-    }, [phase, onComplete]);
-
-    const isExiting = phase === 'exiting';
 
     return (
         <>
             <style>{`
-                @keyframes fadeUp {
-                    from { opacity: 0; transform: translateY(16px); }
-                    to   { opacity: 1; transform: translateY(0); }
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to   { opacity: 1; }
-                }
-                @keyframes logoPulse {
-                    0%,100% { filter: drop-shadow(0 0 0px rgba(96,205,255,0)); }
-                    50%     { filter: drop-shadow(0 0 24px rgba(96,205,255,0.18)); }
-                }
-                @keyframes scanline {
-                    0%   { transform: translateY(-100%); }
-                    100% { transform: translateY(100vh); }
-                }
-                .splash-logo    { animation: fadeUp   0.7s cubic-bezier(0,0,0.2,1) both, logoPulse 4s 1s ease-in-out infinite; }
-                .splash-tagline { animation: fadeUp   0.6s cubic-bezier(0,0,0.2,1) both; }
-                .splash-bar     { animation: fadeIn   0.5s cubic-bezier(0,0,0.2,1) both; }
-                .splash-status  { animation: fadeIn   0.4s cubic-bezier(0,0,0.2,1) both; }
-                .scanline {
-                    position: absolute; left: 0; right: 0;
-                    height: 120px;
-                    background: linear-gradient(to bottom,
-                        transparent 0%,
-                        rgba(96,205,255,0.018) 50%,
-                        transparent 100%);
-                    animation: scanline 6s linear infinite;
-                    pointer-events: none;
-                }
-            `}</style>
+        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400&display=swap');
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.85);
+          animation: spin 1s linear infinite;
+          transform-origin: center;
+        }
+
+        .spinner {
+          width: 20px;
+          height: 20px;
+          border: 1.5px solid rgba(255,255,255,0.15);
+          border-top-color: rgba(255,255,255,0.75);
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+      `}</style>
 
             <div style={{
-                position: 'fixed', inset: 0, zIndex: 9999,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                background: t.bg,
-                fontFamily: t.fontFamily,
-                userSelect: 'none', cursor: 'wait',
-                overflow: 'hidden',
-                // Exit: scale-up + fade, exact XP vibe
-                transition: 'opacity 1.1s cubic-bezier(0.1,0,0,1), transform 1.1s cubic-bezier(0.1,0,0,1)',
-                opacity: isExiting ? 0 : 1,
-                transform: isExiting ? 'scale(1.06)' : 'scale(1)',
-                pointerEvents: isExiting ? 'none' : 'auto',
+                position: "fixed", inset: 0, zIndex: 9999,
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+                background: "#1a1a1a",
+                fontFamily: '-apple-system, "Helvetica Neue", sans-serif',
+                transition: "opacity 0.7s ease",
+                opacity: exiting ? 0 : visible ? 1 : 0,
+                pointerEvents: exiting ? "none" : "auto",
             }}>
 
-                {/* Subtle scanline sweep */}
-                <div className="scanline" />
-
-                {/* Subtle radial glow behind logo */}
+                {/* App icon */}
                 <div style={{
-                    position: 'absolute',
-                    width: 480, height: 480,
-                    borderRadius: '50%',
-                    background: 'radial-gradient(circle, rgba(96,205,255,0.04) 0%, transparent 70%)',
-                    pointerEvents: 'none',
-                    transform: 'translateY(-40px)',
-                    transition: 'opacity 1s',
-                    opacity: logoVisible ? 1 : 0,
-                }} />
-
-                {/* ── Central column ── */}
-                <div style={{
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: 0,
-                    width: 340,
+                    width: 80, height: 80,
+                    borderRadius: 18,
+                    background: "linear-gradient(145deg, #2a9df4, #1a6fc4)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    marginBottom: 20,
+                    boxShadow: "0 8px 32px rgba(42,157,244,0.3), 0 2px 8px rgba(0,0,0,0.4)",
+                    transition: "opacity 0.6s ease, transform 0.6s ease",
+                    opacity: visible ? 1 : 0,
+                    transform: visible ? "scale(1)" : "scale(0.85)",
                 }}>
-
-                    {/* Logo mark — XP had a flag, we use a Fluent-style mark */}
-                    <div
-                        className={logoVisible ? 'splash-logo' : ''}
-                        style={{
-                            opacity: logoVisible ? 1 : 0,
-                            marginBottom: 20,
-                        }}
-                    >
-                        <FluentLogoMark />
-                    </div>
-
-                    {/* Product name — XP's bold "Windows XP" treatment */}
-                    <div
-                        className={taglineVisible ? 'splash-tagline' : ''}
-                        style={{
-                            opacity: taglineVisible ? 1 : 0,
-                            textAlign: 'center',
-                            marginBottom: 8,
-                        }}
-                    >
-                        {/* Eyebrow — "Microsoft" equivalent */}
-                        <p style={{
-                            margin: '0 0 4px',
-                            fontSize: 11,
-                            fontWeight: 400,
-                            letterSpacing: '0.22em',
-                            textTransform: 'uppercase',
-                            color: 'rgba(255,255,255,0.35)',
-                        }}>
-                            Alexitoo.Dev
-                        </p>
-
-                        {/* Main product name */}
-                        <h1 style={{
-                            margin: 0,
-                            fontSize: 32,
-                            fontWeight: 600,
-                            letterSpacing: '-0.02em',
-                            lineHeight: 1.15,
-                            color: t.fg1,
-                            // Subtle gradient like XP's rendered text
-                            background: 'linear-gradient(160deg, #ffffff 40%, rgba(255,255,255,0.7) 100%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}>
-                            Nuevo Galeno
-                        </h1>
-                    </div>
-
-                    {/* Thin divider — XP had a subtle separator */}
-                    <div style={{
-                        width: 200,
-                        height: 1,
-                        background: 'linear-gradient(90deg, transparent, rgba(96,205,255,0.25), transparent)',
-                        marginBottom: 36,
-                        opacity: taglineVisible ? 1 : 0,
-                        transition: 'opacity 0.5s 0.2s',
-                    }} />
-
-                    {/* XP-style segmented "worm" progress bar */}
-                    <div
-                        className={barVisible ? 'splash-bar' : ''}
-                        style={{ opacity: barVisible ? 1 : 0, marginBottom: 14 }}
-                    >
-                        <XPProgressBar active={barVisible && !isExiting} />
-                    </div>
-
-                    {/* Status text — small, muted, like XP's "Please wait..." */}
-                    <div
-                        className={statusVisible ? 'splash-status' : ''}
-                        style={{
-                            opacity: statusVisible ? 1 : 0,
-                            height: 16,
-                            textAlign: 'center',
-                        }}
-                    >
-                        <span style={{
-                            fontSize: 11,
-                            color: 'rgba(255,255,255,0.28)',
-                            letterSpacing: '0.02em',
-                            transition: 'opacity 0.3s',
-                        }}>
-                            {statusText}
-                        </span>
-                    </div>
+                    <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+                        <path d="M21 8C14 8 9 14 9 21s5 13 12 13 12-6 12-13S28 8 21 8z"
+                            fill="white" fillOpacity="0.9" />
+                        <path d="M21 14v7l5 3" stroke="#1a6fc4" strokeWidth="2"
+                            strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                 </div>
 
-                {/* Bottom edge — XP had version/copyright */}
+                {/* App name */}
                 <div style={{
-                    position: 'absolute', bottom: 32,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    opacity: taglineVisible ? 1 : 0,
-                    transition: 'opacity 0.6s 0.5s',
+                    fontSize: 17,
+                    fontWeight: 500,
+                    color: "rgba(255,255,255,0.9)",
+                    letterSpacing: "-0.01em",
+                    marginBottom: 4,
+                    transition: "opacity 0.6s 0.15s ease",
+                    opacity: visible ? 1 : 0,
                 }}>
-                    <span style={{
-                        fontSize: 10,
-                        color: 'rgba(255,255,255,0.13)',
-                        letterSpacing: '0.08em',
-                    }}>
-                        © 2025 Alexitoo.Dev · Todos los derechos reservados
-                    </span>
+                    Nuevo Galeno
+                </div>
+
+                {/* Subtitle */}
+                <div style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.35)",
+                    letterSpacing: "0.01em",
+                    marginBottom: 36,
+                    transition: "opacity 0.6s 0.25s ease",
+                    opacity: visible ? 1 : 0,
+                }}>
+                    Alexitoo.Dev
+                </div>
+
+                {/* macOS spinner */}
+                <div style={{
+                    transition: "opacity 0.6s 0.4s ease",
+                    opacity: visible ? 1 : 0,
+                }}>
+                    <div className="spinner" />
                 </div>
             </div>
         </>
     );
 }
 
-// ── Fluent logo mark — four squares, Fluent "Windows" spirit ─────────
-function FluentLogoMark() {
-    return (
-        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            {/* Top-left */}
-            <rect x="4" y="4" width="26" height="26" rx="6"
-                fill="rgba(96,205,255,0.85)"
-            />
-            {/* Top-right */}
-            <rect x="34" y="4" width="26" height="26" rx="6"
-                fill="rgba(96,205,255,0.55)"
-            />
-            {/* Bottom-left */}
-            <rect x="4" y="34" width="26" height="26" rx="6"
-                fill="rgba(96,205,255,0.55)"
-            />
-            {/* Bottom-right */}
-            <rect x="34" y="34" width="26" height="26" rx="6"
-                fill="rgba(96,205,255,0.30)"
-            />
-        </svg>
-    );
-}

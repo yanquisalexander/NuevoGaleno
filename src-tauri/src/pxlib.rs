@@ -142,17 +142,37 @@ impl Document {
             ));
         }
 
-        let num_records = unsafe { pxlib_num_records(pxdoc) };
+        let header_num_records = unsafe { pxlib_num_records(pxdoc) }.max(0) as usize;
         let record_size = unsafe { pxlib_record_size(pxdoc) };
         let file_version = unsafe { pxlib_file_version(pxdoc) };
         let header_size = unsafe { pxlib_header_size(pxdoc) };
         let code_page = unsafe { pxlib_code_page(pxdoc) };
         let fields = gather_fields(pxdoc);
 
+        // Cuando el header reporta 0 registros pero existen bloques de datos
+        // (corrupción typical de Paradox), probar el conteo real iterando hasta NULL.
+        let num_records = if header_num_records == 0 {
+            let mut actual = 0usize;
+            loop {
+                let raw = unsafe { pxlib_retrieve_record(pxdoc, actual as c_int) };
+                if raw.is_null() {
+                    break;
+                }
+                unsafe { pxlib_release_record(pxdoc, raw) };
+                actual += 1;
+                if actual >= 500_000 {
+                    break;
+                }
+            }
+            actual
+        } else {
+            header_num_records
+        };
+
         Ok(Self {
             pxdoc,
             fields,
-            num_records: num_records.max(0) as usize,
+            num_records,
             record_size: record_size.max(0) as usize,
             file_version,
             header_size,

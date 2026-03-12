@@ -2,7 +2,7 @@ showAccountSelector:
   type: boolean
   default: true
   description: Mostrar el selector de cuentas al abrir módulos sensibles.
-  ui_section: Sistema
+  ui_section: system
   admin_only: true
 
 layoutStyle:
@@ -10,14 +10,14 @@ layoutStyle:
   default: windows
   choices: [windows, macos]
   description: Estilo visual de la interfaz.
-  ui_section: General
+  ui_section: general
   user_preference: true
 
 enforceSystemPasswordForImports:
   type: boolean
   default: false
   description: Requiere contraseña del sistema al ejecutar importaciones masivas.
-  ui_section: Sistema
+  ui_section: system
   admin_only: true
 
 wallpaperProvider:
@@ -25,7 +25,7 @@ wallpaperProvider:
   default: bing
   choices: [chromecast, bing, predefined]
   description: Proveedor de wallpapers para el escritorio.
-  ui_section: Personalización
+  ui_section: customization
   user_preference: true
 
 soundTheme:
@@ -33,12 +33,12 @@ soundTheme:
   default: default
   choices: [default, nature]
   description: Tema de sonidos de interfaz de usuario.
-  ui_section: Personalización
+  ui_section: customization
   user_preference: true
 
 playBootSound:
   type: boolean
   default: true
   description: Reproducir sonido de arranque de Nuevo Galeno.
-  ui_section: Personalización
+  ui_section: customization
   user_preference: true

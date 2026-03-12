@@ -18,6 +18,37 @@ mod wizard;
 use sysinfo::System;
 use tauri::{Emitter, Manager};
 
+// ===== INTELLISENSE COMMANDS =====
+#[tauri::command]
+fn intellisense_create_event(input: db::intellisense::CreateEventInput) -> Result<i64, String> {
+    db::intellisense::create_event(input)
+}
+
+#[tauri::command]
+fn intellisense_get_events(user_id: String, limit: i64) -> Result<Vec<db::intellisense::IntelliSenseEvent>, String> {
+    db::intellisense::get_events(&user_id, limit)
+}
+
+#[tauri::command]
+fn intellisense_prune_events(user_id: String) -> Result<(), String> {
+    db::intellisense::prune_old_events(&user_id, 30)
+}
+
+#[tauri::command]
+fn intellisense_create_workflow(input: db::intellisense::CreateWorkflowInput) -> Result<i64, String> {
+    db::intellisense::create_workflow(input)
+}
+
+#[tauri::command]
+fn intellisense_get_workflows(user_id: String) -> Result<Vec<db::intellisense::IntelliSenseWorkflow>, String> {
+    db::intellisense::get_workflows(&user_id)
+}
+
+#[tauri::command]
+fn intellisense_delete_workflow(id: i64, user_id: String) -> Result<(), String> {
+    db::intellisense::delete_workflow(id, &user_id)
+}
+
 // Simple greeting for sanity checks
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -1004,6 +1035,13 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            // intellisense
+            intellisense_create_event,
+            intellisense_get_events,
+            intellisense_prune_events,
+            intellisense_create_workflow,
+            intellisense_get_workflows,
+            intellisense_delete_workflow,
             // importer
             importer::select_gln,
             importer::extract_gln,

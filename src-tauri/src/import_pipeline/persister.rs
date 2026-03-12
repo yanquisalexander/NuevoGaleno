@@ -456,8 +456,8 @@ fn ensure_schema(conn: &Connection) -> Result<(), String> {
             paid_amount REAL NOT NULL DEFAULT 0.0,
             balance REAL NOT NULL DEFAULT 0.0,
             planned_date TEXT,
-            started_date TEXT,
-            completed_date TEXT,
+            start_date TEXT,
+            completion_date TEXT,
             notes TEXT,
             raw_data TEXT,
             source_run_id TEXT,
@@ -644,7 +644,19 @@ fn upsert_patient(tx: &Transaction, run_id: &str, patient: &PatientDto) -> Resul
     )
     .map_err(|e| format!("Error insertando paciente: {}", e))?;
 
-    Ok(tx.last_insert_rowid())
+    // last_insert_rowid() no es confiable tras ON CONFLICT DO UPDATE
+    let row_id: i64 = if let Some(ref legacy_id) = patient.legacy_patient_id {
+        tx.query_row(
+            "SELECT id FROM patients WHERE legacy_patient_id = ?1",
+            params![legacy_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Error recuperando id de paciente: {}", e))?
+    } else {
+        tx.last_insert_rowid()
+    };
+
+    Ok(row_id)
 }
 
 fn upsert_legacy_patient_map(
@@ -689,7 +701,7 @@ fn upsert_treatment(
             patient_id, legacy_treatment_id, legacy_patient_id, reference_code,
             name, description, tooth_number, sector, status,
             total_cost, paid_amount, balance,
-            planned_date, started_date, completed_date,
+            planned_date, start_date, completion_date,
             notes, raw_data, source_run_id, source_record_hash,
             created_at, updated_at
         ) VALUES (
@@ -713,8 +725,8 @@ fn upsert_treatment(
             paid_amount = excluded.paid_amount,
             balance = excluded.balance,
             planned_date = excluded.planned_date,
-            started_date = excluded.started_date,
-            completed_date = excluded.completed_date,
+            start_date = excluded.start_date,
+            completion_date = excluded.completion_date,
             notes = excluded.notes,
             raw_data = excluded.raw_data,
             source_record_hash = excluded.source_record_hash,
@@ -746,7 +758,19 @@ fn upsert_treatment(
     )
     .map_err(|e| format!("Error insertando tratamiento: {}", e))?;
 
-    let row_id = tx.last_insert_rowid();
+    // last_insert_rowid() no es confiable tras ON CONFLICT DO UPDATE;
+    // obtener el id real buscando por la clave única.
+    let row_id: i64 = if let Some(ref legacy_id) = treatment.legacy_treatment_id {
+        tx.query_row(
+            "SELECT id FROM treatments WHERE legacy_treatment_id = ?1 AND source_run_id = ?2",
+            params![legacy_id, run_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Error recuperando id de tratamiento: {}", e))?
+    } else {
+        tx.last_insert_rowid()
+    };
+
     Ok(Some(row_id))
 }
 

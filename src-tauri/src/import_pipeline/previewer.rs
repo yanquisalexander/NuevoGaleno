@@ -53,8 +53,12 @@ pub struct ValidationReport {
 }
 
 /// Genera una vista previa completa de los datos a importar
-pub fn generate_preview(patients: &[PatientDto], validation: &ValidationResult) -> ImportPreview {
-    let summary = calculate_summary(patients);
+pub fn generate_preview(
+    patients: &[PatientDto],
+    global_orphan_payments: &[PaymentDto],
+    validation: &ValidationResult,
+) -> ImportPreview {
+    let summary = calculate_summary(patients, global_orphan_payments);
     let sample_patients = generate_patient_samples(patients, 5); // Primeros 5 para preview rápido
     let validation_report = build_validation_report(validation);
 
@@ -66,7 +70,10 @@ pub fn generate_preview(patients: &[PatientDto], validation: &ValidationResult) 
     }
 }
 
-fn calculate_summary(patients: &[PatientDto]) -> PreviewSummary {
+fn calculate_summary(
+    patients: &[PatientDto],
+    global_orphan_payments: &[PaymentDto],
+) -> PreviewSummary {
     let total_patients = patients.len();
     let patients_with_data = patients.iter().filter(|p| p.has_minimum_data()).count();
     let patients_empty = total_patients - patients_with_data;
@@ -101,6 +108,10 @@ fn calculate_summary(patients: &[PatientDto]) -> PreviewSummary {
             .map(|p| p.amount)
             .sum::<f64>();
     }
+
+    // Incluir pagos hþrfanos globales (sin paciente conocido)
+    total_payments += global_orphan_payments.len();
+    total_revenue += global_orphan_payments.iter().map(|p| p.amount).sum::<f64>();
 
     PreviewSummary {
         total_patients,

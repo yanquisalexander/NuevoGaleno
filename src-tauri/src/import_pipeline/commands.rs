@@ -181,8 +181,8 @@ pub fn generate_import_preview() -> Result<serde_json::Value, String> {
         .as_ref()
         .ok_or("Debe validar los datos antes de generar la previsualización")?;
 
-    // Generar preview
-    let preview = previewer::generate_preview(&session.patients, validation);
+    // Generar preview (incluyendo orphan payments globales sin paciente)
+    let preview = previewer::generate_preview(&session.patients, &session.orphan_payments, validation);
 
     let can_proceed = preview.can_proceed;
 

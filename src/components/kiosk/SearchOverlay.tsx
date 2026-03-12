@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -17,6 +17,9 @@ import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useSession } from '../../hooks/useSession';
 import { usePatients } from '../../hooks/usePatients';
 import { AppIcon } from './AppIcon';
+import { useIntelliSense } from '@/contexts/IntelliSenseContext';
+import { APP_DEFINITIONS } from '@/apps';
+import type { SuggestionItem } from '@/types/intellisense';
 
 import { fluentDarkOverlay as tokens } from '@/consts/fluent-tokens';
 
@@ -28,24 +31,16 @@ const TYPE_META: Record<string, { label: string; color: string; bg: string }> = 
     manual: { label: 'Manual', color: '#f5a623', bg: 'rgba(245,166,35,0.12)' },
     action: { label: 'Acción rápida', color: '#54b96f', bg: 'rgba(84,185,111,0.12)' },
     recent: { label: 'Reciente', color: '#adadad', bg: 'rgba(255,255,255,0.08)' },
+    suggested: { label: 'Sugerido', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)' },
 };
 
 /* ─── Interfaces ─── */
-interface Patient {
-    id: number;
-    first_name: string;
-    last_name: string;
-    document_number: string | null;
-    phone: string | null;
-    email?: string | null;
-}
-
 interface SearchResult {
     id: string;
-    type: 'app' | 'patient' | 'recent' | 'action' | 'manual';
+    type: 'app' | 'patient' | 'recent' | 'action' | 'manual' | 'suggested';
     title: string;
     subtitle?: string;
-    icon: JSX.Element;
+    icon: ReactElement;
     action: () => void;
 }
 
@@ -68,6 +63,14 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     const { currentUser } = useSession();
     const isAdmin = currentUser?.role === 'admin';
     const { searchPatients } = usePatients();
+    const { suggestions } = useIntelliSense();
+
+    const REASON_LABEL: Record<SuggestionItem['reason'], string> = {
+        frequent: 'Frecuente',
+        time_based: 'Para esta hora',
+        sequence: 'Siguiente paso',
+        recent_patient: 'Reciente',
+    };
 
     /* Auto-focus */
     useEffect(() => {
@@ -80,22 +83,40 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
 
         const searchAll = async () => {
             if (query.trim().length === 0) {
-                setResults([
-                    {
-                        id: 'recent-1',
-                        type: 'recent',
-                        title: 'Pacientes visitados recientemente',
-                        icon: <Clock size={16} />,
-                        action: () => { openWindow('patients'); onClose(); }
-                    },
-                    {
-                        id: 'recent-2',
-                        type: 'recent',
-                        title: 'Estadísticas del día',
-                        icon: <TrendingUp size={16} />,
-                        action: () => { openWindow('dashboard'); onClose(); }
-                    }
-                ]);
+                // Use IntelliSense suggestions when available, else fallback to static suggestions
+                const intelliResults: SearchResult[] = suggestions.slice(0, 5).map(s => {
+                    const def = APP_DEFINITIONS.find(a => a.id === s.targetId);
+                    if (!def) return null;
+                    return {
+                        id: `ils-${s.id}`,
+                        type: 'suggested' as const,
+                        title: def.name,
+                        subtitle: REASON_LABEL[s.reason],
+                        icon: <AppIcon iconComponent={def.iconComponent} icon={def.icon} size={18} />,
+                        action: () => { openWindow(def.id); onClose(); }
+                    };
+                }).filter(Boolean) as SearchResult[];
+
+                if (intelliResults.length > 0) {
+                    setResults(intelliResults);
+                } else {
+                    setResults([
+                        {
+                            id: 'recent-1',
+                            type: 'recent',
+                            title: 'Pacientes visitados recientemente',
+                            icon: <Clock size={16} />,
+                            action: () => { openWindow('patients'); onClose(); }
+                        },
+                        {
+                            id: 'recent-2',
+                            type: 'recent',
+                            title: 'Estadísticas del día',
+                            icon: <TrendingUp size={16} />,
+                            action: () => { openWindow('dashboard'); onClose(); }
+                        }
+                    ]);
+                }
                 return;
             }
 
@@ -105,13 +126,12 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
 
             // Apps
             Array.from(apps.values()).forEach(app => {
-                if (app.name.toLowerCase().includes(searchTerm) ||
-                    app.description?.toLowerCase().includes(searchTerm)) {
+                if (app.name.toLowerCase().includes(searchTerm)) {
                     allResults.push({
                         id: `app-${app.id}`,
                         type: 'app',
                         title: app.name,
-                        subtitle: app.description || 'Aplicación',
+                        subtitle: 'Aplicación',
                         icon: <AppIcon iconComponent={app.iconComponent} icon={app.icon} size={18} />,
                         action: () => { openWindow(app.id); onClose(); }
                     });

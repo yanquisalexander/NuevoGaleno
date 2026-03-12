@@ -53,7 +53,7 @@ const manager = (() => {
         notificationId = null;
     };
 
-    const doCheck = async (opts?: { addNotification?: any; openWindow?: (id: string) => void }) => {
+    const doCheck = async (opts?: { addNotification?: any; openWindow?: (id: string, data?: any) => void }) => {
         if (inFlight) return false;
         inFlight = true;
         state.isChecking = true;
@@ -94,7 +94,7 @@ const manager = (() => {
                                 {
                                     label: 'Instalar ahora',
                                     onClick: () => {
-                                        opts.openWindow?.('galeno-update');
+                                        opts.openWindow?.('settings', { section: 'actualizaciones' });
                                         clearNotificationId();
                                     },
                                 },
