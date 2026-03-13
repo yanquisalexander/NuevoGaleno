@@ -23,6 +23,7 @@ import { ManualGalenoApp } from './ManualGaleno';
 import { DevToolsApp } from './DevTools';
 import { PluginStore } from './PluginStore';
 import { FileManagerApp } from './FileManager';
+import { DatabaseExplorerApp } from './DatabaseExplorer';
 import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor, FolderRegular, FolderOpenFilled, NumberSymbolSquareColor, SavingsColor, PersonStarburstColor, BookOpenColor, WrenchColor, AppsColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
@@ -44,6 +45,7 @@ export { DevToolsApp } from './DevTools';
 export { PluginStore } from './PluginStore';
 export { FileManagerApp } from './FileManager';
 export { CommandShellApp } from './CommandShell';
+export { DatabaseExplorerApp } from './DatabaseExplorer';
 
 // Export app definitions
 export const APP_DEFINITIONS = [
@@ -224,6 +226,16 @@ export const APP_DEFINITIONS = [
         allowMultipleInstances: false,
         defaultSize: { width: 800, height: 600 },
         component: DevToolsApp,
+        showOnDesktop: false,
+    },
+    {
+        id: 'database-explorer',
+        name: 'Database Explorer',
+        icon: '🗄️',
+        allowMultipleInstances: false,
+        defaultSize: { width: 960, height: 600 },
+        component: DatabaseExplorerApp,
+        requiresAdmin: true,
         showOnDesktop: false,
     },
     /* {

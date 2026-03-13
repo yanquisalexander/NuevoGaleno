@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
-const t = {
-    bg: '#0a0a0a',
-    fg1: '#ffffff',
-    fg4: '#707070',
-    brand: '#60cdff',
-    brandDim: 'rgba(96,205,255,0.15)',
-    fontFamily: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-};
+interface StartupContext {
+    app_version: string;
+    updated_from: string | null;
+    was_updated: boolean;
+    migrations_applied: number;
+    schema_version: number;
+    temp_dirs_cleaned: number;
+    bytes_freed: number;
+}
 
 // XP-style segmented progress bar (the iconic "worm")
 function XPProgressBar({ active }: { active: boolean }) {
@@ -46,7 +48,7 @@ function XPProgressBar({ active }: { active: boolean }) {
                             ? `rgba(96,205,255,${b})`
                             : 'rgba(255,255,255,0.06)',
                         boxShadow: b > 0.8
-                            ? `0 0 6px ${t.brand}, 0 0 12px rgba(96,205,255,0.4)`
+                            ? `0 0 6px #60cdff, 0 0 12px rgba(96,205,255,0.4)`
                             : b > 0
                                 ? `0 0 4px rgba(96,205,255,0.3)`
                                 : 'none',
@@ -59,33 +61,102 @@ function XPProgressBar({ active }: { active: boolean }) {
     );
 }
 
+function formatBytes(bytes: number): string {
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function buildStartupMessages(ctx: StartupContext): string[] {
+    const msgs: string[] = [];
+
+    if (ctx.was_updated && ctx.updated_from) {
+        msgs.push(`Actualizando desde v${ctx.updated_from}...`);
+    }
+
+    if (ctx.migrations_applied > 0) {
+        const plural = ctx.migrations_applied === 1 ? 'migración' : 'migraciones';
+        msgs.push(`Aplicando ${ctx.migrations_applied} ${plural} de base de datos...`);
+    }
+
+    if (ctx.temp_dirs_cleaned > 0) {
+        const label = ctx.bytes_freed > 0
+            ? `Liberando ${formatBytes(ctx.bytes_freed)} de importaciones anteriores...`
+            : `Limpiando ${ctx.temp_dirs_cleaned} archivo${ctx.temp_dirs_cleaned > 1 ? 's' : ''} temporal${ctx.temp_dirs_cleaned > 1 ? 'es' : ''}...`;
+        msgs.push(label);
+    }
+
+    msgs.push('Cargando configuración...');
+    msgs.push('Preparando entorno...');
+    return msgs;
+}
+
+const MSG_VISIBLE_MS = 700;
+const MSG_FADE_MS = 180;
+const MIN_SPLASH_MS = 2800;
+
 export function SplashScreen({ onComplete }: { onComplete: () => void }) {
     const [visible, setVisible] = useState(false);
     const [exiting, setExiting] = useState(false);
+    const [statusMsg, setStatusMsg] = useState('Iniciando Nuevo Galeno...');
+    const [msgVisible, setMsgVisible] = useState(true);
+    const cancelledRef = useRef(false);
 
     useEffect(() => {
+        cancelledRef.current = false;
+        const startTime = Date.now();
+
         const t1 = setTimeout(() => setVisible(true), 100);
-        const t2 = setTimeout(() => setExiting(true), 3200);
-        const t3 = setTimeout(() => onComplete?.(), 3900);
-        return () => [t1, t2, t3].forEach(clearTimeout);
+
+        const changeMessage = (msg: string, onShown?: () => void) => {
+            setMsgVisible(false);
+            setTimeout(() => {
+                if (cancelledRef.current) return;
+                setStatusMsg(msg);
+                setMsgVisible(true);
+                if (onShown) setTimeout(onShown, MSG_VISIBLE_MS);
+            }, MSG_FADE_MS);
+        };
+
+        const playMessages = (msgs: string[], onDone: () => void) => {
+            if (msgs.length === 0) { onDone(); return; }
+            const [first, ...rest] = msgs;
+            changeMessage(first, () => playMessages(rest, onDone));
+        };
+
+        const finish = () => {
+            if (cancelledRef.current) return;
+            const elapsed = Date.now() - startTime;
+            const wait = Math.max(0, MIN_SPLASH_MS - elapsed);
+            setTimeout(() => {
+                if (cancelledRef.current) return;
+                setExiting(true);
+                setTimeout(() => { if (!cancelledRef.current) onComplete?.(); }, 700);
+            }, wait);
+        };
+
+        invoke<StartupContext>('run_startup_sequence')
+            .then(ctx => {
+                if (cancelledRef.current) return;
+                playMessages(buildStartupMessages(ctx), finish);
+            })
+            .catch(() => {
+                // Si el comando falla (ej: en web dev sin backend), continúa con mensajes genéricos
+                if (cancelledRef.current) return;
+                playMessages(['Cargando configuración...', 'Preparando entorno...'], finish);
+            });
+
+        return () => {
+            cancelledRef.current = true;
+            clearTimeout(t1);
+        };
     }, []);
 
     return (
         <>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400&display=swap');
-
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-
-        .dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: rgba(255,255,255,0.85);
-          animation: spin 1s linear infinite;
-          transform-origin: center;
         }
 
         .spinner {
@@ -161,8 +232,22 @@ export function SplashScreen({ onComplete }: { onComplete: () => void }) {
                 }}>
                     <div className="spinner" />
                 </div>
+
+                {/* Status message */}
+                <div style={{
+                    marginTop: 20,
+                    fontSize: 11.5,
+                    color: "rgba(255,255,255,0.38)",
+                    letterSpacing: "0.01em",
+                    fontWeight: 400,
+                    minHeight: 18,
+                    transition: `opacity ${MSG_FADE_MS}ms ease`,
+                    opacity: visible && msgVisible ? 1 : 0,
+                    userSelect: "none",
+                }}>
+                    {statusMsg}
+                </div>
             </div>
         </>
     );
 }
-

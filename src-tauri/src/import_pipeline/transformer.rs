@@ -537,6 +537,10 @@ pub fn transform_raw_data(
                         orphan_odontograms.push(odontogram);
                     }
                 }
+                Err(err) if err.starts_with("SKIP:") => {
+                    // Registros esperados sin pieza dental (ej: NoDiente=99 en Galeno 2000);
+                    // se omiten del odontograma silenciosamente.
+                }
                 Err(err) => {
                     anomalies.push(build_anomaly(
                         "error",
@@ -863,6 +867,20 @@ fn transform_treatment_row(
             k if k.contains("fecha_fin") || k.contains("termino") || k.contains("complet") => {
                 treatment.completed_date = parse_legacy_date(trimmed);
             }
+            k if k.contains("fecha_creacion")
+                || k.contains("fecha_registro")
+                || k.contains("fecha")
+                    && !k.contains("plan")
+                    && !k.contains("ini")
+                    && !k.contains("fin")
+                    && !k.contains("termino")
+                    && !k.contains("complet") =>
+            {
+                // Usar como created_at_legacy solo si no tenemos otra fecha más significativa
+                if treatment.created_at_legacy.is_none() {
+                    treatment.created_at_legacy = parse_legacy_date(trimmed);
+                }
+            }
             // Avance en Odontograma indica el progreso del tratamiento
             k if k.contains("avance") => {
                 if !trimmed.is_empty() {
@@ -886,6 +904,15 @@ fn transform_treatment_row(
 
     if treatment.name.trim().is_empty() {
         treatment.name = "Tratamiento sin nombre".to_string();
+    }
+
+    // Inferir created_at_legacy desde las fechas disponibles si no la tenemos
+    if treatment.created_at_legacy.is_none() {
+        treatment.created_at_legacy = treatment
+            .started_date
+            .clone()
+            .or_else(|| treatment.planned_date.clone())
+            .or_else(|| treatment.completed_date.clone());
     }
 
     treatment.metadata.source_record_hash = Some(compute_row_hash(row));
@@ -1018,8 +1045,25 @@ fn transform_odontogram_row(
             k if k.contains("nodiente") || k.contains("diente") || k.contains("tooth") => {
                 odontogram.tooth_number = trimmed.to_string();
             }
-            k if k.contains("tipo") || k.contains("concepto") || k.contains("condition") => {
-                odontogram.condition = trimmed.to_string();
+            // Concepto = nombre del tratamiento (ej: "Extracción", "A - Obturación")
+            k if k.contains("concepto") || k.contains("condition") => {
+                if !trimmed.is_empty() {
+                    odontogram.condition = trimmed.to_string();
+                }
+            }
+            // Tipo = número de faceta/cara del diente en Galeno 2000
+            // Se mapea a los valores que usa odontogram_surfaces
+            k if k == "tipo" => {
+                let tipo_num: i32 = trimmed.parse().unwrap_or(0);
+                odontogram.surface = match tipo_num {
+                    1 => "mesial".to_string(),
+                    2 => "distal".to_string(),
+                    3 => "oclusal".to_string(),
+                    4 => "vestibular".to_string(),
+                    5 => "lingual".to_string(),
+                    6 => "oclusal".to_string(), // incisal → oclusal (no existe 'incisal' en la tabla)
+                    _ => "whole_tooth".to_string(),
+                };
             }
             k if k.contains("color") => {
                 if !trimmed.is_empty() {
@@ -1028,12 +1072,22 @@ fn transform_odontogram_row(
             }
             k if k.contains("avance") => {
                 if !trimmed.is_empty() {
-                    odontogram.notes = Some(format!("Avance: {}", trimmed));
+                    let prev = odontogram.notes.take().unwrap_or_default();
+                    odontogram.notes = Some(if prev.is_empty() {
+                        format!("Avance: {}", trimmed)
+                    } else {
+                        format!("{} | Avance: {}", prev, trimmed)
+                    });
                 }
             }
-            k if k.contains("concepto") || k.contains("observ") || k.contains("nota") => {
+            k if k.contains("observ") || k.contains("nota") => {
                 if !trimmed.is_empty() {
-                    odontogram.notes = Some(trimmed.to_string());
+                    let prev = odontogram.notes.take().unwrap_or_default();
+                    odontogram.notes = Some(if prev.is_empty() {
+                        trimmed.to_string()
+                    } else {
+                        format!("{} | {}", prev, trimmed)
+                    });
                 }
             }
             k if k.contains("fecha") || k.contains("date") => {
@@ -1045,6 +1099,12 @@ fn transform_odontogram_row(
 
     if odontogram.tooth_number.is_empty() {
         return Err("Registro de odontograma sin número de diente".to_string());
+    }
+
+    // "99" (y "0") son códigos de Galeno 2000 para tratamientos sin pieza específica
+    // (ej: Profilaxis, Detartraje, Ortodoncia). No pertenecen al odontograma.
+    if odontogram.tooth_number == "99" || odontogram.tooth_number == "0" {
+        return Err(format!("SKIP:pieza_{}_sin_diente", odontogram.tooth_number));
     }
 
     odontogram.metadata.source_record_hash = Some(compute_row_hash(row));

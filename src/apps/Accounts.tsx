@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Activity, Wallet, ChevronRight, TrendingDown, X, Calendar, FileDown, CreditCard, ArrowUpRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Activity, Wallet, ChevronRight, TrendingDown, X, Calendar, FileDown, CreditCard, ArrowUpRight, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWindowManager } from '../contexts/WindowManagerContext';
-import { getPatientsWithDebt, getPaymentsByPatient, type Payment } from '../hooks/usePayments';
+import {
+    getPatientsWithDebt,
+    getPatientsWithDebtSummary,
+    getPaymentsByPatient,
+    type Payment,
+} from '../hooks/usePayments';
 import { getTreatmentsByPatient, type Treatment } from '../hooks/useTreatments';
 import { useAppRuntime } from '../hooks/useAppRuntime';
 import type { WindowId } from '../types/window-manager';
@@ -38,7 +43,7 @@ function Spinner() {
     );
 }
 
-function EmptyState() {
+function EmptyState({ searchTerm }: { searchTerm?: string }) {
     return (
         <div style={{
             display: 'flex', flexDirection: 'column',
@@ -56,13 +61,15 @@ function EmptyState() {
                 <Activity style={{ width: '24px', height: '24px', color: F.success }} strokeWidth={1.5} />
             </div>
             <span style={{ fontSize: '14px', fontWeight: 600, color: F.textPrimary }}>
-                Todo al día
+                {searchTerm ? 'Sin resultados' : 'Todo al día'}
             </span>
             <span style={{
                 fontSize: '12px', color: F.textSecondary,
                 maxWidth: '220px', lineHeight: '1.5',
             }}>
-                No hay pacientes con saldos pendientes en este momento.
+                {searchTerm
+                    ? 'No se encontraron pacientes deudores para esa búsqueda.'
+                    : 'No hay pacientes con saldos pendientes en este momento.'}
             </span>
         </div>
     );
@@ -468,19 +475,99 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
     useAppRuntime('accounts', 'Cuentas Corrientes');
     const [debtors, setDebtors] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalDebt, setTotalDebt] = useState(0);
+    const [totalDebtorsCount, setTotalDebtorsCount] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [selectedDebtor, setSelectedDebtor] = useState<any | null>(null);
+    const loadingNextPageRef = useRef(false);
+    const pageRef = useRef(0);
+    const listRef = useRef<HTMLDivElement | null>(null);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+    const pageSize = 30;
     const { openWindow } = useWindowManager();
 
-    useEffect(() => { loadDebtors(); }, []);
+    useEffect(() => {
+        loadDebtorsPage(0, true, '');
+        loadSummary('');
+    }, []);
 
-    const loadDebtors = async () => {
-        setIsLoading(true);
-        try { setDebtors(await getPatientsWithDebt()); }
-        catch (e) { console.error(e); }
-        finally { setIsLoading(false); }
+    useEffect(() => {
+        const id = window.setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery.trim());
+        }, 260);
+
+        return () => window.clearTimeout(id);
+    }, [searchQuery]);
+
+    useEffect(() => {
+        loadingNextPageRef.current = false;
+        pageRef.current = 0;
+        setHasMore(true);
+        setDebtors([]);
+        setSelectedDebtor(null);
+        loadDebtorsPage(0, true, debouncedSearchQuery);
+        loadSummary(debouncedSearchQuery);
+    }, [debouncedSearchQuery]);
+
+    useEffect(() => {
+        if (!hasMore || isLoading || isLoadingMore || !listRef.current || !sentinelRef.current) {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            entries => {
+                const first = entries[0];
+                if (!first?.isIntersecting || loadingNextPageRef.current) return;
+                loadDebtorsPage(pageRef.current + 1, false, debouncedSearchQuery);
+            },
+            {
+                root: listRef.current,
+                rootMargin: '180px 0px',
+                threshold: 0,
+            }
+        );
+
+        observer.observe(sentinelRef.current);
+
+        return () => observer.disconnect();
+    }, [hasMore, isLoading, isLoadingMore, debouncedSearchQuery]);
+
+    const loadSummary = async (query = '') => {
+        try {
+            const summary = await getPatientsWithDebtSummary(query);
+            setTotalDebt(summary.total_debt ?? 0);
+            setTotalDebtorsCount(summary.debtors_count ?? 0);
+        } catch (e) {
+            console.error(e);
+        }
     };
 
-    const totalDebt = debtors.reduce((acc, d) => acc + (d.total_balance ?? 0), 0);
+    const loadDebtorsPage = async (targetPage: number, reset = false, query = debouncedSearchQuery) => {
+        if (loadingNextPageRef.current && !reset) return;
+
+        if (reset) {
+            setIsLoading(true);
+        } else {
+            loadingNextPageRef.current = true;
+            setIsLoadingMore(true);
+        }
+
+        try {
+            const data = await getPatientsWithDebt(pageSize, targetPage * pageSize, query);
+            setDebtors(prev => (reset ? data : [...prev, ...data]));
+            setHasMore(data.length === pageSize);
+            pageRef.current = targetPage;
+        } catch (e) {
+            console.error(e);
+        } finally {
+            loadingNextPageRef.current = false;
+            setIsLoadingMore(false);
+            setIsLoading(false);
+        }
+    };
 
     if (isLoading) return <Spinner />;
 
@@ -517,7 +604,7 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
                     </div>
                 </div>
 
-                {debtors.length > 0 && (
+                {totalDebtorsCount > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '5px',
@@ -539,10 +626,50 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
                             fontSize: '11px', fontWeight: 500,
                             color: F.textSecondary,
                         }}>
-                            {debtors.length} pacientes
+                            {totalDebtorsCount} pacientes
                         </div>
                     </div>
                 )}
+            </div>
+
+            <div style={{
+                padding: '10px 20px',
+                borderBottom: `1px solid ${F.border}`,
+                background: F.surface,
+                flexShrink: 0,
+            }}>
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: F.bg,
+                    border: `1px solid ${F.borderMed}`,
+                    borderRadius: '8px',
+                    padding: '7px 10px',
+                }}>
+                    <Search style={{ width: 14, height: 14, color: F.textDisabled, flexShrink: 0 }} />
+                    <input
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Buscar por nombre, DNI o teléfono"
+                        style={{
+                            flex: 1,
+                            background: 'transparent',
+                            border: 'none',
+                            color: F.textPrimary,
+                            fontSize: 12,
+                            outline: 'none',
+                            fontFamily: F.font,
+                        }}
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            style={{ background: 'none', border: 'none', color: F.textDisabled, cursor: 'pointer', padding: 2, display: 'flex' }}
+                            title="Limpiar búsqueda"
+                        >
+                            <X style={{ width: 12, height: 12 }} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* ── Body: list + optional detail panel ── */}
@@ -552,10 +679,10 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
                     flex: 1, overflowY: 'auto', padding: '12px 16px',
                     scrollbarWidth: 'thin',
                     scrollbarColor: 'rgba(255,255,255,0.1) transparent',
-                }}>
+                }} ref={listRef}>
                     <AnimatePresence>
                         {debtors.length === 0 ? (
-                            <EmptyState />
+                            <EmptyState searchTerm={debouncedSearchQuery} />
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 {debtors.map((debtor, i) => (
@@ -572,6 +699,23 @@ export function AccountsApp({ windowId: _windowId }: { windowId: WindowId; data?
                             </div>
                         )}
                     </AnimatePresence>
+
+                    <div ref={sentinelRef} style={{ height: 1 }} />
+
+                    {isLoadingMore && (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0' }}>
+                            <div style={{ width: 18, height: 18, border: `2px solid rgba(71,158,245,0.2)`, borderTopColor: F.brand, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        </div>
+                    )}
+
+                    {!hasMore && debtors.length > 0 && (
+                        <div style={{
+                            textAlign: 'center', padding: '12px 0 4px',
+                            color: F.textDisabled, fontSize: 11,
+                        }}>
+                            Fin de la lista
+                        </div>
+                    )}
                 </div>
 
                 {/* ── Detail panel ── */}

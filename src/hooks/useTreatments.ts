@@ -7,7 +7,7 @@ export interface Treatment {
     name: string;
     tooth_number?: string;
     sector?: string;
-    status: 'Pending' | 'InProgress' | 'Completed' | 'Cancelled';
+    status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
     total_cost: number;
     paid_amount: number;
     balance: number;
@@ -32,7 +32,7 @@ export interface UpdateTreatmentInput {
     name?: string;
     tooth_number?: string;
     sector?: string;
-    status?: string;
+    status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
     total_cost?: number;
     start_date?: string;
     completion_date?: string;
@@ -60,7 +60,7 @@ export async function getTreatmentsByPatient(patientId: number): Promise<Treatme
     return invoke('get_treatments_by_patient', { patientId });
 }
 
-export async function getTreatmentsByStatus(status: string): Promise<Treatment[]> {
+export async function getTreatmentsByStatus(status: 'pending' | 'in_progress' | 'completed' | 'cancelled'): Promise<Treatment[]> {
     return invoke('get_treatments_by_status', { status });
 }
 
@@ -72,7 +72,7 @@ export async function updateTreatment(id: number, input: UpdateTreatmentInput): 
     return invoke('update_treatment', { id, input });
 }
 
-export async function updateTreatmentStatus(id: number, status: string): Promise<void> {
+export async function updateTreatmentStatus(id: number, status: 'pending' | 'in_progress' | 'completed' | 'cancelled'): Promise<void> {
     return invoke('update_treatment_status', { id, status });
 }
 

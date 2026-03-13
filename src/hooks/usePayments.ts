@@ -35,6 +35,11 @@ export interface PatientBalance {
     treatments_count: number;
 }
 
+export interface PatientDebtSummary {
+    debtors_count: number;
+    total_debt: number;
+}
+
 export async function getAllPayments(limit?: number, offset?: number): Promise<Payment[]> {
     return invoke('get_all_payments', { limit, offset });
 }
@@ -67,8 +72,16 @@ export async function getPatientBalance(patientId: number): Promise<PatientBalan
     return invoke('get_patient_balance', { patientId });
 }
 
-export async function getPatientsWithDebt(): Promise<PatientBalance[]> {
-    return invoke('get_patients_with_debt');
+export async function getPatientsWithDebt(limit?: number, offset?: number, query?: string): Promise<PatientBalance[]> {
+    return invoke('get_patients_with_debt', { limit, offset, query });
+}
+
+export async function getPatientsWithDebtCount(): Promise<number> {
+    return invoke('get_patients_with_debt_count');
+}
+
+export async function getPatientsWithDebtSummary(query?: string): Promise<PatientDebtSummary> {
+    return invoke('get_patients_with_debt_summary', { query });
 }
 
 export async function getTotalDebt(): Promise<number> {

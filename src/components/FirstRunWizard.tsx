@@ -290,7 +290,8 @@ export default function FirstRunWizard({ onFinish }: { onFinish: () => void }) {
     const handleReviewComplete = () => {
         toast.success("Datos importados correctamente");
         startTrial().catch(console.error);
-        setTimeout(() => finishAndPersist(), 1500);
+        setShowReview(false);
+        next(); // continuar al paso de crear cuenta
     };
 
     // Persistir la interfaz seleccionada y luego cerrar el wizard

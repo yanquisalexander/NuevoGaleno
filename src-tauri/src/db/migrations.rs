@@ -2,7 +2,8 @@ use rusqlite::Connection;
 
 const CURRENT_SCHEMA_VERSION: i32 = 13;
 
-pub fn run_migrations(conn: &Connection) -> Result<(), String> {
+/// Ejecuta las migraciones pendientes y retorna cuántas se aplicaron.
+pub fn run_migrations(conn: &Connection) -> Result<i32, String> {
     // Setup inicial
     conn.execute_batch(
         r#"
@@ -25,92 +26,108 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
         )
         .unwrap_or(0);
 
+    let mut applied = 0i32;
+
     // Aplicar migraciones pendientes
     if current_version < 1 {
         migrate_v1(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (1)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 2 {
         migrate_v2(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (2)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 3 {
         migrate_v3(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (3)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 4 {
         migrate_v4(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (4)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 5 {
         migrate_v5(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (5)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 6 {
         migrate_v6(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (6)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 7 {
         migrate_v7(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (7)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 8 {
         migrate_v8(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (8)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 9 {
         migrate_v9(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (9)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 10 {
         migrate_v10(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (10)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 11 {
         migrate_v11(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (11)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 12 {
         migrate_v12(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (12)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 13 {
         migrate_v13(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (13)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
     if current_version < 14 {
         migrate_v14(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (14)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
     }
 
-    Ok(())
+    Ok(applied)
 }
 
 /// Asegura compatibilidad con esquemas antiguos: agrega columnas que puedan faltar

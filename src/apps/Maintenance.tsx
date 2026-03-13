@@ -19,6 +19,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { SystemPasswordDialog } from '@/components/SystemPasswordDialog';
 import type { WindowId } from '../types/window-manager';
+import { useWindowManager } from "@/contexts/WindowManagerContext";
 
 // Animación de entrada suave (Fluent Motion)
 const containerVariants = {
@@ -40,6 +41,8 @@ export function MaintenanceApp({ windowId: _windowId }: { windowId: WindowId; da
     const isAdmin = currentUser?.role === 'admin';
     const { success, error: errorToast } = useToast();
 
+    const { closeWindow, apps } = useWindowManager();
+
     // Estado simulado para feedback visual
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [isCleaning, setIsCleaning] = useState(false);
@@ -48,6 +51,8 @@ export function MaintenanceApp({ windowId: _windowId }: { windowId: WindowId; da
     const handleWipeSystem = async (passwordHash: string) => {
         try {
             await invoke('wipe_system', { systemPasswordHash: passwordHash });
+            // Cerrar todas las ventanas
+            Object.values(apps).forEach(app => closeWindow(app.windowId));
             success('Sistema reiniciado', 'Reiniciando servicios...');
             setTimeout(() => window.location.reload(), 2000);
         } catch (err: any) {

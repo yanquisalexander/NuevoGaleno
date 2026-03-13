@@ -242,7 +242,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
                             <div style={{ position: 'absolute', inset: 0, background: '#0078d4', filter: 'blur(30px)', opacity: 0.2, borderRadius: '50%' }} />
                             <RefreshCw className="w-9 h-9 text-[#0078d4] animate-spin relative z-10" />
                         </div>
-                        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+                        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }} className="text-white">
                             {stage === 'loading' ? 'Preparando vista previa...' : 'Analizando base de datos completa...'}
                         </h2>
                         <p style={{ color: '#a0a0a0', fontSize: 12, marginBottom: 12 }}>{progressMessage}</p>
@@ -344,7 +344,7 @@ export default function ImportReviewScreen({ extractedDir, onComplete, onCancel,
                             <div style={{ position: 'absolute', inset: 0, background: '#107c10', filter: 'blur(40px)', opacity: 0.2, borderRadius: '50%' }} />
                             <Database className="w-12 h-12 text-[#107c10] animate-pulse relative z-10" />
                         </div>
-                        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 3 }}>Escribiendo en base de datos...</h2>
+                        <h2 style={{ fontSize: 15, fontWeight: 600, marginBottom: 3 }} className="text-white">Escribiendo en base de datos...</h2>
                         <p style={{ color: '#a0a0a0', fontSize: 12, marginBottom: 12 }}>{progressMessage}</p>
                         <div style={{ width: '100%', maxWidth: 320, height: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 1, overflow: 'hidden' }}>
                             <div style={{ height: '100%', background: '#107c10', width: '100%' }} />

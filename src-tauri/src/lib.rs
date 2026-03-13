@@ -25,7 +25,10 @@ fn intellisense_create_event(input: db::intellisense::CreateEventInput) -> Resul
 }
 
 #[tauri::command]
-fn intellisense_get_events(user_id: String, limit: i64) -> Result<Vec<db::intellisense::IntelliSenseEvent>, String> {
+fn intellisense_get_events(
+    user_id: String,
+    limit: i64,
+) -> Result<Vec<db::intellisense::IntelliSenseEvent>, String> {
     db::intellisense::get_events(&user_id, limit)
 }
 
@@ -35,12 +38,16 @@ fn intellisense_prune_events(user_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn intellisense_create_workflow(input: db::intellisense::CreateWorkflowInput) -> Result<i64, String> {
+fn intellisense_create_workflow(
+    input: db::intellisense::CreateWorkflowInput,
+) -> Result<i64, String> {
     db::intellisense::create_workflow(input)
 }
 
 #[tauri::command]
-fn intellisense_get_workflows(user_id: String) -> Result<Vec<db::intellisense::IntelliSenseWorkflow>, String> {
+fn intellisense_get_workflows(
+    user_id: String,
+) -> Result<Vec<db::intellisense::IntelliSenseWorkflow>, String> {
     db::intellisense::get_workflows(&user_id)
 }
 
@@ -267,8 +274,24 @@ fn get_patient_balance(patient_id: i64) -> Result<db::payments::PatientBalance, 
 }
 
 #[tauri::command]
-fn get_patients_with_debt() -> Result<Vec<db::payments::PatientBalance>, String> {
-    db::payments::get_patients_with_debt()
+fn get_patients_with_debt(
+    limit: Option<i64>,
+    offset: Option<i64>,
+    query: Option<String>,
+) -> Result<Vec<db::payments::PatientBalance>, String> {
+    db::payments::get_patients_with_debt(limit, offset, query)
+}
+
+#[tauri::command]
+fn get_patients_with_debt_count() -> Result<i64, String> {
+    db::payments::get_patients_with_debt_count()
+}
+
+#[tauri::command]
+fn get_patients_with_debt_summary(
+    query: Option<String>,
+) -> Result<db::payments::PatientDebtSummary, String> {
+    db::payments::get_patients_with_debt_summary(query)
 }
 
 #[tauri::command]
@@ -883,11 +906,11 @@ fn get_store_plugins() -> Result<Vec<plugins::StorePlugin>, String> {
 #[tauri::command]
 fn install_plugin_from_store(plugin_id: String) -> Result<(), String> {
     plugins::install_plugin_from_store(&plugin_id)?;
-    
+
     // Save metadata to database
     let conn = db::get_connection()?;
     let store_plugins = plugins::get_store_plugins()?;
-    
+
     if let Some(plugin) = store_plugins.iter().find(|p| p.manifest.id == plugin_id) {
         let metadata = db::plugin_data::PluginMetadata {
             plugin_id: plugin.manifest.id.clone(),
@@ -899,23 +922,28 @@ fn install_plugin_from_store(plugin_id: String) -> Result<(), String> {
             first_party: plugin_id.starts_with("com.nuevogaleno."),
             settings: None,
         };
-        
+
         db::plugin_data::save_plugin_metadata(&conn, &metadata)
             .map_err(|e| format!("Failed to save plugin metadata: {}", e))?;
     }
-    
+
     Ok(())
 }
 
 #[tauri::command]
-fn get_plugin_data_entries(plugin_id: String) -> Result<Vec<db::plugin_data::PluginDataEntry>, String> {
+fn get_plugin_data_entries(
+    plugin_id: String,
+) -> Result<Vec<db::plugin_data::PluginDataEntry>, String> {
     let conn = db::get_connection()?;
     db::plugin_data::get_all_plugin_data(&conn, &plugin_id)
         .map_err(|e| format!("Failed to get plugin data: {}", e))
 }
 
 #[tauri::command]
-fn get_plugin_logs(plugin_id: String, limit: Option<i64>) -> Result<Vec<db::plugin_data::PluginLog>, String> {
+fn get_plugin_logs(
+    plugin_id: String,
+    limit: Option<i64>,
+) -> Result<Vec<db::plugin_data::PluginLog>, String> {
     let conn = db::get_connection()?;
     db::plugin_data::get_plugin_logs(&conn, &plugin_id, limit)
         .map_err(|e| format!("Failed to get plugin logs: {}", e))
@@ -931,6 +959,22 @@ fn add_plugin_log(
     let conn = db::get_connection()?;
     db::plugin_data::add_plugin_log(&conn, &plugin_id, &level, &message, metadata.as_deref())
         .map_err(|e| format!("Failed to add plugin log: {}", e))
+}
+
+// ===== DATABASE EXPLORER COMMANDS =====
+#[tauri::command]
+fn db_explorer_list_tables() -> Result<Vec<db::db_explorer::Table>, String> {
+    db::db_explorer::list_tables()
+}
+
+#[tauri::command]
+fn db_explorer_get_table_schema(table_name: String) -> Result<db::db_explorer::TableSchema, String> {
+    db::db_explorer::get_table_schema(&table_name)
+}
+
+#[tauri::command]
+fn db_explorer_execute_query(query: String) -> Result<db::db_explorer::QueryResult, String> {
+    db::db_explorer::execute_query(&query)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -972,8 +1016,8 @@ pub fn run() {
             *g = Some(app.handle().clone());
 
             // Initialize filesystem
-            let filesystem_state = filesystem::initialize()
-                .expect("Failed to initialize filesystem");
+            let filesystem_state =
+                filesystem::initialize().expect("Failed to initialize filesystem");
             app.handle().manage(filesystem_state);
 
             // Auto-start server if configured as host
@@ -1062,6 +1106,7 @@ pub fn run() {
             import_pipeline::commands::convert_doc_files_to_txt,
             // wizard & users
             wizard::init_app_db,
+            wizard::run_startup_sequence,
             wizard::set_config,
             wizard::get_config,
             wizard::create_user,
@@ -1126,6 +1171,8 @@ pub fn run() {
             delete_payment,
             get_patient_balance,
             get_patients_with_debt,
+            get_patients_with_debt_count,
+            get_patients_with_debt_summary,
             get_total_debt,
             get_recent_payments,
             // odontograms
@@ -1232,6 +1279,10 @@ pub fn run() {
             filesystem::commands::fs_restore_from_trash,
             filesystem::commands::fs_empty_trash,
             filesystem::commands::fs_get_file_lock_status,
+            // database explorer
+            db_explorer_list_tables,
+            db_explorer_get_table_schema,
+            db_explorer_execute_query,
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .run(tauri::generate_context!())

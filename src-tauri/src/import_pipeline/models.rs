@@ -188,6 +188,7 @@ impl TreatmentDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum TreatmentStatus {
     Pending,    // Por hacer
     InProgress, // En tratamiento
@@ -291,6 +292,7 @@ pub struct OdontogramDto {
     pub patient_temp_id: Option<String>,
 
     pub tooth_number: String,
+    pub surface: String, // faceta/cara: 'whole_tooth', 'mesial', 'distal', 'vestibular', 'lingual', 'oclusal'
     pub condition: String,
     pub notes: Option<String>,
     pub color: Option<String>,
@@ -317,6 +319,7 @@ impl OdontogramDto {
             legacy_budget_number: None,
             patient_temp_id,
             tooth_number: String::new(),
+            surface: "whole_tooth".to_string(),
             condition: String::new(),
             notes: None,
             color: None,

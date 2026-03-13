@@ -121,6 +121,12 @@ pub fn persist_all(
                 }
             }
 
+            for odontogram in &patient.odontograms {
+                upsert_odontogram(&tx, run_id, Some(patient_id), odontogram)?;
+                insert_odontogram_surface(&tx, patient_id, odontogram)?;
+                result.odontograms_inserted += 1;
+            }
+
             for (doc_idx, doc) in patient.history_documents.iter().enumerate() {
                 emit_progress(
                     &mut progress_cb,
@@ -694,6 +700,8 @@ fn upsert_treatment(
 ) -> Result<Option<i64>, String> {
     let raw_json = serde_json::to_string(&treatment.raw_data).unwrap_or_else(|_| "{}".to_string());
     let now = chrono::Utc::now().to_rfc3339();
+    // Usar la fecha legacy del tratamiento si existe, de lo contrario usar la fecha de importación actual
+    let created_at = treatment.created_at_legacy.as_deref().unwrap_or(&now);
 
     tx.execute(
         r#"
@@ -752,7 +760,7 @@ fn upsert_treatment(
             raw_json,
             run_id,
             treatment.metadata.source_record_hash,
-            now,
+            created_at,
             now,
         ],
     )
@@ -922,6 +930,37 @@ fn upsert_odontogram(
     .map_err(|e| format!("Error insertando odontograma: {}", e))?;
 
     Ok(Some(tx.last_insert_rowid()))
+}
+
+fn insert_odontogram_surface(
+    tx: &Transaction,
+    patient_id: i64,
+    odontogram: &OdontogramDto,
+) -> Result<(), String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let applied_date = odontogram.date.as_deref().unwrap_or(&now);
+
+    tx.execute(
+        r#"
+        INSERT INTO odontogram_surfaces
+            (patient_id, tooth_number, surface, condition, notes,
+             is_active, applied_date, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?8)
+        "#,
+        params![
+            patient_id,
+            &odontogram.tooth_number,
+            &odontogram.surface,
+            &odontogram.condition,
+            odontogram.notes,
+            applied_date,
+            now,
+            now,
+        ],
+    )
+    .map_err(|e| format!("Error insertando superficie de odontograma: {}", e))?;
+
+    Ok(())
 }
 
 fn upsert_history_document(

@@ -44,6 +44,12 @@ pub struct PatientBalance {
     pub treatments_count: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatientDebtSummary {
+    pub debtors_count: i64,
+    pub total_debt: f64,
+}
+
 pub fn create_payment(input: CreatePaymentInput) -> Result<i64, String> {
     let conn = get_connection()?;
     let now = Utc::now().to_rfc3339();
@@ -413,8 +419,16 @@ pub fn get_patient_balance(patient_id: i64) -> Result<PatientBalance, String> {
     Ok(balance)
 }
 
-pub fn get_patients_with_debt() -> Result<Vec<PatientBalance>, String> {
+pub fn get_patients_with_debt(
+    limit: Option<i64>,
+    offset: Option<i64>,
+    query: Option<String>,
+) -> Result<Vec<PatientBalance>, String> {
     let conn = get_connection()?;
+    let limit = limit.unwrap_or(30);
+    let offset = offset.unwrap_or(0);
+    let search = query.map(|q| q.trim().to_lowercase()).unwrap_or_default();
+    let search_pattern = format!("%{}%", search);
 
     let mut stmt = conn
         .prepare(
@@ -427,14 +441,19 @@ pub fn get_patients_with_debt() -> Result<Vec<PatientBalance>, String> {
                 COUNT(t.id) as treatments_count
              FROM patients p
              JOIN treatments t ON p.id = t.patient_id
+             WHERE (?1 = ''
+                OR LOWER(p.first_name || ' ' || p.last_name) LIKE ?2
+                OR LOWER(COALESCE(p.document_number, '')) LIKE ?2
+                OR LOWER(COALESCE(p.phone, '')) LIKE ?2)
              GROUP BY p.id
              HAVING SUM(t.balance) > 0
-             ORDER BY total_balance DESC",
+             ORDER BY total_balance DESC
+             LIMIT ?3 OFFSET ?4",
         )
         .map_err(|e| format!("Error preparando query: {}", e))?;
 
     let balances = stmt
-        .query_map([], |row| {
+        .query_map(params![search, search_pattern, limit, offset], |row| {
             Ok(PatientBalance {
                 patient_id: row.get(0)?,
                 patient_name: row.get(1)?,
@@ -449,6 +468,57 @@ pub fn get_patients_with_debt() -> Result<Vec<PatientBalance>, String> {
         .map_err(|e| format!("Error recolectando resultados: {}", e))?;
 
     Ok(balances)
+}
+
+pub fn get_patients_with_debt_count() -> Result<i64, String> {
+    let conn = get_connection()?;
+
+    let total: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM (
+                SELECT p.id
+                FROM patients p
+                JOIN treatments t ON p.id = t.patient_id
+                GROUP BY p.id
+                HAVING SUM(t.balance) > 0
+             ) debtors",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Error calculando cantidad de deudores: {}", e))?;
+
+    Ok(total)
+}
+
+pub fn get_patients_with_debt_summary(query: Option<String>) -> Result<PatientDebtSummary, String> {
+    let conn = get_connection()?;
+    let search = query.map(|q| q.trim().to_lowercase()).unwrap_or_default();
+    let search_pattern = format!("%{}%", search);
+
+    let (debtors_count, total_debt): (i64, f64) = conn
+        .query_row(
+            "SELECT COUNT(*) as debtors_count, COALESCE(SUM(total_balance), 0) as total_debt
+             FROM (
+                SELECT p.id, COALESCE(SUM(t.balance), 0) as total_balance
+                FROM patients p
+                JOIN treatments t ON p.id = t.patient_id
+                WHERE (?1 = ''
+                    OR LOWER(p.first_name || ' ' || p.last_name) LIKE ?2
+                    OR LOWER(COALESCE(p.document_number, '')) LIKE ?2
+                    OR LOWER(COALESCE(p.phone, '')) LIKE ?2)
+                GROUP BY p.id
+                HAVING SUM(t.balance) > 0
+             ) debtors",
+            params![search, search_pattern],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| format!("Error calculando resumen de deudores: {}", e))?;
+
+    Ok(PatientDebtSummary {
+        debtors_count,
+        total_debt,
+    })
 }
 
 pub fn get_total_debt() -> Result<f64, String> {

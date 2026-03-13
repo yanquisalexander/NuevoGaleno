@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Patient, usePatients } from '../../hooks/usePatients';
 import { User, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -15,6 +15,9 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
     const [isLoading, setIsLoading] = useState(true);
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
+    const loadingNextPageRef = useRef(false);
+    const listRef = useRef<HTMLDivElement | null>(null);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
     const pageSize = 20;
     const { getPatients } = usePatients();
 
@@ -22,9 +25,37 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
 
     useEffect(() => {
         if (refreshTrigger !== undefined && refreshTrigger > 0) {
-            setPage(0); setPatients([]); loadPatients(true);
+            loadingNextPageRef.current = false;
+            setPatients([]);
+            setHasMore(true);
+            if (page === 0) {
+                loadPatients(true);
+            } else {
+                setPage(0);
+            }
         }
-    }, [refreshTrigger]);
+    }, [refreshTrigger, page]);
+
+    useEffect(() => {
+        if (!hasMore || isLoading || !listRef.current || !sentinelRef.current) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                const first = entries[0];
+                if (!first?.isIntersecting || loadingNextPageRef.current) return;
+                loadingNextPageRef.current = true;
+                setPage(prev => prev + 1);
+            },
+            {
+                root: listRef.current,
+                rootMargin: '180px 0px',
+                threshold: 0,
+            }
+        );
+
+        observer.observe(sentinelRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, isLoading]);
 
     const loadPatients = async (reset = false) => {
         setIsLoading(true);
@@ -36,6 +67,7 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
         } catch (error) {
             console.error('Error cargando pacientes:', error);
         } finally {
+            loadingNextPageRef.current = false;
             setIsLoading(false);
         }
     };
@@ -43,7 +75,7 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', fontFamily: tokens.fontFamilyBase }}>
             {/* Lista */}
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ flex: 1, overflowY: 'auto' }} ref={listRef}>
                 {patients.map((patient, index) => (
                     <motion.button
                         key={patient.id}
@@ -149,29 +181,13 @@ export function PatientList({ onSelectPatient, refreshTrigger }: PatientListProp
                         <span style={{ fontSize: tokens.fontSizeBase400 }}>No hay pacientes registrados</span>
                     </div>
                 )}
+
+                <div ref={sentinelRef} style={{ height: 1 }} />
             </div>
 
-            {/* Load more */}
-            {hasMore && !isLoading && patients.length > 0 && (
-                <div style={{ padding: '12px 0', textAlign: 'center', borderTop: `1px solid ${tokens.colorNeutralStroke2}` }}>
-                    <button
-                        onClick={() => setPage(p => p + 1)}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: tokens.fontSizeBase300,
-                            color: tokens.colorBrandForeground1,
-                            padding: '4px 16px',
-                            borderRadius: tokens.borderRadiusMedium,
-                            transition: 'background 0.08s',
-                            fontFamily: tokens.fontFamilyBase,
-                        }}
-                        onMouseOver={e => (e.currentTarget.style.background = 'rgba(71,158,245,0.1)')}
-                        onMouseOut={e => (e.currentTarget.style.background = 'none')}
-                    >
-                        Cargar más
-                    </button>
+            {!hasMore && patients.length > 0 && (
+                <div style={{ padding: '10px 0', textAlign: 'center', borderTop: `1px solid ${tokens.colorNeutralStroke2}`, fontSize: tokens.fontSizeBase300, color: tokens.colorNeutralForeground4 }}>
+                    Fin de la lista
                 </div>
             )}
         </div>

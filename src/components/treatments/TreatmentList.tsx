@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Treatment, getTreatmentsByPatient, createTreatment,
     updateTreatment, updateTreatmentStatus
@@ -55,13 +56,28 @@ interface TreatmentListProps {
 // ─── Inline status selector (no Radix dependency) ────────────────────────────
 function StatusBadge({ current, onChange }: { current: string; onChange: (s: string) => void }) {
     const [open, setOpen] = useState(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+    
     const cfg = STATUS_CONFIG[current as StatusKey] ?? STATUS_CONFIG.Pending;
     const Icon = cfg.icon;
+
+    const handleOpenChange = (shouldOpen: boolean) => {
+        setOpen(shouldOpen);
+        if (shouldOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownPos({
+                top: rect.bottom + 6,
+                left: rect.left,
+            });
+        }
+    };
 
     return (
         <div style={{ position: 'relative' }}>
             <button
-                onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
+                ref={buttonRef}
+                onClick={e => { e.stopPropagation(); handleOpenChange(!open); }}
                 style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '4px 10px', fontSize: 11, fontWeight: 600,
@@ -80,60 +96,59 @@ function StatusBadge({ current, onChange }: { current: string; onChange: (s: str
                 </svg>
             </button>
 
-            <AnimatePresence>
-                {open && (
-                    <>
-                        {/* backdrop */}
-                        <div
-                            style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-                            onClick={() => setOpen(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                            transition={{ duration: 0.12 }}
-                            style={{
-                                position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-                                zIndex: 50, minWidth: 150,
-                                background: tokens.colorNeutralBackground1,
-                                border: `1px solid ${tokens.colorNeutralStroke1}`,
-                                borderRadius: tokens.borderRadiusLarge,
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
-                                overflow: 'hidden',
-                                padding: 4,
-                            }}
-                        >
-                            {(Object.entries(STATUS_CONFIG) as [StatusKey, typeof STATUS_CONFIG[StatusKey]][]).map(([key, c]) => {
-                                const I = c.icon;
-                                const isActive = current === key;
-                                return (
-                                    <button
-                                        key={key}
-                                        onClick={e => { e.stopPropagation(); onChange(key); setOpen(false); }}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 8,
-                                            width: '100%', padding: '7px 10px',
-                                            fontSize: 12, fontWeight: isActive ? 600 : 400,
-                                            borderRadius: tokens.borderRadiusMedium,
-                                            border: 'none', cursor: 'pointer',
-                                            background: isActive ? c.bg : 'transparent',
-                                            color: isActive ? c.color : tokens.colorNeutralForeground2,
-                                            transition: `background ${tokens.durationNormal}`,
-                                            textAlign: 'left',
-                                        }}
-                                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = tokens.colorNeutralBackground3; }}
-                                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
-                                    >
-                                        <I style={{ width: 13, height: 13, color: c.color }} />
-                                        {c.label}
-                                    </button>
-                                );
-                            })}
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            {open && createPortal(
+                <>
+                    {/* backdrop */}
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                        onClick={() => handleOpenChange(false)}
+                    />
+                    <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                        transition={{ duration: 0.12 }}
+                        style={{
+                            position: 'fixed', top: dropdownPos.top, left: dropdownPos.left,
+                            zIndex: 50, minWidth: 150,
+                            background: tokens.colorNeutralBackground1,
+                            border: `1px solid ${tokens.colorNeutralStroke1}`,
+                            borderRadius: tokens.borderRadiusLarge,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                            overflow: 'hidden',
+                            padding: 4,
+                        }}
+                    >
+                        {(Object.entries(STATUS_CONFIG) as [StatusKey, typeof STATUS_CONFIG[StatusKey]][]).map(([key, c]) => {
+                            const I = c.icon;
+                            const isActive = current === key;
+                            return (
+                                <button
+                                    key={key}
+                                    onClick={e => { e.stopPropagation(); onChange(key); handleOpenChange(false); }}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 8,
+                                        width: '100%', padding: '7px 10px',
+                                        fontSize: 12, fontWeight: isActive ? 600 : 400,
+                                        borderRadius: tokens.borderRadiusMedium,
+                                        border: 'none', cursor: 'pointer',
+                                        background: isActive ? c.bg : 'transparent',
+                                        color: isActive ? c.color : tokens.colorNeutralForeground2,
+                                        transition: `background ${tokens.durationNormal}`,
+                                        textAlign: 'left',
+                                    }}
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = tokens.colorNeutralBackground3; }}
+                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                    <I style={{ width: 13, height: 13, color: c.color }} />
+                                    {c.label}
+                                </button>
+                            );
+                        })}
+                    </motion.div>
+                </>,
+                document.body
+            )}
         </div>
     );
 }

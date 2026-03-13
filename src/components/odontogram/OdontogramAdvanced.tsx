@@ -491,6 +491,27 @@ export function OdontogramAdvanced({ patientId, initialTooth, initialSurface }: 
         }
     };
 
+    // Get color based on legacy condition (for imported/legacy data)
+    const getConditionColor = (condition: string): string => {
+        const conditionLower = condition?.toLowerCase() || '';
+        if (conditionLower.includes('obturación') || conditionLower.includes('obturacion') || conditionLower.includes('obturaci¢n')) {
+            return '#9c27b0'; // Purple for filled/obturations
+        }
+        if (conditionLower.includes('extracción') || conditionLower.includes('extraccion') || conditionLower.includes('extracci¢n')) {
+            return '#f44336'; // Red for extractions
+        }
+        if (conditionLower.includes('tratamiento') || conditionLower.includes('en proceso')) {
+            return '#2196f3'; // Blue for in-process
+        }
+        if (conditionLower.includes('caries') || conditionLower.includes('carie')) {
+            return '#ff6f00'; // Orange for cavities
+        }
+        if (conditionLower.includes('funda') || conditionLower.includes('corona')) {
+            return '#00bcd4'; // Cyan for crowns
+        }
+        return tokens.colorNeutralBackground4; // Gray for unknown
+    };
+
     const getSurfaceColor = (toothNumber: number, surface: Surface): string => {
         const surfaceData = getSurfaceData(toothNumber, surface);
         if (surfaceData.length === 0) return tokens.colorNeutralBackground4;
@@ -508,6 +529,11 @@ export function OdontogramAdvanced({ patientId, initialTooth, initialSurface }: 
         // If there's a treatment_catalog_id but no treatment_id, show yellow (pending)
         if (mostRecent.treatment_catalog_id) {
             return '#ffc107';
+        }
+
+        // For legacy/imported data: use condition field if no treatment references
+        if (mostRecent.condition) {
+            return getConditionColor(mostRecent.condition);
         }
 
         // Fallback to default color if no treatment or status found
