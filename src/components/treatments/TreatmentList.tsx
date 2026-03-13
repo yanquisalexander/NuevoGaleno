@@ -58,7 +58,7 @@ function StatusBadge({ current, onChange }: { current: string; onChange: (s: str
     const [open, setOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
-    
+
     const cfg = STATUS_CONFIG[current as StatusKey] ?? STATUS_CONFIG.Pending;
     const Icon = cfg.icon;
 
