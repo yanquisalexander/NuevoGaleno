@@ -136,7 +136,7 @@ export function AddGeneralTreatmentDialog({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+                className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
                 onClick={handleClose}
             >
                 <motion.div
@@ -144,7 +144,7 @@ export function AddGeneralTreatmentDialog({
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-[#2c2c2c] border border-white/[0.1] rounded-2xl max-w-3xl w-full shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] max-h-[90vh] flex flex-col"
+                    className="bg-[#2c2c2c] border border-white/[0.1] rounded-2xl max-w-3xl w-full shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] max-h-full flex flex-col"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between p-6 border-b border-white/5">

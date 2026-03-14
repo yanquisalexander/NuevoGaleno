@@ -52,13 +52,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         setNotifications(prev => [newNotification, ...prev]);
 
-        // Auto-dismiss si tiene duración
-        if (newNotification.duration && newNotification.duration > 0) {
-            setTimeout(() => {
-                setNotifications(prev => prev.filter(n => n.id !== id));
-            }, newNotification.duration);
-        }
-
         return id;
     }, []);
 

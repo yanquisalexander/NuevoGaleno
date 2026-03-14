@@ -89,10 +89,11 @@ function NotificationItem({ notification }: { notification: Notification }) {
 }
 
 export function NotificationCenter() {
-    const { notifications } = useNotifications();
+    const { notifications, removeNotification } = useNotifications();
     const currentNotification = notifications[0];
     const lastNotificationIdRef = useRef<string | null>(null);
     const soundPlayedRef = useRef<Set<string>>(new Set());
+    const dismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const play = usePlaySound();
 
     useEffect(() => {
@@ -102,6 +103,7 @@ export function NotificationCenter() {
         }
     }, [notifications, currentNotification]);
 
+    // Manejar el sonido cuando una notificación se vuelve visible
     useEffect(() => {
         if (!currentNotification) return;
 
@@ -126,6 +128,33 @@ export function NotificationCenter() {
                 soundPlayedRef.current = new Set(entries.slice(-25));
             }
         }
+    }, [currentNotification]);
+
+    // Manejar auto-dismiss cuando la notificación es visible
+    useEffect(() => {
+        // Limpiar timeout anterior
+        if (dismissTimeoutRef.current) {
+            clearTimeout(dismissTimeoutRef.current);
+            dismissTimeoutRef.current = null;
+        }
+
+        if (!currentNotification) return;
+
+        // Solo si tiene duración y es mayor a 0
+        if (currentNotification.duration && currentNotification.duration > 0) {
+            dismissTimeoutRef.current = setTimeout(() => {
+                removeNotification(currentNotification.id);
+                dismissTimeoutRef.current = null;
+            }, currentNotification.duration);
+        }
+
+        // Limpiar timeout si la notificación ya no es visible o se desmonta el componente
+        return () => {
+            if (dismissTimeoutRef.current) {
+                clearTimeout(dismissTimeoutRef.current);
+                dismissTimeoutRef.current = null;
+            }
+        };
     }, [currentNotification]);
 
     return (

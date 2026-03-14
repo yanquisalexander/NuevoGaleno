@@ -8,13 +8,19 @@ import {
     Bold, Italic, Underline as UnderlineIcon, AlignLeft, AlignCenter, AlignRight,
     List, ListOrdered, Undo, Redo, Type, Variable
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { TemplateVariable } from '@/types/templates'; import './editor-styles.css';
+
 interface TemplateEditorProps {
     content: string;
     onChange: (content: string) => void;
     availableVariables?: TemplateVariable[];
 }
+
+const toolbarButtonClass = [
+    'inline-flex h-9 items-center justify-center gap-1 rounded-[10px] border px-2.5 text-white/70 transition-colors',
+    'border-transparent bg-transparent hover:border-white/[0.08] hover:bg-white/[0.06] hover:text-white',
+    'disabled:cursor-not-allowed disabled:opacity-35'
+].join(' ');
 
 export function TemplateEditor({ content, onChange, availableVariables = [] }: TemplateEditorProps) {
     const editor = useEditor({
@@ -48,143 +54,133 @@ export function TemplateEditor({ content, onChange, availableVariables = [] }: T
     }
 
     return (
-        <div className="border border-white/10 rounded-lg overflow-hidden bg-[#1e1e1e]">
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-1 p-2 border-b border-white/10 bg-[#252525]">
+        <div className="overflow-hidden bg-transparent">
+            <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.08] bg-[#1f1f1f] px-4 py-3">
                 {/* Text Formatting */}
-                <div className="flex items-center gap-0.5 border-r border-white/10 pr-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                <div className="flex items-center gap-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] p-1">
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleBold().run()}
-                        className={editor.isActive('bold') ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('bold') ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <Bold className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleItalic().run()}
-                        className={editor.isActive('italic') ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('italic') ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <Italic className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleUnderline().run()}
-                        className={editor.isActive('underline') ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('underline') ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <UnderlineIcon className="w-4 h-4" />
-                    </Button>
+                    </button>
                 </div>
 
                 {/* Alignment */}
-                <div className="flex items-center gap-0.5 border-r border-white/10 pr-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                <div className="flex items-center gap-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] p-1">
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                        className={editor.isActive({ textAlign: 'left' }) ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive({ textAlign: 'left' }) ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <AlignLeft className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                        className={editor.isActive({ textAlign: 'center' }) ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive({ textAlign: 'center' }) ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <AlignCenter className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                        className={editor.isActive({ textAlign: 'right' }) ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive({ textAlign: 'right' }) ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <AlignRight className="w-4 h-4" />
-                    </Button>
+                    </button>
                 </div>
 
                 {/* Lists */}
-                <div className="flex items-center gap-0.5 border-r border-white/10 pr-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                <div className="flex items-center gap-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] p-1">
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleBulletList().run()}
-                        className={editor.isActive('bulletList') ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('bulletList') ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <List className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                        className={editor.isActive('orderedList') ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('orderedList') ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <ListOrdered className="w-4 h-4" />
-                    </Button>
+                    </button>
                 </div>
 
                 {/* Headings */}
-                <div className="flex items-center gap-0.5 border-r border-white/10 pr-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                <div className="flex items-center gap-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] p-1">
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                        className={editor.isActive('heading', { level: 1 }) ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('heading', { level: 1 }) ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <Type className="w-4 h-4" />
                         <span className="text-xs ml-1">H1</span>
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                        className={editor.isActive('heading', { level: 2 }) ? 'bg-white/10' : ''}
+                        className={`${toolbarButtonClass} ${editor.isActive('heading', { level: 2 }) ? 'border-white/[0.08] bg-white/[0.1] text-white' : ''}`}
                     >
                         <Type className="w-4 h-4" />
                         <span className="text-xs ml-1">H2</span>
-                    </Button>
+                    </button>
                 </div>
 
                 {/* Undo/Redo */}
-                <div className="flex items-center gap-0.5 border-r border-white/10 pr-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                <div className="flex items-center gap-1 rounded-[12px] border border-white/[0.08] bg-white/[0.03] p-1">
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().undo().run()}
                         disabled={!editor.can().undo()}
+                        className={toolbarButtonClass}
                     >
                         <Undo className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => editor.chain().focus().redo().run()}
                         disabled={!editor.can().redo()}
+                        className={toolbarButtonClass}
                     >
                         <Redo className="w-4 h-4" />
-                    </Button>
+                    </button>
                 </div>
 
                 {/* Variables */}
                 {availableVariables.length > 0 && (
-                    <div className="flex items-center gap-1">
-                        <Variable className="w-4 h-4 text-blue-400" />
+                    <div className="ml-auto flex items-center gap-2 rounded-[12px] border border-white/[0.08] bg-white/[0.03] px-3 py-1.5">
+                        <Variable className="w-4 h-4 text-[#7dc2ff]" />
                         <select
+                            defaultValue=""
                             onChange={(e) => {
                                 if (e.target.value) {
                                     insertVariable(e.target.value);
                                     e.target.value = '';
                                 }
                             }}
-                            className="bg-[#1e1e1e] border border-white/10 rounded px-2 py-1 text-sm"
+                            className="min-w-[180px] bg-transparent text-sm text-white/80 outline-none"
                         >
                             <option value="">Insertar Variable...</option>
                             {availableVariables.map((variable) => (
-                                <option key={variable.key} value={variable.key}>
+                                <option key={variable.key} value={variable.key} className="bg-[#202020]">
                                     {variable.label}
                                 </option>
                             ))}
@@ -194,8 +190,10 @@ export function TemplateEditor({ content, onChange, availableVariables = [] }: T
             </div>
 
             {/* Editor Content */}
-            <div className="bg-white text-black">
-                <EditorContent editor={editor} />
+            <div className="bg-[#efefef] p-5">
+                <div className="mx-auto max-w-[820px] overflow-hidden rounded-[14px] border border-black/10 bg-white text-black shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+                    <EditorContent editor={editor} />
+                </div>
             </div>
         </div>
     );

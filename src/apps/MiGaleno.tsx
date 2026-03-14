@@ -1,7 +1,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LicenseManagementPanel } from '@/components/LicenseManagementPanel';
 import { UserManagementPanel } from '@/components/UserManagementPanel';
-import { Shield, Settings, Users, CreditCard, Bell, Database, AlertTriangle, ExternalLink } from 'lucide-react';
+import { ComponentsManagementPanel } from '@/components/ComponentsManagementPanel';
+import { Shield, Settings, Users, CreditCard, Bell, Database, AlertTriangle, ExternalLink, Package } from 'lucide-react';
 import { useSession } from '@/hooks/useSession';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +40,7 @@ export function MiGalenoApp() {
                                     </div>
                                     <FluentTabTrigger value="license" icon={Shield} label="Licenciamiento" />
                                     <FluentTabTrigger value="users" icon={Users} label="Usuarios del Sistema" />
+                                    <FluentTabTrigger value="components" icon={Package} label="Administrar Componentes" />
 
                                     {/* Settings Section */}
                                     <div className="px-3 py-2 mb-1 mt-5">
@@ -67,6 +69,14 @@ export function MiGalenoApp() {
                                         <p className="text-[13px] text-white/50">Administra los usuarios y permisos del sistema.</p>
                                     </div>
                                     <UserManagementPanel />
+                                </TabsContent>
+
+                                <TabsContent value="components" className="m-0 focus-visible:outline-none">
+                                    <div className="mb-6">
+                                        <h1 className="text-[28px] font-semibold text-white/95 tracking-tight mb-1.5">Componentes Descargables</h1>
+                                        <p className="text-[13px] text-white/50">Descarga e instala módulos especializados para extender las capacidades de Galeno.</p>
+                                    </div>
+                                    <ComponentsManagementPanel />
                                 </TabsContent>
 
                                 <TabsContent value="billing" className="m-0 focus-visible:outline-none">

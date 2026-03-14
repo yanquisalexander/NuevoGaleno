@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Printer, X, Eye, AlertCircle, FileText } from 'lucide-react';
 import { useTemplates } from '@/hooks/useTemplates';
 import { Template, DEFAULT_RECEIPT_TEMPLATE } from '@/types/templates';
 import { Payment } from '@/hooks/usePayments';
 import { toast } from 'sonner';
 import { fluentDarkCompact as F } from '@/consts/fluent-tokens';
+import { createHtmlPdfBlob } from '@/lib/pdf/exportHtmlToPdf';
+import { renderTemplateContent } from '@/lib/templates/renderTemplate';
 
 interface PrintReceiptProps {
     payment: Payment;
@@ -103,6 +105,103 @@ export function PrintReceipt({ payment, patientName, onClose }: PrintReceiptProp
     const [isPreview, setIsPreview] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isPrinting, setIsPrinting] = useState(false);
+    const printContentRef = useRef<HTMLDivElement | null>(null);
+
+    const getSafeTemplateContent = (template: Template) => {
+        const raw = (template.content || '').trim();
+        if (!raw) {
+            return DEFAULT_RECEIPT_TEMPLATE;
+        }
+
+        // Some older/custom templates can be too minimal and end up showing only clinic header.
+        const hasCoreFields = raw.includes('{{patient_name}}') && raw.includes('{{amount}}');
+        return hasCoreFields ? raw : DEFAULT_RECEIPT_TEMPLATE;
+    };
+
+    const openPrintDialog = () => {
+        if (!renderedContent.trim()) {
+            throw new Error('No hay contenido renderizado para imprimir');
+        }
+
+        const printRootId = 'print-receipt-root';
+        const printStyleId = 'print-receipt-styles';
+
+        const existingRoot = document.getElementById(printRootId);
+        if (existingRoot) {
+            existingRoot.remove();
+        }
+
+        const existingStyles = document.getElementById(printStyleId);
+        if (existingStyles) {
+            existingStyles.remove();
+        }
+
+        const printRoot = document.createElement('div');
+        printRoot.id = printRootId;
+        printRoot.style.position = 'fixed';
+        printRoot.style.inset = '0';
+        printRoot.style.background = '#ffffff';
+        printRoot.style.zIndex = '2147483647';
+        printRoot.style.padding = '0';
+        printRoot.style.margin = '0';
+        printRoot.style.display = 'none';
+
+        // Print from an isolated root outside the modal to avoid overflow clipping.
+        printRoot.innerHTML = `
+            <div style="max-width: 800px; margin: 0 auto; padding: 20px; color: #000; background: #fff;">
+                ${renderedContent}
+            </div>
+        `;
+
+        document.body.appendChild(printRoot);
+
+        const printStyles = document.createElement('style');
+        printStyles.id = printStyleId;
+        printStyles.textContent = `
+            @media print {
+                body * {
+                    visibility: hidden !important;
+                }
+
+                #${printRootId},
+                #${printRootId} * {
+                    visibility: visible !important;
+                }
+
+                #${printRootId} {
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                    display: block !important;
+                }
+            }
+        `;
+
+        const cleanupPrintStyles = () => {
+            const styles = document.getElementById(printStyleId);
+            const root = document.getElementById(printRootId);
+            if (styles) {
+                styles.remove();
+            }
+            if (root) {
+                root.remove();
+            }
+            window.removeEventListener('afterprint', cleanupPrintStyles);
+        };
+
+        window.addEventListener('afterprint', cleanupPrintStyles);
+        document.head.appendChild(printStyles);
+
+        // Fallback cleanup in case afterprint is not fired by the webview.
+        setTimeout(cleanupPrintStyles, 3000);
+        window.print();
+    };
 
     useEffect(() => {
         loadTemplates();
@@ -178,66 +277,50 @@ export function PrintReceipt({ payment, patientName, onClose }: PrintReceiptProp
             doctor_name: 'Dr. Nombre',
         };
 
-        // Reemplazar variables en el template
-        let content = template.content;
-        Object.entries(variables).forEach(([key, value]) => {
-            const regex = new RegExp(`{{${key}}}`, 'g');
-            content = content.replace(regex, value);
-        });
-
+        const templateContent = getSafeTemplateContent(template);
+        const content = renderTemplateContent(templateContent, variables);
         setRenderedContent(content);
     };
 
-    const handlePrint = () => {
-        // Crear estilos de impresión temporales
-        const printStyles = document.createElement('style');
-        printStyles.id = 'print-receipt-styles';
-        printStyles.textContent = `
-            @media print {
-                body * {
-                    visibility: hidden;
-                }
-                #print-receipt-content,
-                #print-receipt-content * {
-                    visibility: visible;
-                }
-                #print-receipt-content {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                }
-            }
-        `;
-        document.head.appendChild(printStyles);
+    const handlePrint = async () => {
+        if (!printContentRef.current || !selectedTemplate) {
+            return;
+        }
 
-        // Imprimir
-        window.print();
+        setIsPrinting(true);
 
-        // Limpiar estilos temporales después de imprimir
-        setTimeout(() => {
-            const styles = document.getElementById('print-receipt-styles');
-            if (styles) {
-                styles.remove();
-            }
-        }, 100);
+        try {
+            await createHtmlPdfBlob(printContentRef.current, {
+                fileName: `recibo-${payment.id}`,
+                format: 'a4',
+            });
+
+            openPrintDialog();
+            toast.success('PDF generado. Abriendo diálogo de impresión...');
+        } catch (err) {
+            console.error('Error imprimiendo recibo:', err);
+            toast.error('No se pudo abrir el diálogo de impresión');
+        } finally {
+            setIsPrinting(false);
+        }
     };
 
     return (
         <div style={{
-            position: 'fixed',
-            top: '28px',
-            left: 0,
-            right: 0,
-            bottom: 0,
+            position: 'absolute',
+            inset: 0,
             background: 'rgba(0,0,0,0.8)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999,
-            padding: '8px',
+            zIndex: 60,
+            padding: '12px',
             fontFamily: F.font,
+        }} onClick={(e) => {
+            if (e.target === e.currentTarget) {
+                onClose?.();
+            }
         }}>
             <div style={{
                 background: F.surface,
@@ -246,11 +329,11 @@ export function PrintReceipt({ payment, patientName, onClose }: PrintReceiptProp
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 maxWidth: '800px',
                 width: '100%',
-                maxHeight: 'calc(100vh - 44px)',
+                maxHeight: '100%',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-            }}>
+            }} onClick={(e) => e.stopPropagation()}>
                 {/* ── Toolbar ── */}
                 <div style={{
                     display: 'flex',
@@ -410,6 +493,7 @@ export function PrintReceipt({ payment, patientName, onClose }: PrintReceiptProp
                                 padding: '24px',
                             }}>
                                 <div
+                                    ref={printContentRef}
                                     id="print-receipt-content"
                                     style={{ color: '#000000' }}
                                     dangerouslySetInnerHTML={{ __html: renderedContent }}
@@ -452,11 +536,11 @@ export function PrintReceipt({ payment, patientName, onClose }: PrintReceiptProp
                     <FluentButton
                         variant="primary"
                         onClick={handlePrint}
-                        disabled={!selectedTemplate}
+                        disabled={!selectedTemplate || isPrinting}
                         title="Imprimir recibo (Ctrl+P)"
                     >
                         <Printer style={{ width: '16px', height: '16px' }} />
-                        Imprimir
+                        {isPrinting ? 'Preparando PDF...' : 'Imprimir'}
                     </FluentButton>
                 </div>
             </div>

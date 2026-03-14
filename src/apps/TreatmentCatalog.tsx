@@ -18,6 +18,7 @@ import type { WindowId } from '../types/window-manager';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
+import { fluentDarkCompact as F } from '@/consts/fluent-tokens';
 
 export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
     const [catalog, setCatalog] = useState<TreatmentCatalogEntry[]>([]);
@@ -188,25 +189,42 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-full bg-[#1c1c1c]">
-                <div className="w-8 h-8 border-[3px] border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+            <div className="flex items-center justify-center h-full" style={{ background: F.bg }}>
+                <div
+                    className="w-8 h-8 border-[3px] rounded-full animate-spin"
+                    style={{ borderColor: F.brandBorder, borderTopColor: F.brand }}
+                />
             </div>
         );
     }
 
     return (
-        <div className="h-full flex bg-[#1c1c1c] text-white overflow-hidden">
+        <div
+            className="h-full flex overflow-hidden"
+            style={{
+                background: F.bg,
+                color: F.textPrimary,
+                fontFamily: F.font,
+            }}
+        >
             {/* Sidebar - Lista de Tratamientos */}
-            <div className="w-72 bg-[#202020]/50 backdrop-blur-xl border-r border-white/[0.06] flex flex-col">
+            <div
+                className="w-72 flex flex-col"
+                style={{
+                    background: F.surface,
+                    borderRight: `1px solid ${F.border}`,
+                }}
+            >
                 <div className="p-4 flex items-center justify-between">
-                    <h2 className="text-[13px] font-semibold text-white/70 uppercase tracking-wider px-1">
+                    <h2 className="text-[12px] font-semibold uppercase tracking-wider px-1" style={{ color: F.textSecondary }}>
                         Tratamientos
                     </h2>
                     <button
                         onClick={() => setIsCreatingTreatment(true)}
-                        className="p-1.5 hover:bg-white/10 rounded-md transition-all active:scale-95"
+                        className="p-1.5 rounded-md transition-all active:scale-95"
+                        style={{ border: `1px solid ${F.border}`, background: 'transparent' }}
                     >
-                        <Plus className="w-4 h-4 text-blue-400" />
+                        <Plus className="w-4 h-4" style={{ color: F.brand }} />
                     </button>
                 </div>
 
@@ -218,12 +236,15 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                             className={cn(
                                 'w-full px-3 py-2.5 text-left rounded-md transition-all group relative',
                                 selectedTreatment?.id === treatment.id
-                                    ? 'bg-white/10 shadow-sm'
-                                    : 'hover:bg-white/5'
+                                    ? 'shadow-sm'
+                                    : ''
                             )}
+                            style={{
+                                background: selectedTreatment?.id === treatment.id ? F.hover : 'transparent',
+                            }}
                         >
                             {selectedTreatment?.id === treatment.id && (
-                                <div className="absolute left-0 top-2 bottom-2 w-1 bg-blue-500 rounded-full" />
+                                <div className="absolute left-0 top-2 bottom-2 w-1 rounded-full" style={{ background: F.brand }} />
                             )}
                             <div className="flex items-center justify-between gap-3">
                                 <div className="flex-1 min-w-0">
@@ -232,15 +253,15 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                             className="w-2 h-2 rounded-full shrink-0"
                                             style={{ backgroundColor: treatment.color || '#3b82f6' }}
                                         />
-                                        <p className="font-medium text-[13.5px] truncate text-white/90">
+                                        <p className="font-medium text-[13.5px] truncate" style={{ color: F.textPrimary }}>
                                             {treatment.name}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-[11px] text-white/40 truncate bg-white/5 px-1.5 rounded">
+                                        <span className="text-[11px] truncate px-1.5 rounded" style={{ color: F.textSecondary, background: F.pressed }}>
                                             {treatment.category || 'General'}
                                         </span>
-                                        <span className="text-[11px] text-blue-400/80 font-mono">
+                                        <span className="text-[11px] font-mono" style={{ color: F.brand }}>
                                             ${treatment.default_cost.toFixed(2)}
                                         </span>
                                     </div>
@@ -251,7 +272,8 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                             e.stopPropagation();
                                             setEditingTreatment(treatment);
                                         }}
-                                        className="p-1.5 hover:bg-white/10 rounded-md text-white/60 hover:text-white"
+                                        className="p-1.5 rounded-md transition-colors"
+                                        style={{ color: F.textSecondary }}
                                     >
                                         <Edit className="w-3.5 h-3.5" />
                                     </button>
@@ -263,30 +285,32 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
             </div>
 
             {/* Main Content - Sub-tratamientos */}
-            <div className="flex-1 flex flex-col bg-[#1c1c1c]">
+            <div className="flex-1 flex flex-col" style={{ background: F.bg }}>
                 {selectedTreatment ? (
                     <>
-                        <div className="px-8 py-6 border-b border-white/[0.04] bg-[#202020]/30">
+                        <div className="px-8 py-6" style={{ borderBottom: `1px solid ${F.border}`, background: F.surface }}>
                             <div className="flex items-start justify-between">
                                 <div>
                                     <div className="flex items-center gap-3">
-                                        <h1 className="text-2xl font-semibold tracking-tight">
+                                        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: F.textPrimary }}>
                                             {selectedTreatment.name}
                                         </h1>
                                         <button
                                             onClick={() => handleDeleteTreatment(selectedTreatment.id)}
-                                            className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
+                                            className="p-1.5 rounded-md transition-all"
+                                            style={{ color: F.textDisabled }}
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
-                                    <p className="text-[13px] text-white/50 mt-1 max-w-2xl leading-relaxed">
+                                    <p className="text-[13px] mt-1 max-w-2xl leading-relaxed" style={{ color: F.textSecondary }}>
                                         {selectedTreatment.description || 'Sin descripción disponible para este tratamiento principal.'}
                                     </p>
                                 </div>
                                 <button
                                     onClick={() => setIsCreatingItem(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-lg shadow-blue-600/20 text-[13px] font-medium active:scale-95"
+                                    className="flex items-center gap-2 px-4 py-2 text-white rounded-md transition-all text-[13px] font-medium active:scale-95"
+                                    style={{ background: F.brandBg }}
                                 >
                                     <Plus className="w-4 h-4" />
                                     Nuevo Sub-tratamiento
@@ -301,7 +325,8 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                         key={item.id}
                                         initial={{ opacity: 0, y: 8 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="bg-[#2b2b2b]/40 border border-white/[0.05] rounded-xl p-4 hover:bg-[#2b2b2b]/60 hover:border-white/[0.1] transition-all group"
+                                        className="rounded-xl p-4 transition-all group hover:brightness-110"
+                                        style={{ background: F.surface, border: `1px solid ${F.border}` }}
                                     >
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
@@ -312,7 +337,7 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                                     />
                                                     <h3 className="font-medium text-[15px]">{item.name}</h3>
                                                 </div>
-                                                <p className="text-[13px] text-white/50 mt-2 line-clamp-2 min-h-[40px]">
+                                                <p className="text-[13px] mt-2 line-clamp-2 min-h-[40px]" style={{ color: F.textSecondary }}>
                                                     {item.description || 'Sin descripción.'}
                                                 </p>
                                                 <div className="flex items-center gap-4 mt-4">
@@ -322,7 +347,7 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                                             {item.default_cost.toFixed(2)}
                                                         </span>
                                                     </div>
-                                                    <span className="text-[11px] text-white/30 uppercase tracking-widest font-bold">
+                                                    <span className="text-[11px] uppercase tracking-widest font-bold" style={{ color: F.textDisabled }}>
                                                         ID: {item.id}
                                                     </span>
                                                 </div>
@@ -330,13 +355,15 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                             <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={() => setEditingItem(item)}
-                                                    className="p-2 hover:bg-white/10 rounded-md text-white/60 hover:text-white transition-colors"
+                                                    className="p-2 rounded-md transition-colors"
+                                                    style={{ color: F.textSecondary }}
                                                 >
                                                     <Edit className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteItem(item.id)}
-                                                    className="p-2 hover:bg-red-500/10 rounded-md text-white/30 hover:text-red-400 transition-colors"
+                                                    className="p-2 rounded-md transition-colors"
+                                                    style={{ color: F.textDisabled }}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -346,7 +373,7 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                 ))}
 
                                 {items.length === 0 && (
-                                    <div className="col-span-full py-20 flex flex-col items-center justify-center text-white/20 border-2 border-dashed border-white/[0.03] rounded-2xl">
+                                    <div className="col-span-full py-20 flex flex-col items-center justify-center border-2 border-dashed rounded-2xl" style={{ color: F.textDisabled, borderColor: F.border }}>
                                         <List className="w-12 h-12 mb-4" />
                                         <p className="text-lg font-medium">No hay sub-tratamientos</p>
                                         <p className="text-sm">Agregue configuraciones específicas para este catálogo</p>
@@ -356,13 +383,19 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center text-white/20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/[0.02] to-transparent">
+                    <div
+                        className="flex-1 flex items-center justify-center"
+                        style={{
+                            color: F.textDisabled,
+                            background: 'radial-gradient(circle at center, rgba(255,255,255,0.03) 0%, rgba(20,20,20,0) 65%)',
+                        }}
+                    >
                         <div className="text-center">
-                            <div className="w-20 h-20 bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-6 border border-white/[0.05]">
+                            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: F.surface, border: `1px solid ${F.border}` }}>
                                 <FolderOpen className="w-10 h-10 opacity-40" />
                             </div>
-                            <p className="text-xl font-medium text-white/40">Seleccione un tratamiento</p>
-                            <p className="text-sm mt-2">Elija una categoría del panel izquierdo para comenzar</p>
+                            <p className="text-xl font-medium" style={{ color: F.textSecondary }}>Seleccione un tratamiento</p>
+                            <p className="text-sm mt-2" style={{ color: F.textDisabled }}>Elija una categoría del panel izquierdo para comenzar</p>
                         </div>
                     </div>
                 )}
@@ -429,7 +462,7 @@ function TreatmentFormDialog({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+            className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
             onClick={onClose}
         >
             <motion.div
@@ -437,7 +470,14 @@ function TreatmentFormDialog({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-[#2c2c2c] border border-white/[0.1] rounded-2xl p-8 max-w-md w-full shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]"
+                className="rounded-2xl p-8 max-w-md w-full"
+                style={{
+                    background: F.surface,
+                    border: `1px solid ${F.border}`,
+                    boxShadow: '0 16px 38px rgba(0,0,0,0.42)',
+                    maxHeight: '100%',
+                    overflowY: 'auto',
+                }}
             >
                 <div className="flex items-center justify-between mb-8">
                     <h2 className="text-xl font-semibold">
@@ -614,7 +654,7 @@ function ItemFormDialog({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+            className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
             onClick={onClose}
         >
             <motion.div
@@ -622,7 +662,14 @@ function ItemFormDialog({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-[#2c2c2c] border border-white/[0.1] rounded-2xl p-8 max-w-md w-full shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]"
+                className="rounded-2xl p-8 max-w-md w-full"
+                style={{
+                    background: F.surface,
+                    border: `1px solid ${F.border}`,
+                    boxShadow: '0 16px 38px rgba(0,0,0,0.42)',
+                    maxHeight: '100%',
+                    overflowY: 'auto',
+                }}
             >
                 <div className="flex items-center justify-between mb-8">
                     <h2 className="text-xl font-semibold">

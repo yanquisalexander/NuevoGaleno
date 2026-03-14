@@ -59,7 +59,7 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                className="absolute inset-0 z-[60] flex items-center justify-center p-4"
                 style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
                 onClick={onCancel}
             >
@@ -68,7 +68,7 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full max-w-2xl bg-[#1e1e1e] rounded-xl shadow-2xl border border-white/10 overflow-hidden"
+                    className="w-full max-w-2xl bg-[#1e1e1e] rounded-xl shadow-2xl border border-white/10 overflow-hidden max-h-full flex flex-col"
                     style={{
                         backgroundImage: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent)',
                     }}
@@ -87,7 +87,7 @@ export function TreatmentForm({ treatment, patientId, onSave, onCancel }: Treatm
                     </div>
 
                     {/* Form */}
-                    <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                    <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
                         {error && (
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}

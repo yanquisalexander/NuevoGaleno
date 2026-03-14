@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect, ReactNode } from 'react';
-import { X, Square, Copy, Minus, Maximize2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { useWindowManager } from '../../contexts/WindowManagerContext';
 import { useConfig } from '../../hooks/useConfig';
 import { useSession } from '@/hooks/useSession';
@@ -115,11 +114,17 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
 
     const windowState = windows.find(w => w.id === windowId);
     const windowRef = useRef<HTMLDivElement>(null);
+    const frameRef = useRef<number | null>(null);
+    const latestMouseRef = useRef<{ x: number; y: number } | null>(null);
+    const livePositionRef = useRef<{ x: number; y: number } | null>(null);
+    const liveSizeRef = useRef<{ width: number; height: number } | null>(null);
 
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+    const [livePosition, setLivePosition] = useState<{ x: number; y: number } | null>(null);
+    const [liveSize, setLiveSize] = useState<{ width: number; height: number } | null>(null);
     const [macButtonsHovered, setMacButtonsHovered] = useState(false);
 
     if (!windowState) return null;
@@ -130,6 +135,8 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
         if (windowState.isMaximized || (e.target as HTMLElement).closest('.window-controls')) return;
         e.preventDefault();
         setIsDragging(true);
+        setLivePosition(windowState.position);
+        livePositionRef.current = windowState.position;
         setDragOffset({
             x: e.clientX - windowState.position.x,
             y: e.clientY - windowState.position.y,
@@ -139,6 +146,8 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
     const handleResizeStart = (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsResizing(true);
+        setLiveSize(windowState.size);
+        liveSizeRef.current = windowState.size;
         setResizeStart({
             x: e.clientX,
             y: e.clientY,
@@ -151,22 +160,54 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
         if (!isDragging && !isResizing) return;
 
         const handleMouseMove = (e: MouseEvent) => {
-            if (isDragging) {
-                updatePosition(windowId, {
-                    x: e.clientX - dragOffset.x,
-                    y: e.clientY - dragOffset.y,
-                });
-            } else if (isResizing) {
-                updateSize(windowId, {
-                    width: Math.max(320, resizeStart.width + (e.clientX - resizeStart.x)),
-                    height: Math.max(240, resizeStart.height + (e.clientY - resizeStart.y)),
-                });
+            latestMouseRef.current = { x: e.clientX, y: e.clientY };
+            if (frameRef.current !== null) {
+                return;
             }
+
+            // Throttle updates to one state write per animation frame.
+            frameRef.current = requestAnimationFrame(() => {
+                frameRef.current = null;
+                const latest = latestMouseRef.current;
+                if (!latest) return;
+
+                if (isDragging) {
+                    const nextPosition = {
+                        x: latest.x - dragOffset.x,
+                        y: latest.y - dragOffset.y,
+                    };
+                    livePositionRef.current = nextPosition;
+                    setLivePosition(nextPosition);
+                } else if (isResizing) {
+                    const nextSize = {
+                        width: Math.max(320, resizeStart.width + (latest.x - resizeStart.x)),
+                        height: Math.max(240, resizeStart.height + (latest.y - resizeStart.y)),
+                    };
+                    liveSizeRef.current = nextSize;
+                    setLiveSize(nextSize);
+                }
+            });
         };
 
         const handleMouseUp = () => {
+            if (isDragging && livePositionRef.current) {
+                updatePosition(windowId, livePositionRef.current);
+            }
+            if (isResizing && liveSizeRef.current) {
+                updateSize(windowId, liveSizeRef.current);
+            }
+
             setIsDragging(false);
             setIsResizing(false);
+            setLivePosition(null);
+            setLiveSize(null);
+            livePositionRef.current = null;
+            liveSizeRef.current = null;
+            latestMouseRef.current = null;
+            if (frameRef.current !== null) {
+                cancelAnimationFrame(frameRef.current);
+                frameRef.current = null;
+            }
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -174,21 +215,37 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+            if (frameRef.current !== null) {
+                cancelAnimationFrame(frameRef.current);
+                frameRef.current = null;
+            }
         };
-    }, [isDragging, isResizing, dragOffset, resizeStart, windowId, updatePosition, updateSize]);
+    }, [
+        isDragging,
+        isResizing,
+        dragOffset,
+        resizeStart,
+        windowId,
+        updatePosition,
+        updateSize,
+    ]);
+
+    const effectivePosition = livePosition ?? windowState.position;
+    const effectiveSize = liveSize ?? windowState.size;
 
     const positionStyle = windowState.isMaximized
         ? { top: 0, left: 0, width: '100%', height: '100%' }
         : {
-            top: windowState.position.y,
-            left: windowState.position.x,
-            width: windowState.size.width,
-            height: windowState.size.height,
+            top: effectivePosition.y,
+            left: effectivePosition.x,
+            width: effectiveSize.width,
+            height: effectiveSize.height,
         };
 
     // ─── macOS window ──────────────────────────────────────────────────────────
     if (isMac) {
         const focused = windowState.isFocused;
+        const fastTransition = isDragging || isResizing;
         return (
             <motion.div
                 ref={windowRef}
@@ -201,7 +258,9 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
                             scale: 1,
                             y: 0,
                             ...positionStyle,
-                            transition: { type: 'spring', damping: 30, stiffness: 400, mass: 0.8 },
+                            transition: fastTransition
+                                ? { duration: 0 }
+                                : { type: 'spring', damping: 30, stiffness: 400, mass: 0.8 },
                         }
                 }
                 onMouseDown={handleMouseDown}
@@ -310,6 +369,7 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
                         background: 'rgba(28,28,28,0.96)',
                         backdropFilter: 'blur(20px)',
                         WebkitBackdropFilter: 'blur(20px)',
+                        position: 'relative',
                     }}
                 >
                     {children}
@@ -333,6 +393,7 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
 
     // ─── Windows Fluent UI v9 window ───────────────────────────────────────────
     const focused = windowState.isFocused;
+    const fastTransition = isDragging || isResizing;
     return (
         <motion.div
             ref={windowRef}
@@ -350,7 +411,9 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
                         scale: 1,
                         y: 0,
                         ...positionStyle,
-                        transition: { type: 'spring', damping: 35, stiffness: 500, mass: 0.6 },
+                        transition: fastTransition
+                            ? { duration: 0 }
+                            : { type: 'spring', damping: 35, stiffness: 500, mass: 0.6 },
                     }
             }
             onMouseDown={handleMouseDown}
@@ -473,6 +536,7 @@ export function Window({ windowId, title, icon, children, onClose }: WindowProps
                 className="flex-1 overflow-auto"
                 style={{
                     background: 'rgba(20,20,20,0.6)',
+                    position: 'relative',
                 }}
             >
                 {children}

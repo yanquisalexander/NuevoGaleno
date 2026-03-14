@@ -97,14 +97,40 @@ function windowReducer(state: WindowState[], action: WindowAction, apps: Map<str
         }
 
         case 'UPDATE_POSITION':
-            return state.map(w =>
-                w.id === action.windowId ? { ...w, position: action.position } : w
-            );
+            {
+                const index = state.findIndex(w => w.id === action.windowId);
+                if (index === -1) return state;
+
+                const current = state[index];
+                if (
+                    current.position.x === action.position.x
+                    && current.position.y === action.position.y
+                ) {
+                    return state;
+                }
+
+                const next = [...state];
+                next[index] = { ...current, position: action.position };
+                return next;
+            }
 
         case 'UPDATE_SIZE':
-            return state.map(w =>
-                w.id === action.windowId ? { ...w, size: action.size } : w
-            );
+            {
+                const index = state.findIndex(w => w.id === action.windowId);
+                if (index === -1) return state;
+
+                const current = state[index];
+                if (
+                    current.size.width === action.size.width
+                    && current.size.height === action.size.height
+                ) {
+                    return state;
+                }
+
+                const next = [...state];
+                next[index] = { ...current, size: action.size };
+                return next;
+            }
 
         case 'UPDATE_TITLE':
             return state.map(w =>

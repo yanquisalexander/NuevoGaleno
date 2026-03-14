@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useState, useRef } from 'react';
 import {
     Monitor, HardDrive, User, Shield, Sliders,
-    Search, ChevronRight, FileText,
+    Search, ChevronRight,
     Wifi, Bluetooth, LayoutGrid, Battery,
     Volume2, Bell, MousePointer2,
     Globe, Accessibility, RefreshCcw,
-    Image as ImageIcon, Package, ChevronLeft
+    Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useWindowManager } from '@/contexts/WindowManagerContext';
@@ -306,6 +306,7 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
     }, [schema, setConfigValue, updatePreferences]);
 
     const handleSectionChange = useCallback((id: string) => {
+        setShowTemplates(false);
         setActiveSectionId(id);
         contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, []);
@@ -401,26 +402,6 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
         );
     }
 
-    if (showTemplates) {
-        return (
-            <div style={{ height: '100%', position: 'relative' }}>
-                <button
-                    onClick={() => setShowTemplates(false)}
-                    style={{
-                        position: 'absolute', top: '16px', left: '16px', zIndex: 10,
-                        display: 'flex', alignItems: 'center', gap: '4px',
-                        background: 'none', border: 'none', color: '#2997FF',
-                        fontFamily: "-apple-system, 'SF Pro Text', sans-serif",
-                        fontSize: '14px', cursor: 'pointer',
-                    }}
-                >
-                    <ChevronLeft size={16} /> Volver
-                </button>
-                <TemplateManager onBack={() => setShowTemplates(false)} />
-            </div>
-        );
-    }
-
     return (
         <div style={{
             display: 'flex',
@@ -488,17 +469,14 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
                         fontSize: '14px', fontWeight: 600, color: '#fff', flexShrink: 0,
                         overflow: 'hidden',
                     }}>
-                        {currentUser?.avatar_url
-                            ? <img src={currentUser.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                            : currentUser?.name?.charAt(0)
-                        }
+                        {currentUser?.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div style={{ overflow: 'hidden' }}>
                         <div style={{ fontSize: '13px', fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {currentUser?.name}
                         </div>
                         <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {currentUser?.email || currentUser?.username}
+                            {currentUser?.username}
                         </div>
                     </div>
                 </div>
@@ -512,7 +490,7 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
                         <SidebarItem
                             key={section.id}
                             section={section}
-                            isActive={activeSectionId === section.id}
+                            isActive={!showTemplates && activeSectionId === section.id}
                             onClick={() => handleSectionChange(section.id)}
                         />
                     ))}
@@ -528,13 +506,16 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
                         )}
                         <SidebarItem
                             section={{ id: 'actualizaciones', section: 'Actualizaciones' }}
-                            isActive={activeSectionId === 'actualizaciones'}
+                            isActive={!showTemplates && activeSectionId === 'actualizaciones'}
                             onClick={() => handleSectionChange('actualizaciones')}
                         />
                         <SidebarItem
                             section={{ id: 'plantillas', section: 'Plantillas' }}
-                            isActive={false}
-                            onClick={() => setShowTemplates(true)}
+                            isActive={showTemplates}
+                            onClick={() => {
+                                setShowTemplates(true);
+                                contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
                         />
                     </div>
                 </div>
@@ -548,7 +529,11 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
                 scrollbarColor: 'rgba(255,255,255,0.12) transparent',
             }}>
 
-                {showUpdates ? (
+                {showTemplates ? (
+                    <div style={{ maxWidth: '980px', margin: '0 auto', padding: '32px 24px 48px' }}>
+                        <TemplateManager onBack={() => setShowTemplates(false)} />
+                    </div>
+                ) : showUpdates ? (
                     <GalenoUpdateApp />
                 ) : (
                     <div style={{ maxWidth: '680px', margin: '0 auto', padding: '32px 24px 48px' }}>
