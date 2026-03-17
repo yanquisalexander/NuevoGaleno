@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect } from 'react';
+import { createContext, useContext, useReducer, ReactNode, useCallback, useEffect, useRef } from 'react';
 import type { WindowState, WindowAction, WindowId, AppDefinition } from '../types/window-manager';
 import type { InstalledPluginRust } from '../types/plugin';
 import { RuntimeApp } from "@/lib/AppRuntimeManager";
@@ -166,6 +166,17 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         return windowReducer(state, action, apps);
     }, []);
 
+    const appsRef = useRef(apps);
+    const windowsRef = useRef(windows);
+
+    useEffect(() => {
+        appsRef.current = apps;
+    }, [apps]);
+
+    useEffect(() => {
+        windowsRef.current = windows;
+    }, [windows]);
+
     // Escuchar eventos de logout para cerrar todas las ventanas
     useEffect(() => {
         const handleLogout = () => {
@@ -237,26 +248,30 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
     const unregisterApp = useCallback((appId: string) => {
         console.log('Unregistering app:', appId);
         appsDispatch({ type: 'UNREGISTER', appId });
+
         // Close any open windows for this app
-        windows.filter(w => w.appId === appId).forEach(w => closeWindow(w.id));
-    }, [windows, closeWindow]);
+        windowsRef.current
+            .filter(w => w.appId === appId)
+            .forEach(w => dispatch({ type: 'CLOSE_WINDOW', windowId: w.id }));
+    }, []);
 
     // Register plugin apps dynamically
     useEffect(() => {
         let isSubscribed = true;
 
-        const loadPluginApps = async () => {
+        const syncPluginApps = async () => {
             if (!isSubscribed) return;
 
             try {
-                console.log('Loading plugin apps...');
+                console.log('Syncing plugin apps...');
                 const installedPlugins = await invoke<InstalledPluginRust[]>('get_installed_plugins');
-                console.log('Installed plugins:', installedPlugins);
 
                 // Dynamically import PluginWindowWrapper
                 const { PluginWindowWrapper } = await import('../components/PluginWindowWrapper');
 
                 if (!isSubscribed) return;
+
+                const nextPluginApps = new Map<string, AppDefinition>();
 
                 installedPlugins.forEach(plugin => {
                     if (plugin.enabled && plugin.manifest.menu_items) {
@@ -272,30 +287,34 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
                                 allowMultipleInstances: plugin.manifest.allow_multiple_instances ?? false,
                                 defaultSize: plugin.manifest.default_size,
                             };
-                            console.log('Registering plugin app:', appDef.id, appDef.name);
-                            registerApp(appDef);
+
+                            nextPluginApps.set(appDef.id, appDef);
                         });
                     }
+                });
+
+                const existingPluginAppIds = Array.from(appsRef.current.keys()).filter((appId) => appId.startsWith('plugin.'));
+
+                existingPluginAppIds.forEach((appId) => {
+                    if (!nextPluginApps.has(appId)) {
+                        unregisterApp(appId);
+                    }
+                });
+
+                nextPluginApps.forEach((appDef) => {
+                    registerApp(appDef);
                 });
             } catch (error) {
                 console.error('Failed to load plugin apps:', error);
             }
         };
 
-        loadPluginApps();
+        void syncPluginApps();
 
         // Listen for plugin changes
         const handlePluginChange = () => {
-            console.log('Plugin change detected, reloading...');
-            // Clear existing plugin apps
-            const currentApps = Array.from(apps.keys());
-            currentApps.forEach(appId => {
-                if (appId.startsWith('plugin.')) {
-                    unregisterApp(appId);
-                }
-            });
-            // Reload plugins
-            loadPluginApps();
+            console.log('Plugin change detected, syncing desktop apps...');
+            void syncPluginApps();
         };
 
         window.addEventListener('plugin:changed', handlePluginChange);
@@ -304,7 +323,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
             isSubscribed = false;
             window.removeEventListener('plugin:changed', handlePluginChange);
         };
-    }, []); // Empty dependencies - only run once on mount
+    }, [registerApp, unregisterApp]);
 
     const killApp = useCallback((appId: string) => {
         runtimeManager.kill(appId);

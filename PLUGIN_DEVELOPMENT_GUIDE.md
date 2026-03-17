@@ -101,7 +101,20 @@ mi-plugin/
 ### Incluir el SDK
 
 ```html
-<script src="../galeno-plugin-sdk.js"></script>
+<script>
+  const sdkOrigin = document.referrer
+    ? new URL(document.referrer).origin
+    : 'http://localhost:1420';
+  const sdk = document.createElement('script');
+  sdk.src = `${sdkOrigin}/galeno-plugin-sdk.js`;
+  sdk.dataset.galenoSdk = '1';
+  document.head.appendChild(sdk);
+</script>
+
+```javascript
+// Luego, en tu codigo:
+const GalenoAPI = await window.loadGalenoSDK();
+```
 ```
 
 ### Pacientes
@@ -222,11 +235,20 @@ await GalenoAPI.showNotification({
   <button onclick="loadPatients()">Cargar Pacientes</button>
   <div id="result"></div>
 
-  <script src="../galeno-plugin-sdk.js"></script>
+  <script>
+    const sdkOrigin = document.referrer
+      ? new URL(document.referrer).origin
+      : 'http://localhost:1420';
+    const sdk = document.createElement('script');
+    sdk.src = `${sdkOrigin}/galeno-plugin-sdk.js`;
+    sdk.dataset.galenoSdk = '1';
+    document.head.appendChild(sdk);
+  </script>
   <script>
     async function loadPatients() {
       try {
-        const patients = await GalenoAPI.getPatients({ limit: 10 });
+        const api = await window.loadGalenoSDK();
+        const patients = await api.getPatients({ limit: 10 });
         document.getElementById('result').innerHTML = 
           `<pre>${JSON.stringify(patients, null, 2)}</pre>`;
       } catch (error) {

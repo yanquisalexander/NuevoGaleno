@@ -34,6 +34,9 @@
   },
   "bundle": {
     "active": true,
+    "resources": [
+      "resources/plugin_store_catalog.json"
+    ],
     "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [

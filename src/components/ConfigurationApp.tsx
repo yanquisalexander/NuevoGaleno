@@ -15,6 +15,7 @@ import { useWallpaperContext } from '@/contexts/WallpaperContext';
 import { ConfigDefinition } from '@/types/config';
 import { TemplateManager } from '@/components/templates';
 import { GalenoUpdateApp } from '@/apps/GalenoUpdate';
+import { IntegrationsPanel } from '@/components/integrations/IntegrationsPanel';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,8 @@ const SECTION_ICONS: Record<string, React.ElementType> = {
     accessibility: Accessibility,
     security: Shield,
     updates: RefreshCcw,
+    integraciones: Globe,
+    integrations: Globe,
 };
 
 const FIELD_ICONS: Record<string, React.ElementType> = {
@@ -284,6 +287,7 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
 
     const isPersonalization = activeSectionId.includes('personalización') || activeSectionId.includes('apariencia') || activeSectionId === 'customization';
     const showUpdates = activeSectionId === 'actualizaciones';
+    const showIntegrations = activeSectionId === 'integraciones';
 
     // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -517,6 +521,13 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
                                 contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                         />
+                        {isAdmin && (
+                            <SidebarItem
+                                section={{ id: 'integraciones', section: 'Integraciones' }}
+                                isActive={!showTemplates && activeSectionId === 'integraciones'}
+                                onClick={() => handleSectionChange('integraciones')}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -532,6 +543,10 @@ export function ConfigurationApp({ data }: { data?: { section?: string }; window
                 {showTemplates ? (
                     <div style={{ maxWidth: '980px', margin: '0 auto', padding: '32px 24px 48px' }}>
                         <TemplateManager onBack={() => setShowTemplates(false)} />
+                    </div>
+                ) : showIntegrations ? (
+                    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px 48px' }}>
+                        <IntegrationsPanel />
                     </div>
                 ) : showUpdates ? (
                     <GalenoUpdateApp />

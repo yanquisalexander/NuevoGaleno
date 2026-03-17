@@ -22,9 +22,8 @@ import { NodeConfigApp } from './NodeConfig';
 import { ManualGalenoApp } from './ManualGaleno';
 import { DevToolsApp } from './DevTools';
 import { PluginStore } from './PluginStore';
-import { FileManagerApp } from './FileManager';
 import { DatabaseExplorerApp } from './DatabaseExplorer';
-import { PeopleListColor, SettingsColor, CalendarColor, DocumentFolderColor, FolderRegular, FolderOpenFilled, NumberSymbolSquareColor, SavingsColor, PersonStarburstColor, BookOpenColor, WrenchColor, AppsColor } from '@fluentui/react-icons';
+import { PeopleListColor, CalendarColor, DocumentFolderColor, NumberSymbolSquareColor, SavingsColor, PersonStarburstColor, BookOpenColor, WrenchColor, AppsColor } from '@fluentui/react-icons';
 
 export { DashboardApp } from './Dashboard';
 export { PatientsApp } from './Patients';
@@ -247,12 +246,13 @@ export const APP_DEFINITIONS = [
         defaultSize: { width: 1000, height: 700 },
         component: FileManagerApp,
     }, */
-    /*  {
-         id: 'plugin-store',
-         name: 'Tienda de Plugins',
-         icon: '🔌',
-         allowMultipleInstances: false,
-         defaultSize: { width: 1000, height: 700 },
-         component: PluginStore,
-     }, */
+    {
+        id: 'plugin-store',
+        name: 'Tienda de Plugins',
+        icon: '🔌',
+        allowMultipleInstances: false,
+        showOnDesktop: import.meta.env.DEV, // Solo mostrar en desarrollo
+        defaultSize: { width: 960, height: 600 },
+        component: PluginStore,
+    },
 ];

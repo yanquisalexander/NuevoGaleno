@@ -2,11 +2,20 @@ export interface PluginManifest {
     id: string;
     name: string;
     version: string;
+    apiVersion?: string;
+    targetVersion?: string;
     author: string;
     description: string;
     icon: string;
     entry: string;
     permissions: PluginPermission[];
+    category?: string;
+    developer?: {
+        id?: string;
+        name: string;
+        verified?: boolean;
+    };
+    signature?: string;
     hooks?: Record<string, string>;
     menuItems?: PluginMenuItem[];
     defaultSize?: {
@@ -30,6 +39,8 @@ export type PluginPermission =
     | 'payments:read'
     | 'payments:write'
     | 'api:network'
+    | 'storage:read'
+    | 'storage:write'
     | 'storage:local'
     | 'ui:notifications'
     | 'system:commands';
@@ -140,6 +151,10 @@ export interface InstalledPlugin {
     installed_at?: string; // Rust snake_case
     updatedAt?: string;
     updated_at?: string; // Rust snake_case
+    requestedPermissions?: string[];
+    requested_permissions?: string[];
+    grantedPermissions?: string[];
+    granted_permissions?: string[];
     path: string;
 }
 
@@ -149,6 +164,8 @@ export interface InstalledPluginRust {
     enabled: boolean;
     installed_at: string;
     updated_at?: string;
+    requested_permissions?: string[];
+    granted_permissions?: string[];
     path: string;
 }
 
@@ -156,19 +173,37 @@ export interface PluginManifestRust {
     id: string;
     name: string;
     version: string;
+    api_version?: string;
+    apiVersion?: string;
+    target_version?: string;
+    targetVersion?: string;
     author: string;
     description: string;
     icon: string;
     entry: string;
     permissions: string[];
+    category?: string;
+    developer?: {
+        id?: string;
+        name: string;
+        verified?: boolean;
+    };
+    signature?: string;
     hooks?: Record<string, string>;
     menu_items?: PluginMenuItemRust[];
+    menuItems?: PluginMenuItemRust[];
     default_size?: {
         width: number;
         height: number;
     };
+    defaultSize?: {
+        width: number;
+        height: number;
+    };
     allow_multiple_instances?: boolean;
+    allowMultipleInstances?: boolean;
     min_version?: string;
+    minVersion?: string;
     repository?: string;
     homepage?: string;
     license?: string;

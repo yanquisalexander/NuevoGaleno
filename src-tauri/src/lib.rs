@@ -7,6 +7,7 @@ mod filesystem;
 mod global;
 mod import_pipeline;
 mod importer;
+mod integrations;
 mod licensing;
 mod node;
 mod plugins;
@@ -56,6 +57,69 @@ fn intellisense_delete_workflow(id: i64, user_id: String) -> Result<(), String> 
     db::intellisense::delete_workflow(id, &user_id)
 }
 
+// ===== INTEGRATIONS COMMANDS =====
+#[tauri::command]
+fn integration_create_flow(
+    input: db::integrations::CreateIntegrationFlowInput,
+) -> Result<i64, String> {
+    db::integrations::create_flow(input)
+}
+
+#[tauri::command]
+fn integration_update_flow(
+    id: i64,
+    input: db::integrations::CreateIntegrationFlowInput,
+) -> Result<(), String> {
+    db::integrations::update_flow(id, input)
+}
+
+#[tauri::command]
+fn integration_delete_flow(id: i64) -> Result<(), String> {
+    db::integrations::delete_flow(id)
+}
+
+#[tauri::command]
+fn integration_list_flows() -> Result<Vec<db::integrations::IntegrationFlow>, String> {
+    db::integrations::list_flows()
+}
+
+#[tauri::command]
+fn integration_create_procedure(
+    input: db::integrations::CreateIntegrationProcedureInput,
+) -> Result<i64, String> {
+    db::integrations::create_procedure(input)
+}
+
+#[tauri::command]
+fn integration_update_procedure(
+    id: i64,
+    input: db::integrations::CreateIntegrationProcedureInput,
+) -> Result<(), String> {
+    db::integrations::update_procedure(id, input)
+}
+
+#[tauri::command]
+fn integration_delete_procedure(id: i64) -> Result<(), String> {
+    db::integrations::delete_procedure(id)
+}
+
+#[tauri::command]
+fn integration_list_procedures() -> Result<Vec<db::integrations::IntegrationProcedure>, String> {
+    db::integrations::list_procedures()
+}
+
+#[tauri::command]
+fn integration_list_runs(
+    limit: Option<i64>,
+) -> Result<Vec<db::integrations::IntegrationRun>, String> {
+    db::integrations::list_runs(limit.unwrap_or(100))
+}
+
+#[tauri::command]
+fn integration_trigger_event(input: integrations::TriggerEventInput) -> Result<i64, String> {
+    integrations::trigger_event(input)
+}
+
 // Simple greeting for sanity checks
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -91,43 +155,70 @@ fn get_patients(
     offset: Option<i64>,
 ) -> Result<Vec<db::patients::Patient>, String> {
     let service = services::patients::PatientService::new();
-    service.get_all(limit, offset).map_err(|e| e.into())
+    service
+        .get_all(limit, offset)
+        .map_err(|e: services::ServiceError| e.to_string())
 }
 
 #[tauri::command]
 fn get_patient_by_id(id: i64) -> Result<Option<db::patients::Patient>, String> {
     let service = services::patients::PatientService::new();
-    service.get_by_id(id).map_err(|e| e.into())
+    service
+        .get_by_id(id)
+        .map_err(|e: services::ServiceError| e.to_string())
 }
 
 #[tauri::command]
 fn create_patient(input: db::patients::CreatePatientInput) -> Result<i64, String> {
     let service = services::patients::PatientService::new();
-    service.create(input).map_err(|e| e.into())
+    let payload = serde_json::to_value(&input).unwrap_or_else(|_| serde_json::json!({}));
+    let id = service
+        .create(input)
+        .map_err(|e: services::ServiceError| e.to_string())?;
+
+    std::thread::spawn(move || {
+        let _ = integrations::trigger_event(integrations::TriggerEventInput {
+            event_type: "patient:create".to_string(),
+            payload: serde_json::json!({
+                "patientId": id,
+                "input": payload
+            }),
+        });
+    });
+
+    Ok(id)
 }
 
 #[tauri::command]
 fn update_patient(id: i64, input: db::patients::UpdatePatientInput) -> Result<(), String> {
     let service = services::patients::PatientService::new();
-    service.update(id, input).map_err(|e| e.into())
+    service
+        .update(id, input)
+        .map_err(|e: services::ServiceError| e.to_string())
 }
 
 #[tauri::command]
 fn delete_patient(id: i64) -> Result<(), String> {
     let service = services::patients::PatientService::new();
-    service.delete(id).map_err(|e| e.into())
+    service
+        .delete(id)
+        .map_err(|e: services::ServiceError| e.to_string())
 }
 
 #[tauri::command]
 fn search_patients(query: String) -> Result<Vec<db::patients::Patient>, String> {
     let service = services::patients::PatientService::new();
-    service.search(&query).map_err(|e| e.into())
+    service
+        .search(&query)
+        .map_err(|e: services::ServiceError| e.to_string())
 }
 
 #[tauri::command]
 fn get_patients_count() -> Result<i64, String> {
     let service = services::patients::PatientService::new();
-    service.get_count().map_err(|e| e.into())
+    service
+        .get_count()
+        .map_err(|e: services::ServiceError| e.to_string())
 }
 
 // ===== TREATMENTS COMMANDS =====
@@ -542,7 +633,21 @@ fn delete_treatment_catalog_item(id: i64) -> Result<(), String> {
 #[tauri::command]
 fn create_appointment(appointment: db::appointments::Appointment) -> Result<i64, String> {
     let conn = db::get_connection()?;
-    db::appointments::create_appointment(&conn, &appointment)
+    let appointment_payload =
+        serde_json::to_value(&appointment).unwrap_or_else(|_| serde_json::json!({}));
+    let id = db::appointments::create_appointment(&conn, &appointment)?;
+
+    std::thread::spawn(move || {
+        let _ = integrations::trigger_event(integrations::TriggerEventInput {
+            event_type: "appointment:create".to_string(),
+            payload: serde_json::json!({
+                "appointmentId": id,
+                "appointment": appointment_payload
+            }),
+        });
+    });
+
+    Ok(id)
 }
 
 #[tauri::command]
@@ -846,6 +951,32 @@ fn load_plugin_manifest(plugin_path: String) -> Result<plugins::PluginManifest, 
 }
 
 #[tauri::command]
+fn get_plugin_manifest(plugin_id: String) -> Result<plugins::PluginManifest, String> {
+    plugins::get_plugin_manifest(&plugin_id)
+}
+
+#[tauri::command]
+fn get_plugin_asset_url(plugin_id: String, file_path: String) -> Result<String, String> {
+    plugins::get_plugin_asset_url(&plugin_id, &file_path)
+}
+
+#[tauri::command]
+fn request_plugin_permissions(
+    plugin_id: String,
+    permissions: Vec<String>,
+) -> Result<Vec<String>, String> {
+    plugins::request_plugin_permissions(&plugin_id, permissions)
+}
+
+#[tauri::command]
+fn set_plugin_permissions(
+    plugin_id: String,
+    permissions: Vec<String>,
+) -> Result<Vec<String>, String> {
+    plugins::set_plugin_permissions(&plugin_id, permissions)
+}
+
+#[tauri::command]
 fn install_plugin(plugin_path: String, manifest: plugins::PluginManifest) -> Result<(), String> {
     plugins::install_plugin(&plugin_path, &manifest)
 }
@@ -904,8 +1035,11 @@ fn get_store_plugins() -> Result<Vec<plugins::StorePlugin>, String> {
 }
 
 #[tauri::command]
-fn install_plugin_from_store(plugin_id: String) -> Result<(), String> {
-    plugins::install_plugin_from_store(&plugin_id)?;
+fn install_plugin_from_store(
+    plugin_id: String,
+    granted_permissions: Option<Vec<String>>,
+) -> Result<(), String> {
+    plugins::install_plugin_from_store(&plugin_id, granted_permissions)?;
 
     // Save metadata to database
     let conn = db::get_connection()?;
@@ -968,7 +1102,9 @@ fn db_explorer_list_tables() -> Result<Vec<db::db_explorer::Table>, String> {
 }
 
 #[tauri::command]
-fn db_explorer_get_table_schema(table_name: String) -> Result<db::db_explorer::TableSchema, String> {
+fn db_explorer_get_table_schema(
+    table_name: String,
+) -> Result<db::db_explorer::TableSchema, String> {
     db::db_explorer::get_table_schema(&table_name)
 }
 
@@ -1086,6 +1222,16 @@ pub fn run() {
             intellisense_create_workflow,
             intellisense_get_workflows,
             intellisense_delete_workflow,
+            integration_create_flow,
+            integration_update_flow,
+            integration_delete_flow,
+            integration_list_flows,
+            integration_create_procedure,
+            integration_update_procedure,
+            integration_delete_procedure,
+            integration_list_procedures,
+            integration_list_runs,
+            integration_trigger_event,
             // importer
             importer::select_gln,
             importer::extract_gln,
@@ -1247,6 +1393,10 @@ pub fn run() {
             // plugins
             get_installed_plugins,
             load_plugin_manifest,
+            get_plugin_manifest,
+            get_plugin_asset_url,
+            request_plugin_permissions,
+            set_plugin_permissions,
             install_plugin,
             uninstall_plugin,
             enable_plugin,

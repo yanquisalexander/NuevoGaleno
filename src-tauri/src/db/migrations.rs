@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 13;
+const CURRENT_SCHEMA_VERSION: i32 = 15;
 
 /// Ejecuta las migraciones pendientes y retorna cuántas se aplicaron.
 pub fn run_migrations(conn: &Connection) -> Result<i32, String> {
@@ -123,6 +123,13 @@ pub fn run_migrations(conn: &Connection) -> Result<i32, String> {
     if current_version < 14 {
         migrate_v14(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (14)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
+    }
+
+    if current_version < 15 {
+        migrate_v15(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (15)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
         applied += 1;
     }
@@ -1021,4 +1028,68 @@ fn migrate_v14(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v14 err: {}", e))
+}
+
+/// Migración v15: Integraciones por eventos + procedures reutilizables
+fn migrate_v15(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS integration_flows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            commands_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_integration_flows_event
+            ON integration_flows(event_type, enabled);
+
+        CREATE TABLE IF NOT EXISTS integration_procedures (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            commands_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_integration_procedures_name
+            ON integration_procedures(name);
+
+        CREATE TABLE IF NOT EXISTS integration_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            flow_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error TEXT,
+            payload_json TEXT,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            FOREIGN KEY (flow_id) REFERENCES integration_flows(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_integration_runs_flow
+            ON integration_runs(flow_id, started_at);
+
+        CREATE TABLE IF NOT EXISTS integration_run_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL,
+            step_index INTEGER NOT NULL,
+            command TEXT NOT NULL,
+            status TEXT NOT NULL,
+            output_json TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (run_id) REFERENCES integration_runs(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_integration_run_steps_run
+            ON integration_run_steps(run_id, step_index);
+        "#,
+    )
+    .map_err(|e| format!("migration v15 err: {}", e))
 }

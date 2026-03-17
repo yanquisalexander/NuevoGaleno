@@ -14,16 +14,30 @@ interface PluginManifest {
     permissions: string[];
 }
 
+interface InstalledPluginEntry {
+    manifest: PluginManifest;
+    granted_permissions?: string[];
+    grantedPermissions?: string[];
+}
+
 export function PluginWindowWrapper({ pluginId, data }: PluginWindowWrapperProps) {
     const [manifest, setManifest] = useState<PluginManifest | null>(null);
+    const [grantedPermissions, setGrantedPermissions] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Load plugin manifest
-        invoke<PluginManifest>('get_plugin_manifest', { pluginId })
-            .then((data) => {
-                setManifest(data);
+        // Load plugin runtime state from installed plugins list
+        invoke<InstalledPluginEntry[]>('get_installed_plugins')
+            .then((plugins) => {
+                const plugin = plugins.find((item) => item.manifest.id === pluginId);
+
+                if (!plugin) {
+                    throw new Error('Plugin not found');
+                }
+
+                setManifest(plugin.manifest);
+                setGrantedPermissions(plugin.granted_permissions || plugin.grantedPermissions || []);
                 setLoading(false);
             })
             .catch((err) => {
@@ -53,7 +67,7 @@ export function PluginWindowWrapper({ pluginId, data }: PluginWindowWrapperProps
             <PluginFrame
                 pluginId={pluginId}
                 entryFile={manifest.entry}
-                permissions={manifest.permissions || []}
+                permissions={grantedPermissions}
                 onError={(err) => {
                     console.error('Plugin error:', err);
                     setError(err);
