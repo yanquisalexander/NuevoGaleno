@@ -9,6 +9,7 @@ pub struct Treatment {
     pub id: i64,
     pub patient_id: i64,
     pub legacy_treatment_id: Option<String>,
+    pub treatment_catalog_id: Option<i64>,
     pub name: String,
     pub tooth_number: Option<String>,
     pub sector: Option<String>,
@@ -62,10 +63,10 @@ pub fn create_treatment(input: CreateTreatmentInput) -> Result<i64, String> {
 
     conn.execute(
         "INSERT INTO treatments (
-            patient_id, name, tooth_number, sector, status,
+            patient_id, treatment_catalog_id, name, tooth_number, sector, status,
             total_cost, paid_amount, balance, start_date, notes,
             created_at, updated_at, raw_data
-        ) VALUES (?1, ?2, ?3, ?4, 'Pending', ?5, 0.0, ?5, ?6, ?7, ?8, ?9, '{}')",
+        ) VALUES (?1, NULL, ?2, ?3, ?4, 'Pending', ?5, 0.0, ?5, ?6, ?7, ?8, ?9, '{}')",
         params![
             input.patient_id,
             input.name,
@@ -88,7 +89,7 @@ pub fn get_treatment_by_id(id: i64) -> Result<Option<Treatment>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
+                "SELECT id, patient_id, legacy_treatment_id, treatment_catalog_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments WHERE id = ?1",
@@ -100,18 +101,19 @@ pub fn get_treatment_by_id(id: i64) -> Result<Option<Treatment>, String> {
             id: row.get(0)?,
             patient_id: row.get(1)?,
             legacy_treatment_id: row.get(2)?,
-            name: row.get(3)?,
-            tooth_number: row.get(4)?,
-            sector: row.get(5)?,
-            status: row.get(6)?,
-            total_cost: row.get(7)?,
-            paid_amount: row.get(8)?,
-            balance: row.get(9)?,
-            start_date: row.get(10)?,
-            completion_date: row.get(11)?,
-            notes: row.get(12)?,
-            created_at: row.get(13)?,
-            updated_at: row.get(14)?,
+            treatment_catalog_id: row.get(3)?,
+            name: row.get(4)?,
+            tooth_number: row.get(5)?,
+            sector: row.get(6)?,
+            status: row.get(7)?,
+            total_cost: row.get(8)?,
+            paid_amount: row.get(9)?,
+            balance: row.get(10)?,
+            start_date: row.get(11)?,
+            completion_date: row.get(12)?,
+            notes: row.get(13)?,
+            created_at: row.get(14)?,
+            updated_at: row.get(15)?,
         })
     });
 
@@ -127,7 +129,7 @@ pub fn get_treatments_by_patient(patient_id: i64) -> Result<Vec<Treatment>, Stri
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
+                "SELECT id, patient_id, legacy_treatment_id, treatment_catalog_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments 
@@ -142,18 +144,19 @@ pub fn get_treatments_by_patient(patient_id: i64) -> Result<Vec<Treatment>, Stri
                 id: row.get(0)?,
                 patient_id: row.get(1)?,
                 legacy_treatment_id: row.get(2)?,
-                name: row.get(3)?,
-                tooth_number: row.get(4)?,
-                sector: row.get(5)?,
-                status: row.get(6)?,
-                total_cost: row.get(7)?,
-                paid_amount: row.get(8)?,
-                balance: row.get(9)?,
-                start_date: row.get(10)?,
-                completion_date: row.get(11)?,
-                notes: row.get(12)?,
-                created_at: row.get(13)?,
-                updated_at: row.get(14)?,
+                treatment_catalog_id: row.get(3)?,
+                name: row.get(4)?,
+                tooth_number: row.get(5)?,
+                sector: row.get(6)?,
+                status: row.get(7)?,
+                total_cost: row.get(8)?,
+                paid_amount: row.get(9)?,
+                balance: row.get(10)?,
+                start_date: row.get(11)?,
+                completion_date: row.get(12)?,
+                notes: row.get(13)?,
+                created_at: row.get(14)?,
+                updated_at: row.get(15)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -168,7 +171,7 @@ pub fn get_treatments_by_status(status: &str) -> Result<Vec<Treatment>, String> 
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
+                "SELECT id, patient_id, legacy_treatment_id, treatment_catalog_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments 
@@ -183,18 +186,19 @@ pub fn get_treatments_by_status(status: &str) -> Result<Vec<Treatment>, String> 
                 id: row.get(0)?,
                 patient_id: row.get(1)?,
                 legacy_treatment_id: row.get(2)?,
-                name: row.get(3)?,
-                tooth_number: row.get(4)?,
-                sector: row.get(5)?,
-                status: row.get(6)?,
-                total_cost: row.get(7)?,
-                paid_amount: row.get(8)?,
-                balance: row.get(9)?,
-                start_date: row.get(10)?,
-                completion_date: row.get(11)?,
-                notes: row.get(12)?,
-                created_at: row.get(13)?,
-                updated_at: row.get(14)?,
+                treatment_catalog_id: row.get(3)?,
+                name: row.get(4)?,
+                tooth_number: row.get(5)?,
+                sector: row.get(6)?,
+                status: row.get(7)?,
+                total_cost: row.get(8)?,
+                paid_amount: row.get(9)?,
+                balance: row.get(10)?,
+                start_date: row.get(11)?,
+                completion_date: row.get(12)?,
+                notes: row.get(13)?,
+                created_at: row.get(14)?,
+                updated_at: row.get(15)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -214,7 +218,7 @@ pub fn get_all_treatments(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, patient_id, legacy_treatment_id, name, tooth_number, sector, status,
+                "SELECT id, patient_id, legacy_treatment_id, treatment_catalog_id, name, tooth_number, sector, status,
                     total_cost, paid_amount, balance, start_date, completion_date, notes,
                     created_at, updated_at
              FROM treatments 
@@ -229,18 +233,19 @@ pub fn get_all_treatments(
                 id: row.get(0)?,
                 patient_id: row.get(1)?,
                 legacy_treatment_id: row.get(2)?,
-                name: row.get(3)?,
-                tooth_number: row.get(4)?,
-                sector: row.get(5)?,
-                status: row.get(6)?,
-                total_cost: row.get(7)?,
-                paid_amount: row.get(8)?,
-                balance: row.get(9)?,
-                start_date: row.get(10)?,
-                completion_date: row.get(11)?,
-                notes: row.get(12)?,
-                created_at: row.get(13)?,
-                updated_at: row.get(14)?,
+                treatment_catalog_id: row.get(3)?,
+                name: row.get(4)?,
+                tooth_number: row.get(5)?,
+                sector: row.get(6)?,
+                status: row.get(7)?,
+                total_cost: row.get(8)?,
+                paid_amount: row.get(9)?,
+                balance: row.get(10)?,
+                start_date: row.get(11)?,
+                completion_date: row.get(12)?,
+                notes: row.get(13)?,
+                created_at: row.get(14)?,
+                updated_at: row.get(15)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?

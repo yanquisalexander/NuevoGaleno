@@ -256,6 +256,18 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                         <p className="font-medium text-[13.5px] truncate" style={{ color: F.textPrimary }}>
                                             {treatment.name}
                                         </p>
+                                        {treatment.is_imported && (
+                                            <span
+                                                className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0"
+                                                style={{
+                                                    color: '#9bd0ff',
+                                                    background: 'rgba(0,120,212,0.18)',
+                                                    border: '1px solid rgba(96,205,255,0.22)',
+                                                }}
+                                            >
+                                                Legacy
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <span className="text-[11px] truncate px-1.5 rounded" style={{ color: F.textSecondary, background: F.pressed }}>
@@ -295,6 +307,18 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                         <h1 className="text-2xl font-semibold tracking-tight" style={{ color: F.textPrimary }}>
                                             {selectedTreatment.name}
                                         </h1>
+                                        {selectedTreatment.is_imported && (
+                                            <span
+                                                className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded"
+                                                style={{
+                                                    color: '#9bd0ff',
+                                                    background: 'rgba(0,120,212,0.18)',
+                                                    border: '1px solid rgba(96,205,255,0.22)',
+                                                }}
+                                            >
+                                                Importado
+                                            </span>
+                                        )}
                                         <button
                                             onClick={() => handleDeleteTreatment(selectedTreatment.id)}
                                             className="p-1.5 rounded-md transition-all"
@@ -306,6 +330,11 @@ export function TreatmentCatalogApp({ windowId }: { windowId: WindowId }) {
                                     <p className="text-[13px] mt-1 max-w-2xl leading-relaxed" style={{ color: F.textSecondary }}>
                                         {selectedTreatment.description || 'Sin descripción disponible para este tratamiento principal.'}
                                     </p>
+                                    {selectedTreatment.is_imported && selectedTreatment.legacy_reference && (
+                                        <p className="text-[11px] mt-2 font-mono" style={{ color: F.textDisabled }}>
+                                            Referencia legacy: {selectedTreatment.legacy_reference}
+                                        </p>
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => setIsCreatingItem(true)}

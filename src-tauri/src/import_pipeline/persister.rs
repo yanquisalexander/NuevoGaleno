@@ -31,6 +31,7 @@ pub fn persist_all(
     run_id: &str,
     source_path: &str,
     patients: &[PatientDto],
+    legacy_treatment_groups: &[LegacyTreatmentGroup],
     orphan_treatments: &[TreatmentDto],
     orphan_payments: &[PaymentDto],
     orphan_odontograms: &[OdontogramDto],
@@ -62,6 +63,9 @@ pub fn persist_all(
         )
         .map_err(|e| format!("Error actualizando estado de run: {}", e))?;
 
+        let resolved_catalog_ids =
+            ensure_legacy_catalog_entries(&tx, run_id, legacy_treatment_groups)?;
+
         for (idx, patient) in patients.iter().enumerate() {
             emit_progress(
                 &mut progress_cb,
@@ -84,9 +88,18 @@ pub fn persist_all(
             }
 
             for treatment in &patient.treatments {
-                if let Some(treatment_row_id) =
-                    upsert_treatment(&tx, run_id, Some(patient_id), treatment)?
-                {
+                let resolved_catalog_id = treatment
+                    .legacy_catalog_key
+                    .as_ref()
+                    .and_then(|key| resolved_catalog_ids.get(key).copied())
+                    .or(treatment.treatment_catalog_id);
+                if let Some(treatment_row_id) = upsert_treatment(
+                    &tx,
+                    run_id,
+                    Some(patient_id),
+                    treatment,
+                    resolved_catalog_id,
+                )? {
                     result.treatments_inserted += 1;
 
                     if let Some(ref legacy_id) = treatment.legacy_treatment_id {
@@ -231,7 +244,14 @@ pub fn persist_all(
                 "Tratamientos huérfanos",
             );
             let opt_patient_id = None;
-            if let Some(treatment_id) = upsert_treatment(&tx, run_id, opt_patient_id, treatment)? {
+            let resolved_catalog_id = treatment
+                .legacy_catalog_key
+                .as_ref()
+                .and_then(|key| resolved_catalog_ids.get(key).copied())
+                .or(treatment.treatment_catalog_id);
+            if let Some(treatment_id) =
+                upsert_treatment(&tx, run_id, opt_patient_id, treatment, resolved_catalog_id)?
+            {
                 result.treatments_inserted += 1;
                 if let Some(ref legacy_id) = treatment.legacy_treatment_id {
                     upsert_legacy_treatment_map(
@@ -453,6 +473,7 @@ fn ensure_schema(conn: &Connection) -> Result<(), String> {
             legacy_treatment_id TEXT,
             legacy_patient_id TEXT,
             reference_code TEXT,
+            treatment_catalog_id INTEGER,
             name TEXT NOT NULL,
             description TEXT,
             tooth_number TEXT,
@@ -471,6 +492,7 @@ fn ensure_schema(conn: &Connection) -> Result<(), String> {
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL,
+            FOREIGN KEY (treatment_catalog_id) REFERENCES treatment_catalog(id) ON DELETE SET NULL,
             FOREIGN KEY (source_run_id) REFERENCES import_runs(run_id) ON DELETE SET NULL
         );
 
@@ -697,6 +719,7 @@ fn upsert_treatment(
     run_id: &str,
     patient_id: Option<i64>,
     treatment: &TreatmentDto,
+    resolved_catalog_id: Option<i64>,
 ) -> Result<Option<i64>, String> {
     let raw_json = serde_json::to_string(&treatment.raw_data).unwrap_or_else(|_| "{}".to_string());
     let now = chrono::Utc::now().to_rfc3339();
@@ -707,6 +730,7 @@ fn upsert_treatment(
         r#"
         INSERT INTO treatments (
             patient_id, legacy_treatment_id, legacy_patient_id, reference_code,
+            treatment_catalog_id,
             name, description, tooth_number, sector, status,
             total_cost, paid_amount, balance,
             planned_date, start_date, completion_date,
@@ -714,16 +738,18 @@ fn upsert_treatment(
             created_at, updated_at
         ) VALUES (
             ?1, ?2, ?3, ?4,
-            ?5, ?6, ?7, ?8, ?9,
-            ?10, ?11, ?12,
-            ?13, ?14, ?15,
-            ?16, ?17, ?18, ?19,
-            ?20, ?21
+            ?5,
+            ?6, ?7, ?8, ?9, ?10,
+            ?11, ?12, ?13,
+            ?14, ?15, ?16,
+            ?17, ?18, ?19, ?20,
+            ?21, ?22
         )
         ON CONFLICT(legacy_treatment_id, source_run_id) DO UPDATE SET
             patient_id = excluded.patient_id,
             legacy_patient_id = excluded.legacy_patient_id,
             reference_code = excluded.reference_code,
+            treatment_catalog_id = excluded.treatment_catalog_id,
             name = excluded.name,
             description = excluded.description,
             tooth_number = excluded.tooth_number,
@@ -745,6 +771,7 @@ fn upsert_treatment(
             treatment.legacy_treatment_id,
             treatment.legacy_patient_id,
             treatment.reference_code,
+            resolved_catalog_id,
             treatment.name,
             treatment.description,
             treatment.tooth_number,
@@ -780,6 +807,142 @@ fn upsert_treatment(
     };
 
     Ok(Some(row_id))
+}
+
+fn ensure_legacy_catalog_entries(
+    tx: &Transaction,
+    run_id: &str,
+    groups: &[LegacyTreatmentGroup],
+) -> Result<std::collections::HashMap<String, i64>, String> {
+    let mut resolved_ids = std::collections::HashMap::new();
+
+    for group in groups {
+        match &group.resolution {
+            LegacyTreatmentResolution::Unresolved => {}
+            LegacyTreatmentResolution::ExistingCatalog {
+                treatment_catalog_id,
+            } => {
+                resolved_ids.insert(group.key.clone(), *treatment_catalog_id);
+            }
+            LegacyTreatmentResolution::CreateCatalog { draft } => {
+                let catalog_id = upsert_imported_treatment_catalog(tx, run_id, group, draft)?;
+                resolved_ids.insert(group.key.clone(), catalog_id);
+            }
+            LegacyTreatmentResolution::ReuseCreatedCatalog { .. } => {}
+        }
+    }
+
+    for group in groups {
+        if let LegacyTreatmentResolution::ReuseCreatedCatalog { source_group_key } =
+            &group.resolution
+        {
+            let catalog_id = resolved_ids
+                .get(source_group_key)
+                .copied()
+                .ok_or_else(|| {
+                    format!(
+                        "El grupo legacy '{}' referencia un catálogo pendiente inexistente o inválido: {}",
+                        group.display_name, source_group_key
+                    )
+                })?;
+            resolved_ids.insert(group.key.clone(), catalog_id);
+        }
+    }
+
+    Ok(resolved_ids)
+}
+
+fn upsert_imported_treatment_catalog(
+    tx: &Transaction,
+    _run_id: &str,
+    group: &LegacyTreatmentGroup,
+    draft: &LegacyCatalogDraft,
+) -> Result<i64, String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let legacy_reference = group.reference_code.as_deref().unwrap_or(&group.key);
+    let import_source = "legacy";
+
+    let rows_updated = tx
+        .execute(
+            r#"
+            UPDATE treatment_catalog
+            SET
+                name = ?1,
+                description = ?2,
+                default_cost = ?3,
+                category = ?4,
+                color = ?5,
+                icon = ?6,
+                show_independently = ?7,
+                applies_to_whole_tooth = ?8,
+                visual_effect = ?9,
+                is_bridge_component = ?10,
+                is_imported = 1,
+                updated_at = ?11
+            WHERE legacy_reference = ?12 AND import_source = ?13
+            "#,
+            params![
+                draft.name,
+                draft.description,
+                draft.default_cost,
+                draft.category,
+                draft.color,
+                draft.icon,
+                if draft.show_independently { 1 } else { 0 },
+                if draft.applies_to_whole_tooth { 1 } else { 0 },
+                draft.visual_effect,
+                if draft.is_bridge_component { 1 } else { 0 },
+                now,
+                legacy_reference,
+                import_source,
+            ],
+        )
+        .map_err(|e| {
+            format!(
+                "Error actualizando tratamiento importado de catálogo: {}",
+                e
+            )
+        })?;
+
+    if rows_updated == 0 {
+        tx.execute(
+            r#"
+            INSERT INTO treatment_catalog (
+                name, description, default_cost, category, color, icon, show_independently,
+                applies_to_whole_tooth, visual_effect, is_bridge_component, is_active,
+                is_imported, import_source, legacy_reference, created_at, updated_at
+            ) VALUES (
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7,
+                ?8, ?9, ?10, 1,
+                1, ?11, ?12, ?13, ?14
+            )
+            "#,
+            params![
+                draft.name,
+                draft.description,
+                draft.default_cost,
+                draft.category,
+                draft.color,
+                draft.icon,
+                if draft.show_independently { 1 } else { 0 },
+                if draft.applies_to_whole_tooth { 1 } else { 0 },
+                draft.visual_effect,
+                if draft.is_bridge_component { 1 } else { 0 },
+                import_source,
+                legacy_reference,
+                now,
+                now,
+            ],
+        )
+        .map_err(|e| format!("Error creando tratamiento importado de catálogo: {}", e))?;
+    }
+
+    tx.query_row(
+        "SELECT id FROM treatment_catalog WHERE legacy_reference = ?1 AND import_source = ?2 ORDER BY id ASC LIMIT 1",
+        params![legacy_reference, import_source],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("Error recuperando catálogo importado: {}", e))
 }
 
 fn upsert_legacy_treatment_map(

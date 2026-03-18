@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const CURRENT_SCHEMA_VERSION: i32 = 15;
+const CURRENT_SCHEMA_VERSION: i32 = 16;
 
 /// Ejecuta las migraciones pendientes y retorna cuántas se aplicaron.
 pub fn run_migrations(conn: &Connection) -> Result<i32, String> {
@@ -130,6 +130,13 @@ pub fn run_migrations(conn: &Connection) -> Result<i32, String> {
     if current_version < 15 {
         migrate_v15(conn)?;
         conn.execute("INSERT INTO schema_version(version) VALUES (15)", [])
+            .map_err(|e| format!("Error actualizando versión: {}", e))?;
+        applied += 1;
+    }
+
+    if current_version < 16 {
+        migrate_v16(conn)?;
+        conn.execute("INSERT INTO schema_version(version) VALUES (16)", [])
             .map_err(|e| format!("Error actualizando versión: {}", e))?;
         applied += 1;
     }
@@ -1092,4 +1099,24 @@ fn migrate_v15(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| format!("migration v15 err: {}", e))
+}
+
+/// Migración v16: metadatos para catálogo importado y vínculo de tratamientos al catálogo
+fn migrate_v16(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        ALTER TABLE treatment_catalog ADD COLUMN is_imported INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE treatment_catalog ADD COLUMN import_source TEXT;
+        ALTER TABLE treatment_catalog ADD COLUMN legacy_reference TEXT;
+
+        ALTER TABLE treatments ADD COLUMN treatment_catalog_id INTEGER DEFAULT NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_treatment_catalog_is_imported ON treatment_catalog(is_imported);
+        CREATE INDEX IF NOT EXISTS idx_treatments_catalog_id ON treatments(treatment_catalog_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_treatment_catalog_legacy_ref_source
+            ON treatment_catalog(legacy_reference, import_source)
+            WHERE legacy_reference IS NOT NULL AND import_source IS NOT NULL;
+        "#,
+    )
+    .map_err(|e| format!("migration v16 err: {}", e))
 }

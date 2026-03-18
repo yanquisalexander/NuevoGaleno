@@ -17,6 +17,9 @@ pub struct TreatmentCatalogEntry {
     pub applies_to_whole_tooth: bool,
     pub visual_effect: Option<String>,
     pub is_bridge_component: bool,
+    pub is_imported: bool,
+    pub import_source: Option<String>,
+    pub legacy_reference: Option<String>,
     pub is_active: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -109,7 +112,8 @@ pub fn get_all_treatment_catalog() -> Result<Vec<TreatmentCatalogEntry>, String>
     let mut stmt = conn
         .prepare(
             "SELECT id, name, description, default_cost, category, color, icon, show_independently, 
-                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, created_at, updated_at
+                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_imported, import_source, legacy_reference,
+                    is_active, created_at, updated_at
              FROM treatment_catalog
              WHERE is_active = 1
              ORDER BY category, name",
@@ -130,9 +134,12 @@ pub fn get_all_treatment_catalog() -> Result<Vec<TreatmentCatalogEntry>, String>
                 applies_to_whole_tooth: row.get::<_, i32>(8)? == 1,
                 visual_effect: row.get(9)?,
                 is_bridge_component: row.get::<_, i32>(10)? == 1,
-                is_active: row.get::<_, i32>(11)? == 1,
-                created_at: row.get(12)?,
-                updated_at: row.get(13)?,
+                is_imported: row.get::<_, i32>(11)? == 1,
+                import_source: row.get(12)?,
+                legacy_reference: row.get(13)?,
+                is_active: row.get::<_, i32>(14)? == 1,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
             })
         })
         .map_err(|e| format!("Error ejecutando query: {}", e))?
@@ -148,7 +155,8 @@ pub fn get_treatment_catalog_by_id(id: i64) -> Result<Option<TreatmentCatalogEnt
     let mut stmt = conn
         .prepare(
             "SELECT id, name, description, default_cost, category, color, icon, show_independently, 
-                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_active, created_at, updated_at
+                    applies_to_whole_tooth, visual_effect, is_bridge_component, is_imported, import_source, legacy_reference,
+                    is_active, created_at, updated_at
              FROM treatment_catalog
              WHERE id = ?1",
         )
@@ -167,9 +175,12 @@ pub fn get_treatment_catalog_by_id(id: i64) -> Result<Option<TreatmentCatalogEnt
             applies_to_whole_tooth: row.get::<_, i32>(8)? == 1,
             visual_effect: row.get(9)?,
             is_bridge_component: row.get::<_, i32>(10)? == 1,
-            is_active: row.get::<_, i32>(11)? == 1,
-            created_at: row.get(12)?,
-            updated_at: row.get(13)?,
+            is_imported: row.get::<_, i32>(11)? == 1,
+            import_source: row.get(12)?,
+            legacy_reference: row.get(13)?,
+            is_active: row.get::<_, i32>(14)? == 1,
+            created_at: row.get(15)?,
+            updated_at: row.get(16)?,
         })
     });
 

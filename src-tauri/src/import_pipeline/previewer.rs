@@ -10,8 +10,17 @@ use serde::{Deserialize, Serialize};
 pub struct ImportPreview {
     pub summary: PreviewSummary,
     pub sample_patients: Vec<PatientPreview>,
+    pub legacy_treatments: LegacyTreatmentPreview,
     pub validation_report: ValidationReport,
     pub can_proceed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyTreatmentPreview {
+    pub total_groups: usize,
+    pub unresolved_groups: usize,
+    pub total_occurrences: usize,
+    pub groups: Vec<LegacyTreatmentGroup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,17 +65,33 @@ pub struct ValidationReport {
 pub fn generate_preview(
     patients: &[PatientDto],
     global_orphan_payments: &[PaymentDto],
+    legacy_treatment_groups: &[LegacyTreatmentGroup],
     validation: &ValidationResult,
 ) -> ImportPreview {
     let summary = calculate_summary(patients, global_orphan_payments);
     let sample_patients = generate_patient_samples(patients, 5); // Primeros 5 para preview rápido
-    let validation_report = build_validation_report(validation);
+    let legacy_treatments = build_legacy_treatment_preview(legacy_treatment_groups);
+    let validation_report = build_validation_report(validation, &legacy_treatments);
+    let can_proceed = validation.can_proceed() && legacy_treatments.unresolved_groups == 0;
 
     ImportPreview {
-        can_proceed: validation.can_proceed(),
+        can_proceed,
         summary,
         sample_patients,
+        legacy_treatments,
         validation_report,
+    }
+}
+
+fn build_legacy_treatment_preview(groups: &[LegacyTreatmentGroup]) -> LegacyTreatmentPreview {
+    LegacyTreatmentPreview {
+        total_groups: groups.len(),
+        unresolved_groups: groups
+            .iter()
+            .filter(|group| !group.resolution.is_resolved())
+            .count(),
+        total_occurrences: groups.iter().map(|group| group.occurrence_count).sum(),
+        groups: groups.to_vec(),
     }
 }
 
@@ -158,7 +183,10 @@ fn generate_patient_samples(patients: &[PatientDto], limit: usize) -> Vec<Patien
         .collect()
 }
 
-fn build_validation_report(validation: &ValidationResult) -> ValidationReport {
+fn build_validation_report(
+    validation: &ValidationResult,
+    legacy_treatments: &LegacyTreatmentPreview,
+) -> ValidationReport {
     use crate::import_pipeline::IssueSeverity;
 
     let critical_issues: Vec<String> = validation
@@ -168,12 +196,19 @@ fn build_validation_report(validation: &ValidationResult) -> ValidationReport {
         .map(|i| format!("[{}] {}: {}", i.entity_type, i.field, i.message))
         .collect();
 
-    let errors: Vec<String> = validation
+    let mut errors: Vec<String> = validation
         .issues
         .iter()
         .filter(|i| i.severity == IssueSeverity::Error)
         .map(|i| format!("[{}] {}: {}", i.entity_type, i.field, i.message))
         .collect();
+
+    if legacy_treatments.unresolved_groups > 0 {
+        errors.push(format!(
+            "[legacy_treatments] Debe resolver {} tratamientos legacy antes de confirmar la importación",
+            legacy_treatments.unresolved_groups
+        ));
+    }
 
     let warnings: Vec<String> = validation
         .issues
@@ -184,11 +219,11 @@ fn build_validation_report(validation: &ValidationResult) -> ValidationReport {
         .collect();
 
     ValidationReport {
-        is_valid: validation.is_valid,
+        is_valid: validation.is_valid && legacy_treatments.unresolved_groups == 0,
         critical_issues,
         errors,
         warnings,
-        total_issues: validation.issues.len(),
+        total_issues: validation.issues.len() + legacy_treatments.unresolved_groups,
     }
 }
 

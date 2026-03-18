@@ -1,6 +1,12 @@
+use std::fs;
+use std::io::{self, Cursor, Read, Write};
 use std::path::PathBuf;
 use std::process::Command;
+
+use crate::db::path::get_app_data_dir;
+use reqwest::blocking::Client;
 use walkdir::WalkDir;
+use zip::ZipArchive;
 
 /// Obtiene el script de PowerShell para conversión concurrente
 pub fn get_conversion_script() -> &'static str {
@@ -38,7 +44,7 @@ function Convert-DocToTxt {
     
     try {
         $fileName = [System.IO.Path]::GetFileName($FilePath)
-        Write-Host "PROGRESS|$FileNumber|$Total|Convirtiendo $fileName"
+        Write-Output "PROGRESS|$FileNumber|$Total|Convirtiendo $fileName"
         
         # Crear instancia de Word para este archivo
         $word = New-Object -ComObject Word.Application
@@ -62,14 +68,14 @@ function Convert-DocToTxt {
         # Eliminar .doc original si la conversion fue exitosa
         if (Test-Path $txtPath) {
             Remove-Item -Path $FilePath -Force
-            Write-Host "PROGRESS|$FileNumber|$Total|[OK] $fileName -> eliminado original"
+            Write-Output "PROGRESS|$FileNumber|$Total|[OK] $fileName -> eliminado original"
         }
         
         $result.success = $true
         $result.txtPath = $txtPath
     } catch {
         $result.error = $_.Exception.Message
-        Write-Host "PROGRESS|$FileNumber|$Total|[ERROR] Error en $fileName"
+        Write-Output "PROGRESS|$FileNumber|$Total|[ERROR] Error en $fileName"
         
         # Cerrar Word si quedo abierto
         try {
@@ -86,6 +92,7 @@ function Convert-DocToTxt {
 # Procesar archivos con throttling (maximo 3 instancias de Word en paralelo)
 $throttleLimit = 3
 $jobs = @()
+Write-Output "PROGRESS|0|$totalFiles|Preparando conversión de archivos"
 
 for ($i = 0; $i -lt $filePaths.Count; $i++) {
     $filePath = $filePaths[$i]
@@ -103,10 +110,15 @@ for ($i = 0; $i -lt $filePaths.Count; $i++) {
         $completedJobs = $jobs | Where-Object { $_.State -eq 'Completed' }
         foreach ($completedJob in $completedJobs) {
             $jobResult = Receive-Job -Job $completedJob
+            $processed++
             if ($jobResult.success) {
                 $successCount++
+                $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+                Write-Output "PROGRESS|$processed|$totalFiles|[OK] $fileName"
             } else {
                 $errors += "Error en $($jobResult.file): $($jobResult.error)"
+                $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+                Write-Output "PROGRESS|$processed|$totalFiles|[ERROR] $fileName"
             }
             Remove-Job -Job $completedJob
         }
@@ -120,15 +132,20 @@ Wait-Job -Job $jobs | Out-Null
 # Recoger resultados finales
 foreach ($job in $jobs) {
     $jobResult = Receive-Job -Job $job
+    $processed++
     if ($jobResult.success) {
         $successCount++
+        $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+        Write-Output "PROGRESS|$processed|$totalFiles|[OK] $fileName"
     } else {
         $errors += "Error en $($jobResult.file): $($jobResult.error)"
+        $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+        Write-Output "PROGRESS|$processed|$totalFiles|[ERROR] $fileName"
     }
     Remove-Job -Job $job
 }
 
-Write-Host "COMPLETE|$successCount|$($errors.Count)"
+Write-Output "COMPLETE|$successCount|$($errors.Count)"
 
 # Salida JSON
 $result = @{
@@ -140,23 +157,300 @@ $result | ConvertTo-Json
 "#
 }
 
-/// Detecta archivos .doc en el directorio de historias clínicas
-pub fn detect_doc_files(source_root: &str) -> Result<Vec<PathBuf>, String> {
-    let root = PathBuf::from(source_root);
-    let history_dir = root.join("GALENO~1").join("Historias Clinicas");
+/// Directorio para la versión portable de LibreOffice usada por Galeno
+pub fn get_libreoffice_portable_dir() -> Result<PathBuf, String> {
+    let app_data_dir = get_app_data_dir()?;
+    let libre_dir = app_data_dir.join("libreoffice-portable");
+    fs::create_dir_all(&libre_dir)
+        .map_err(|e| format!("Error creando directorio de LibreOffice: {}", e))?;
+    Ok(libre_dir)
+}
 
-    if !history_dir.exists() {
-        return Ok(Vec::new());
+/// Busca el ejecutable de LibreOffice (soffice.exe) en la instalación portable o en PATH
+pub fn find_libreoffice_executable() -> Result<Option<PathBuf>, String> {
+    // 1) Buscar en el directorio portable de Galeno
+    if let Ok(portable_dir) = get_libreoffice_portable_dir() {
+        let candidate = portable_dir.join("program").join("soffice.exe");
+        if candidate.exists() {
+            return Ok(Some(candidate));
+        }
     }
 
+    // 2) Buscar en PATH usando 'where'
+    if let Ok(output) = Command::new("where").arg("soffice.exe").output() {
+        if output.status.success() {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                if let Some(line) = text.lines().next() {
+                    let path = PathBuf::from(line.trim());
+                    if path.exists() {
+                        return Ok(Some(path));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+/// Descarga y extrae LibreOffice Portable en el directorio de Galeno.
+///
+/// Provee actualizaciones de progreso (bytes descargados / total bytes) si se
+/// suministra `progress_cb`.
+pub fn download_libreoffice_portable(
+    mut progress_cb: Option<&mut dyn FnMut(usize, usize, String)>,
+) -> Result<PathBuf, String> {
+    const DOWNLOAD_URL: &str = "https://download.documentfoundation.org/libreoffice/stable/24.2.0/win/x86_64/LibreOffice_24.2.0_Win_x64.zip";
+
+    let libre_dir = get_libreoffice_portable_dir()?;
+
+    // Descarga el ZIP a un archivo temporal fuera del directorio de instalación.
+    let tmp_zip = std::env::temp_dir().join("galeno_libreoffice.zip");
+    let client = Client::new();
+    let resp = client
+        .get(DOWNLOAD_URL)
+        .send()
+        .map_err(|e| format!("Error descargando LibreOffice: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().unwrap_or_default();
+        let snippet = body.lines().take(5).collect::<Vec<_>>().join(" ");
+        return Err(format!(
+            "Error descargando LibreOffice: HTTP {} - {}",
+            status, snippet
+        ));
+    }
+
+    let total_size = resp.content_length().unwrap_or(0) as usize;
+
+    let mut file = fs::File::create(&tmp_zip)
+        .map_err(|e| format!("Error creando archivo temporal: {}", e))?;
+
+    let mut downloaded: usize = 0;
+    let mut reader = resp;
+    let mut buffer = [0u8; 8192];
+
+    loop {
+        let bytes_read = reader
+            .read(&mut buffer)
+            .map_err(|e| format!("Error durante la descarga: {}", e))?;
+        if bytes_read == 0 {
+            break;
+        }
+
+        file.write_all(&buffer[..bytes_read])
+            .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
+        downloaded += bytes_read;
+
+        if let Some(cb) = progress_cb.as_mut() {
+            cb(
+                downloaded,
+                total_size,
+                "Descargando LibreOffice".to_string(),
+            );
+        }
+    }
+
+    // Validar ZIP mínimo
+    if downloaded < 1024 {
+        return Err("Archivo descargado es demasiado pequeño para ser un ZIP válido".to_string());
+    }
+
+    // El archivo puede ser un ZIP directo o un SFX autoextraíble (.paf.exe).
+    // Buscamos la firma ZIP dentro del archivo y usamos esa porción.
+    let raw = fs::read(&tmp_zip)
+        .map_err(|e| format!("Error leyendo archivo descargado: {}", e))?;
+
+    let zip_offset = raw
+        .windows(4)
+        .position(|w| w == b"PK\x03\x04")
+        .ok_or_else(|| "No se encontró un ZIP válido dentro del archivo descargado".to_string())?;
+
+    if zip_offset != 0 {
+        // Si el ZIP no empieza en byte 0, es un SFX (ejecutable) con ZIP embebido.
+        if let Some(cb) = progress_cb.as_mut() {
+            cb(0, 1, "Extrayendo ZIP embebido desde ejecutable...".to_string());
+        }
+    }
+
+    // Preparar archivo ZIP en memoria para extracción
+    let zip_data = &raw[zip_offset..];
+    let mut archive = ZipArchive::new(Cursor::new(zip_data))
+        .map_err(|e| format!("Error leyendo ZIP: {} (el archivo descargado puede estar corrupto)", e))?;
+    let total_entries = archive.len();
+
+    // Extraer
+    if let Some(cb) = progress_cb.as_mut() {
+        cb(0, 1, "Extrayendo LibreOffice".to_string());
+    }
+
+    // Limpiar cualquier instalación previa
+    if libre_dir.exists() {
+        let _ = fs::remove_dir_all(&libre_dir);
+        fs::create_dir_all(&libre_dir)
+            .map_err(|e| format!("Error creando directorio tras limpiar: {}", e))?;
+    }
+
+    let zip_file =
+        fs::File::open(&tmp_zip).map_err(|e| format!("Error abriendo ZIP descargado: {}", e))?;
+
+    let mut archive = match ZipArchive::new(zip_file) {
+        Ok(arch) => arch,
+        Err(e) => {
+            // Intentar eliminar y reportar mejor error
+            let _ = fs::remove_file(&tmp_zip);
+            return Err(format!(
+                "Error leyendo ZIP: {} (el archivo descargado puede estar corrupto)",
+                e
+            ));
+        }
+    };
+    let total_entries = archive.len();
+
+    for i in 0..total_entries {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("Error leyendo entrada ZIP: {}", e))?;
+        let out_path = libre_dir.join(file.name());
+
+        if file.is_dir() {
+            fs::create_dir_all(&out_path)
+                .map_err(|e| format!("Error creando directorio: {}", e))?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Error creando directorio: {}", e))?;
+            }
+            let mut out_file =
+                fs::File::create(&out_path).map_err(|e| format!("Error creando archivo: {}", e))?;
+            io::copy(&mut file, &mut out_file)
+                .map_err(|e| format!("Error extrayendo archivo: {}", e))?;
+        }
+
+        if let Some(cb) = progress_cb.as_mut() {
+            cb(
+                i + 1,
+                total_entries,
+                format!("Extrayendo archivos ({}/{})", i + 1, total_entries),
+            );
+        }
+    }
+
+    // Eliminar ZIP
+    let _ = fs::remove_file(&tmp_zip);
+
+    // Retornar la ruta del ejecutable
+    let exe = libre_dir.join("program").join("soffice.exe");
+    if exe.exists() {
+        Ok(exe)
+    } else {
+        Err("No se encontró el ejecutable de LibreOffice tras la instalación".to_string())
+    }
+}
+
+/// Convierte archivos .doc usando LibreOffice headless.
+///
+/// Retorna: (convertidos_ok, errores)
+pub fn convert_doc_with_libreoffice(
+    doc_files: &[PathBuf],
+    libreoffice_exe: &PathBuf,
+    mut progress_cb: Option<&mut dyn FnMut(usize, usize, String)>,
+) -> Result<(usize, Vec<String>), String> {
+    if doc_files.is_empty() {
+        return Ok((0, Vec::new()));
+    }
+
+    let total = doc_files.len();
+    let mut success = 0;
+    let mut errors = Vec::new();
+
+    for (idx, path) in doc_files.iter().enumerate() {
+        let current = idx + 1;
+        if let Some(cb) = progress_cb.as_mut() {
+            cb(
+                current,
+                total,
+                format!(
+                    "Convirtiendo {}",
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("archivo")
+                ),
+            );
+        }
+
+        // Convertir a txt en el mismo directorio
+        let out_dir = path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .to_path_buf();
+        let output = Command::new(libreoffice_exe)
+            .arg("--headless")
+            .arg("--convert-to")
+            .arg("txt:Text")
+            .arg("--outdir")
+            .arg(out_dir)
+            .arg(path)
+            .output()
+            .map_err(|e| format!("Error ejecutando LibreOffice: {}", e))?;
+
+        if output.status.success() {
+            success += 1;
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            errors.push(format!("{}: {}", path.display(), stderr.trim()));
+        }
+    }
+
+    Ok((success, errors))
+}
+
+/// Detecta archivos .doc en el directorio de historias clínicas
+pub fn detect_doc_files(
+    source_root: &str,
+    mut progress_cb: Option<&mut dyn FnMut(usize, usize)>,
+) -> Result<Vec<PathBuf>, String> {
+    let root = PathBuf::from(source_root);
+
+    // El directorio de datos puede encontrarse en el root directo o dentro de GALENO~1
+    // (algunos contenedores ZIP tienen la carpeta raíz ya en ese formato).
+    let history_dir_candidates = [
+        root.join("GALENO~1").join("Historias Clinicas"),
+        root.join("Historias Clinicas"),
+        root.clone(),
+    ];
+
+    // Elegir el primer candidato existente
+    let history_dir = history_dir_candidates
+        .iter()
+        .find(|path| path.exists())
+        .cloned();
+
+    let history_dir = match history_dir {
+        Some(path) => path,
+        None => return Ok(Vec::new()),
+    };
+
     let mut doc_files = Vec::new();
+    let mut scanned_entries: usize = 0;
 
     for entry in WalkDir::new(&history_dir)
         .follow_links(false)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
     {
+        scanned_entries += 1;
+        if scanned_entries % 100 == 0 {
+            if let Some(cb) = progress_cb.as_mut() {
+                cb(scanned_entries, doc_files.len());
+            }
+        }
+
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
         let path = entry.path();
         if let Some(ext) = path.extension() {
             if ext.eq_ignore_ascii_case("doc") {
@@ -168,6 +462,10 @@ pub fn detect_doc_files(source_root: &str) -> Result<Vec<PathBuf>, String> {
                 }
             }
         }
+    }
+
+    if let Some(cb) = progress_cb.as_mut() {
+        cb(scanned_entries, doc_files.len());
     }
 
     Ok(doc_files)
@@ -216,7 +514,7 @@ function Convert-DocToTxt {
     
     try {
         $fileName = [System.IO.Path]::GetFileName($FilePath)
-        Write-Host "PROGRESS|$FileNumber|$Total|Convirtiendo $fileName"
+        Write-Output "PROGRESS|$FileNumber|$Total|Convirtiendo $fileName"
         
         # Crear instancia de Word para este archivo
         $word = New-Object -ComObject Word.Application
@@ -240,14 +538,14 @@ function Convert-DocToTxt {
         # Eliminar .doc original si la conversión fue exitosa
         if (Test-Path $txtPath) {
             Remove-Item -Path $FilePath -Force
-            Write-Host "PROGRESS|$FileNumber|$Total|✓ $fileName → eliminado original"
+            Write-Output "PROGRESS|$FileNumber|$Total|✓ $fileName → eliminado original"
         }
         
         $result.success = $true
         $result.txtPath = $txtPath
     } catch {
         $result.error = $_.Exception.Message
-        Write-Host "PROGRESS|$FileNumber|$Total|✗ Error en $fileName"
+        Write-Output "PROGRESS|$FileNumber|$Total|✗ Error en $fileName"
         
         # Cerrar Word si quedó abierto
         try {
@@ -264,6 +562,7 @@ function Convert-DocToTxt {
 # Procesar archivos con throttling (máximo 3 instancias de Word en paralelo)
 $throttleLimit = 3
 $jobs = @()
+Write-Output "PROGRESS|0|$totalFiles|Preparando conversión de archivos"
 
 for ($i = 0; $i -lt $filePaths.Count; $i++) {
     $filePath = $filePaths[$i]
@@ -281,10 +580,15 @@ for ($i = 0; $i -lt $filePaths.Count; $i++) {
         $completedJobs = $jobs | Where-Object { $_.State -eq 'Completed' }
         foreach ($completedJob in $completedJobs) {
             $jobResult = Receive-Job -Job $completedJob
+            $processed++
             if ($jobResult.success) {
                 $successCount++
+                $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+                Write-Output "PROGRESS|$processed|$totalFiles|✓ $fileName"
             } else {
                 $errors += "Error en $($jobResult.file): $($jobResult.error)"
+                $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+                Write-Output "PROGRESS|$processed|$totalFiles|✗ $fileName"
             }
             Remove-Job -Job $completedJob
         }
@@ -298,15 +602,20 @@ Wait-Job -Job $jobs | Out-Null
 # Recoger resultados finales
 foreach ($job in $jobs) {
     $jobResult = Receive-Job -Job $job
+    $processed++
     if ($jobResult.success) {
         $successCount++
+        $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+        Write-Output "PROGRESS|$processed|$totalFiles|✓ $fileName"
     } else {
         $errors += "Error en $($jobResult.file): $($jobResult.error)"
+        $fileName = [System.IO.Path]::GetFileName($jobResult.file)
+        Write-Output "PROGRESS|$processed|$totalFiles|✗ $fileName"
     }
     Remove-Job -Job $job
 }
 
-Write-Host "COMPLETE|$successCount|$($errors.Count)"
+Write-Output "COMPLETE|$successCount|$($errors.Count)"
 
 # Salida JSON
 $result = @{

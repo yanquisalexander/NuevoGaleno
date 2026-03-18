@@ -8,7 +8,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -22,6 +22,7 @@ pub struct TransformationResult {
     pub orphan_treatments: Vec<TreatmentDto>,
     pub orphan_payments: Vec<PaymentDto>,
     pub orphan_odontograms: Vec<OdontogramDto>,
+    pub legacy_treatment_groups: Vec<LegacyTreatmentGroup>,
     pub anomalies: Vec<ImportAnomalyDto>,
     pub issues: Vec<ValidationIssue>,
 }
@@ -507,7 +508,52 @@ pub fn transform_raw_data(
                             if let Some(patient_index) =
                                 legacy_maps.patient_index_by_temp.get(patient_temp_id)
                             {
-                                patients[*patient_index].odontograms.push(odontogram);
+                                if matches!(odontogram.tooth_number.trim(), "99" | "0") {
+                                    let treatment = build_general_treatment_from_odontogram(
+                                        &odontogram,
+                                        patient_temp_id,
+                                    );
+
+                                    let already_exists = treatment
+                                        .legacy_treatment_id
+                                        .as_ref()
+                                        .and_then(|legacy_id| {
+                                            patients[*patient_index].treatments.iter().find(
+                                                |existing| {
+                                                    existing.legacy_treatment_id.as_ref()
+                                                        == Some(legacy_id)
+                                                },
+                                            )
+                                        })
+                                        .is_some();
+
+                                    if !already_exists {
+                                        let treatment_index =
+                                            patients[*patient_index].treatments.len();
+                                        if let Some(legacy_treatment_id) = treatment
+                                            .legacy_treatment_id
+                                            .clone()
+                                            .map(|value| normalize_legacy_key(&value))
+                                        {
+                                            legacy_maps.treatment_by_legacy.insert(
+                                                legacy_treatment_id,
+                                                (
+                                                    patient_temp_id.clone(),
+                                                    treatment.temp_id.clone(),
+                                                ),
+                                            );
+                                        }
+
+                                        legacy_maps.treatment_index_by_temp.insert(
+                                            treatment.temp_id.clone(),
+                                            (*patient_index, treatment_index),
+                                        );
+
+                                        patients[*patient_index].treatments.push(treatment);
+                                    }
+                                } else {
+                                    patients[*patient_index].odontograms.push(odontogram);
+                                }
                             } else {
                                 orphan_odontograms.push(odontogram);
                             }
@@ -536,10 +582,6 @@ pub fn transform_raw_data(
                         ));
                         orphan_odontograms.push(odontogram);
                     }
-                }
-                Err(err) if err.starts_with("SKIP:") => {
-                    // Registros esperados sin pieza dental (ej: NoDiente=99 en Galeno 2000);
-                    // se omiten del odontograma silenciosamente.
                 }
                 Err(err) => {
                     anomalies.push(build_anomaly(
@@ -598,14 +640,186 @@ pub fn transform_raw_data(
         ));
     }
 
+    let legacy_treatment_groups =
+        build_legacy_treatment_groups(&mut patients, &mut orphan_treatments);
+
     Ok(TransformationResult {
         patients,
         orphan_treatments,
         orphan_payments,
         orphan_odontograms,
+        legacy_treatment_groups,
         anomalies,
         issues,
     })
+}
+
+struct LegacyTreatmentAccumulator {
+    display_name: String,
+    reference_code: Option<String>,
+    occurrence_count: usize,
+    patient_keys: HashSet<String>,
+    total_cost: f64,
+    sample_tooth_numbers: Vec<String>,
+    seen_tooth_numbers: HashSet<String>,
+    is_general_treatment: bool,
+    suggested_draft: LegacyCatalogDraft,
+}
+
+fn build_legacy_treatment_groups(
+    patients: &mut [PatientDto],
+    orphan_treatments: &mut [TreatmentDto],
+) -> Vec<LegacyTreatmentGroup> {
+    let mut groups: HashMap<String, LegacyTreatmentAccumulator> = HashMap::new();
+
+    for treatment in patients
+        .iter_mut()
+        .flat_map(|patient| patient.treatments.iter_mut())
+        .chain(orphan_treatments.iter_mut())
+    {
+        let key = build_legacy_catalog_key(treatment);
+        treatment.legacy_catalog_key = Some(key.clone());
+
+        let accumulator = groups.entry(key.clone()).or_insert_with(|| {
+            let mut draft = LegacyCatalogDraft::default();
+            draft.name = treatment.name.clone();
+            draft.description = Some(build_legacy_catalog_description(treatment));
+            draft.default_cost = treatment.total_cost.max(0.0);
+            draft.category = treatment
+                .sector
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| Some("Importados".to_string()));
+            draft.show_independently = treatment
+                .tooth_number
+                .as_ref()
+                .map(|value| value.trim().is_empty())
+                .unwrap_or(true);
+            draft.applies_to_whole_tooth = treatment
+                .tooth_number
+                .as_ref()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false);
+
+            LegacyTreatmentAccumulator {
+                display_name: treatment.name.clone(),
+                reference_code: treatment.reference_code.clone(),
+                occurrence_count: 0,
+                patient_keys: HashSet::new(),
+                total_cost: 0.0,
+                sample_tooth_numbers: Vec::new(),
+                seen_tooth_numbers: HashSet::new(),
+                is_general_treatment: false,
+                suggested_draft: draft,
+            }
+        });
+
+        accumulator.occurrence_count += 1;
+        accumulator.total_cost += treatment.total_cost;
+
+        if let Some(patient_key) = treatment
+            .legacy_patient_id
+            .clone()
+            .or_else(|| treatment.patient_temp_id.clone())
+        {
+            accumulator.patient_keys.insert(patient_key);
+        }
+
+        match treatment.tooth_number.as_deref().map(|value| value.trim()) {
+            Some("") | None => {
+                accumulator.is_general_treatment = true;
+                accumulator.suggested_draft.show_independently = true;
+                accumulator.suggested_draft.applies_to_whole_tooth = false;
+            }
+            Some(tooth_number) => {
+                if accumulator
+                    .seen_tooth_numbers
+                    .insert(tooth_number.to_string())
+                    && accumulator.sample_tooth_numbers.len() < 4
+                {
+                    accumulator
+                        .sample_tooth_numbers
+                        .push(tooth_number.to_string());
+                }
+            }
+        }
+
+        if treatment.total_cost > 0.0 {
+            accumulator.suggested_draft.default_cost = if accumulator.occurrence_count == 1 {
+                treatment.total_cost
+            } else {
+                accumulator.total_cost / accumulator.occurrence_count as f64
+            };
+        }
+
+        if accumulator.reference_code.is_none() {
+            accumulator.reference_code = treatment.reference_code.clone();
+        }
+    }
+
+    let mut results = groups
+        .into_iter()
+        .map(|(key, accumulator)| LegacyTreatmentGroup {
+            key,
+            display_name: accumulator.display_name,
+            reference_code: accumulator.reference_code,
+            occurrence_count: accumulator.occurrence_count,
+            patient_count: accumulator.patient_keys.len(),
+            total_cost: accumulator.total_cost,
+            sample_tooth_numbers: accumulator.sample_tooth_numbers,
+            is_general_treatment: accumulator.is_general_treatment,
+            suggested_draft: accumulator.suggested_draft,
+            resolution: LegacyTreatmentResolution::Unresolved,
+        })
+        .collect::<Vec<_>>();
+
+    results.sort_by(|a, b| a.display_name.cmp(&b.display_name));
+    results
+}
+
+fn build_legacy_catalog_key(treatment: &TreatmentDto) -> String {
+    let reference = treatment
+        .reference_code
+        .as_deref()
+        .map(normalize_legacy_key)
+        .filter(|value| !value.is_empty());
+
+    if let Some(reference) = reference {
+        return format!("ref:{}", reference);
+    }
+
+    let normalized_name = normalize_legacy_key(&treatment.name);
+    if normalized_name.is_empty() {
+        format!("tmp:{}", treatment.temp_id)
+    } else {
+        format!("name:{}", normalized_name)
+    }
+}
+
+fn build_legacy_catalog_description(treatment: &TreatmentDto) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(reference_code) = treatment
+        .reference_code
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        parts.push(format!("Referencia legacy: {}", reference_code));
+    }
+
+    if let Some(description) = treatment
+        .description
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        parts.push(description.trim().to_string());
+    }
+
+    if parts.is_empty() {
+        "Importado desde Galeno 2000".to_string()
+    } else {
+        format!("Importado desde Galeno 2000. {}", parts.join(". "))
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -906,6 +1120,26 @@ fn transform_treatment_row(
         treatment.name = "Tratamiento sin nombre".to_string();
     }
 
+    if treatment
+        .tooth_number
+        .as_deref()
+        .map(|value| matches!(value.trim(), "99" | "0"))
+        .unwrap_or(false)
+    {
+        treatment.tooth_number = None;
+        treatment.sector = treatment
+            .sector
+            .clone()
+            .or_else(|| Some("general".to_string()));
+        let previous_notes = treatment.notes.take().unwrap_or_default();
+        let suffix = "Importado como tratamiento general del paciente (diente 99 legacy)";
+        treatment.notes = Some(if previous_notes.is_empty() {
+            suffix.to_string()
+        } else {
+            format!("{} | {}", previous_notes, suffix)
+        });
+    }
+
     // Inferir created_at_legacy desde las fechas disponibles si no la tenemos
     if treatment.created_at_legacy.is_none() {
         treatment.created_at_legacy = treatment
@@ -1101,15 +1335,37 @@ fn transform_odontogram_row(
         return Err("Registro de odontograma sin número de diente".to_string());
     }
 
-    // "99" (y "0") son códigos de Galeno 2000 para tratamientos sin pieza específica
-    // (ej: Profilaxis, Detartraje, Ortodoncia). No pertenecen al odontograma.
-    if odontogram.tooth_number == "99" || odontogram.tooth_number == "0" {
-        return Err(format!("SKIP:pieza_{}_sin_diente", odontogram.tooth_number));
-    }
-
     odontogram.metadata.source_record_hash = Some(compute_row_hash(row));
 
     Ok(odontogram)
+}
+
+fn build_general_treatment_from_odontogram(
+    odontogram: &OdontogramDto,
+    patient_temp_id: &str,
+) -> TreatmentDto {
+    let mut treatment = TreatmentDto::new_with_temp_id(Some(patient_temp_id.to_string()));
+    treatment.legacy_treatment_id = odontogram
+        .legacy_treatment_id
+        .clone()
+        .or_else(|| odontogram.legacy_record_id.clone());
+    treatment.legacy_patient_id = odontogram.legacy_patient_id.clone();
+    treatment.reference_code = odontogram.legacy_budget_number.clone();
+    treatment.name = normalize_text(&odontogram.condition);
+    if treatment.name.trim().is_empty() {
+        treatment.name = "Tratamiento general legacy".to_string();
+    }
+    treatment.description = Some("Generado desde odontograma legacy de boca completa".to_string());
+    treatment.sector = Some("general".to_string());
+    treatment.created_at_legacy = odontogram.date.clone();
+    treatment.notes = odontogram
+        .notes
+        .clone()
+        .or_else(|| Some("Importado desde diente 99 legacy".to_string()));
+    treatment.raw_data = odontogram.raw_data.clone();
+    treatment.metadata = odontogram.metadata.clone();
+    treatment.recalculate_balance();
+    treatment
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

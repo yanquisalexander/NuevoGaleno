@@ -113,6 +113,8 @@ pub struct TreatmentDto {
     pub legacy_patient_id: Option<String>,
     pub patient_temp_id: Option<String>, // Referencia al paciente padre si está disponible
     pub reference_code: Option<String>,
+    pub legacy_catalog_key: Option<String>,
+    pub treatment_catalog_id: Option<i64>,
 
     // Datos del tratamiento
     pub name: String,
@@ -155,6 +157,8 @@ impl TreatmentDto {
             legacy_patient_id: None,
             patient_temp_id,
             reference_code: None,
+            legacy_catalog_key: None,
+            treatment_catalog_id: None,
             name: String::new(),
             description: None,
             tooth_number: None,
@@ -185,6 +189,73 @@ impl TreatmentDto {
         let payments_sum: f64 = self.payments.iter().map(|p| p.amount).sum();
         (payments_sum - self.paid_amount).abs() < 0.01 // Tolerancia de 1 centavo
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyCatalogDraft {
+    pub name: String,
+    pub description: Option<String>,
+    pub default_cost: f64,
+    pub category: Option<String>,
+    pub color: Option<String>,
+    pub icon: Option<String>,
+    pub show_independently: bool,
+    pub applies_to_whole_tooth: bool,
+    pub visual_effect: Option<String>,
+    pub is_bridge_component: bool,
+}
+
+impl Default for LegacyCatalogDraft {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            description: None,
+            default_cost: 0.0,
+            category: Some("Importados".to_string()),
+            color: Some("#5b8def".to_string()),
+            icon: None,
+            show_independently: false,
+            applies_to_whole_tooth: false,
+            visual_effect: None,
+            is_bridge_component: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LegacyTreatmentResolution {
+    Unresolved,
+    ExistingCatalog { treatment_catalog_id: i64 },
+    CreateCatalog { draft: LegacyCatalogDraft },
+    ReuseCreatedCatalog { source_group_key: String },
+}
+
+impl Default for LegacyTreatmentResolution {
+    fn default() -> Self {
+        Self::Unresolved
+    }
+}
+
+impl LegacyTreatmentResolution {
+    pub fn is_resolved(&self) -> bool {
+        !matches!(self, Self::Unresolved)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyTreatmentGroup {
+    pub key: String,
+    pub display_name: String,
+    pub reference_code: Option<String>,
+    pub occurrence_count: usize,
+    pub patient_count: usize,
+    pub total_cost: f64,
+    pub sample_tooth_numbers: Vec<String>,
+    pub is_general_treatment: bool,
+    pub suggested_draft: LegacyCatalogDraft,
+    #[serde(default)]
+    pub resolution: LegacyTreatmentResolution,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

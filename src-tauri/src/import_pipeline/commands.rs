@@ -14,6 +14,7 @@ struct ImportSessionState {
     run_id: String,
     source_path: String,
     patients: Vec<models::PatientDto>,
+    legacy_treatment_groups: Vec<models::LegacyTreatmentGroup>,
     orphan_treatments: Vec<models::TreatmentDto>,
     orphan_payments: Vec<models::PaymentDto>,
     orphan_odontograms: Vec<models::OdontogramDto>,
@@ -120,6 +121,7 @@ pub async fn start_import_session(
         run_id: run_id.clone(),
         source_path: extracted_dir.clone(),
         patients: transform_result.patients.clone(),
+        legacy_treatment_groups: transform_result.legacy_treatment_groups,
         orphan_treatments: transform_result.orphan_treatments,
         orphan_payments: transform_result.orphan_payments,
         orphan_odontograms: transform_result.orphan_odontograms,
@@ -135,6 +137,7 @@ pub async fn start_import_session(
         "patients_found": transform_result.patients.len(),
         "transformation_issues": issues_len,
         "issues": state.as_ref().map(|s| s.transform_issues.clone()).unwrap_or_default(),
+        "legacy_treatment_groups": state.as_ref().map(|s| s.legacy_treatment_groups.len()).unwrap_or(0),
         "orphan_treatments": state.as_ref().map(|s| s.orphan_treatments.len()).unwrap_or(0),
         "orphan_payments": state.as_ref().map(|s| s.orphan_payments.len()).unwrap_or(0),
         "orphan_odontograms": state.as_ref().map(|s| s.orphan_odontograms.len()).unwrap_or(0),
@@ -182,7 +185,12 @@ pub fn generate_import_preview() -> Result<serde_json::Value, String> {
         .ok_or("Debe validar los datos antes de generar la previsualización")?;
 
     // Generar preview (incluyendo orphan payments globales sin paciente)
-    let preview = previewer::generate_preview(&session.patients, &session.orphan_payments, validation);
+    let preview = previewer::generate_preview(
+        &session.patients,
+        &session.orphan_payments,
+        &session.legacy_treatment_groups,
+        validation,
+    );
 
     let can_proceed = preview.can_proceed;
 
@@ -199,6 +207,185 @@ pub fn generate_import_preview() -> Result<serde_json::Value, String> {
         "can_proceed": can_proceed,
         "status": "preview_ready"
     }))
+}
+
+#[tauri::command]
+pub fn resolve_legacy_treatment_with_catalog(
+    group_key: String,
+    treatment_catalog_id: i64,
+) -> Result<serde_json::Value, String> {
+    crate::db::treatment_catalog::get_treatment_catalog_by_id(treatment_catalog_id)?
+        .ok_or_else(|| "Tratamiento de catálogo no encontrado".to_string())?;
+
+    let mut state = IMPORT_STATE.lock().unwrap();
+    let session = state
+        .as_mut()
+        .ok_or("No hay sesión de importación activa")?;
+
+    let group_index = session
+        .legacy_treatment_groups
+        .iter()
+        .position(|group| group.key == group_key)
+        .ok_or_else(|| "Grupo legacy no encontrado".to_string())?;
+
+    session.legacy_treatment_groups[group_index].resolution =
+        models::LegacyTreatmentResolution::ExistingCatalog {
+            treatment_catalog_id,
+        };
+    let resolved_group_key = session.legacy_treatment_groups[group_index].key.clone();
+    let resolution = session.legacy_treatment_groups[group_index]
+        .resolution
+        .clone();
+    clear_dependent_reuse_resolutions(&mut session.legacy_treatment_groups, &group_key);
+
+    Ok(serde_json::json!({
+        "group_key": resolved_group_key,
+        "resolved": true,
+        "resolution": resolution,
+    }))
+}
+
+#[tauri::command]
+pub fn resolve_legacy_treatment_with_new_catalog(
+    group_key: String,
+    draft: models::LegacyCatalogDraft,
+) -> Result<serde_json::Value, String> {
+    if draft.name.trim().is_empty() {
+        return Err("El nombre del tratamiento nuevo es obligatorio".to_string());
+    }
+
+    let mut state = IMPORT_STATE.lock().unwrap();
+    let session = state
+        .as_mut()
+        .ok_or("No hay sesión de importación activa")?;
+
+    let group = session
+        .legacy_treatment_groups
+        .iter_mut()
+        .find(|group| group.key == group_key)
+        .ok_or_else(|| "Grupo legacy no encontrado".to_string())?;
+
+    group.resolution = models::LegacyTreatmentResolution::CreateCatalog { draft };
+
+    Ok(serde_json::json!({
+        "group_key": group.key.clone(),
+        "resolved": true,
+        "resolution": group.resolution.clone(),
+    }))
+}
+
+#[tauri::command]
+pub fn resolve_legacy_treatment_with_pending_catalog(
+    group_key: String,
+    source_group_key: String,
+) -> Result<serde_json::Value, String> {
+    let mut state = IMPORT_STATE.lock().unwrap();
+    let session = state
+        .as_mut()
+        .ok_or("No hay sesión de importación activa")?;
+
+    if group_key == source_group_key {
+        return Err("No puede reutilizar el mismo grupo como origen".to_string());
+    }
+
+    let canonical_source_group_key =
+        normalize_pending_catalog_source(&session.legacy_treatment_groups, &source_group_key)?;
+
+    let group = session
+        .legacy_treatment_groups
+        .iter_mut()
+        .find(|group| group.key == group_key)
+        .ok_or_else(|| "Grupo legacy no encontrado".to_string())?;
+
+    group.resolution = models::LegacyTreatmentResolution::ReuseCreatedCatalog {
+        source_group_key: canonical_source_group_key.clone(),
+    };
+
+    Ok(serde_json::json!({
+        "group_key": group.key.clone(),
+        "resolved": true,
+        "resolution": group.resolution.clone(),
+        "source_group_key": canonical_source_group_key,
+    }))
+}
+
+#[tauri::command]
+pub fn clear_legacy_treatment_resolution(group_key: String) -> Result<serde_json::Value, String> {
+    let mut state = IMPORT_STATE.lock().unwrap();
+    let session = state
+        .as_mut()
+        .ok_or("No hay sesión de importación activa")?;
+
+    let group_index = session
+        .legacy_treatment_groups
+        .iter()
+        .position(|group| group.key == group_key)
+        .ok_or_else(|| "Grupo legacy no encontrado".to_string())?;
+
+    session.legacy_treatment_groups[group_index].resolution =
+        models::LegacyTreatmentResolution::Unresolved;
+    let cleared_group_key = session.legacy_treatment_groups[group_index].key.clone();
+    clear_dependent_reuse_resolutions(&mut session.legacy_treatment_groups, &group_key);
+
+    Ok(serde_json::json!({
+        "group_key": cleared_group_key,
+        "resolved": false,
+    }))
+}
+
+fn clear_dependent_reuse_resolutions(
+    groups: &mut [models::LegacyTreatmentGroup],
+    source_group_key: &str,
+) {
+    for group in groups.iter_mut() {
+        if let models::LegacyTreatmentResolution::ReuseCreatedCatalog {
+            source_group_key: current_source,
+        } = &group.resolution
+        {
+            if current_source == source_group_key {
+                group.resolution = models::LegacyTreatmentResolution::Unresolved;
+            }
+        }
+    }
+}
+
+fn normalize_pending_catalog_source(
+    groups: &[models::LegacyTreatmentGroup],
+    source_group_key: &str,
+) -> Result<String, String> {
+    let mut current_key = source_group_key.to_string();
+    let mut visited = std::collections::HashSet::new();
+
+    loop {
+        if !visited.insert(current_key.clone()) {
+            return Err(
+                "Se detectó una referencia circular entre catálogos legacy pendientes".to_string(),
+            );
+        }
+
+        let group = groups
+            .iter()
+            .find(|group| group.key == current_key)
+            .ok_or_else(|| "Grupo origen no encontrado".to_string())?;
+
+        match &group.resolution {
+            models::LegacyTreatmentResolution::CreateCatalog { .. } => return Ok(current_key),
+            models::LegacyTreatmentResolution::ReuseCreatedCatalog { source_group_key } => {
+                current_key = source_group_key.clone();
+            }
+            models::LegacyTreatmentResolution::ExistingCatalog { .. } => {
+                return Err(
+                    "El grupo origen ya apunta a un catálogo existente; selecciónelo directamente"
+                        .to_string(),
+                )
+            }
+            models::LegacyTreatmentResolution::Unresolved => {
+                return Err(
+                    "El grupo origen todavía no tiene un catálogo nuevo definido".to_string(),
+                )
+            }
+        }
+    }
 }
 
 /// Paso 4: Confirma y persiste los datos en SQLite
@@ -220,10 +407,24 @@ pub async fn confirm_and_persist_import(
         return Err("No se puede persistir: hay errores críticos en la validación".to_string());
     }
 
+    let unresolved_legacy_groups = session
+        .legacy_treatment_groups
+        .iter()
+        .filter(|group| !group.resolution.is_resolved())
+        .count();
+
+    if unresolved_legacy_groups > 0 {
+        return Err(format!(
+            "No se puede persistir: hay {} tratamientos legacy sin resolver",
+            unresolved_legacy_groups
+        ));
+    }
+
     // Clone data we need outside the lock
     let run_id = session.run_id.clone();
     let source_path = session.source_path.clone();
     let patients = session.patients.clone();
+    let legacy_treatment_groups = session.legacy_treatment_groups.clone();
     let orphan_treatments = session.orphan_treatments.clone();
     let orphan_payments = session.orphan_payments.clone();
     let orphan_odontograms = session.orphan_odontograms.clone();
@@ -280,6 +481,7 @@ pub async fn confirm_and_persist_import(
         &run_id,
         &source_path,
         &patients,
+        &legacy_treatment_groups,
         &orphan_treatments,
         &orphan_payments,
         &orphan_odontograms,
@@ -333,6 +535,8 @@ pub fn get_import_session_status() -> Result<serde_json::Value, String> {
             "run_id": session.run_id,
             "source_path": session.source_path,
             "patients_count": session.patients.len(),
+            "legacy_treatment_groups": session.legacy_treatment_groups.len(),
+            "unresolved_legacy_treatment_groups": session.legacy_treatment_groups.iter().filter(|group| !group.resolution.is_resolved()).count(),
             "orphan_treatments": session.orphan_treatments.len(),
             "orphan_payments": session.orphan_payments.len(),
             "orphan_odontograms": session.orphan_odontograms.len(),
@@ -371,6 +575,7 @@ pub fn export_session_debug() -> Result<String, String> {
         "run_id": session.run_id,
         "source_path": session.source_path,
         "patients": session.patients.clone(),
+        "legacy_treatment_groups": session.legacy_treatment_groups.clone(),
         "orphan_treatments": session.orphan_treatments.clone(),
         "orphan_payments": session.orphan_payments.clone(),
         "orphan_odontograms": session.orphan_odontograms.clone(),
@@ -389,9 +594,42 @@ pub fn export_session_debug() -> Result<String, String> {
 
 /// Detecta archivos .doc en el directorio de importación
 #[tauri::command]
-pub fn detect_doc_files_in_import(source_path: String) -> Result<serde_json::Value, String> {
-    let doc_files = doc_converter::detect_doc_files(&source_path)?;
+pub fn detect_doc_files_in_import(
+    window: tauri::Window,
+    source_path: String,
+) -> Result<serde_json::Value, String> {
+    let _ = window.emit(
+        "import:progress",
+        serde_json::json!({
+            "stage": "checking",
+            "message": "Escaneando archivos de historias clínicas..."
+        }),
+    );
+
+    let mut progress = |scanned: usize, found: usize| {
+        let _ = window.emit(
+            "import:progress",
+            serde_json::json!({
+                "stage": "checking",
+                "message": format!("Escaneando historias clínicas: {} archivos revisados, {} .doc detectados", scanned, found)
+            }),
+        );
+    };
+
+    let doc_files = doc_converter::detect_doc_files(&source_path, Some(&mut progress))?;
     let info = doc_converter::get_doc_files_info(&doc_files);
+
+    let _ = window.emit(
+        "import:progress",
+        serde_json::json!({
+            "stage": "checking",
+            "message": if doc_files.is_empty() {
+                "No se detectaron archivos .doc; continuando con la importación".to_string()
+            } else {
+                format!("Se detectaron {} archivos .doc", doc_files.len())
+            }
+        }),
+    );
 
     Ok(serde_json::json!({
         "found": doc_files.len() > 0,
@@ -400,12 +638,80 @@ pub fn detect_doc_files_in_import(source_path: String) -> Result<serde_json::Val
     }))
 }
 
-/// Convierte archivos .doc a .txt usando Word COM (requiere Microsoft Word en Windows)
-/// IMPORTANTE: Abre PowerShell en segundo plano para ejecutar la conversión
+/// Retorna el estado de los motores de conversión de documentos disponibles.
+///
+/// - `has_libreoffice`/`libreoffice_path` indica si hay una instalación de LibreOffice disponible.
+/// - `has_word` indica si Microsoft Word está disponible (para fallback).
+#[tauri::command]
+pub fn check_doc_conversion_environment() -> Result<serde_json::Value, String> {
+    let libreoffice_path = doc_converter::find_libreoffice_executable()?;
+    let has_libreoffice = libreoffice_path.is_some();
+    let has_word = is_word_available();
+
+    Ok(serde_json::json!({
+        "has_libreoffice": has_libreoffice,
+        "libreoffice_path": libreoffice_path.map(|p| p.display().to_string()),
+        "has_word": has_word,
+        "recommended": if has_libreoffice {
+            "libreoffice"
+        } else if has_word {
+            "word"
+        } else {
+            "none"
+        }
+    }))
+}
+
+/// Comprueba si hay Microsoft Word instalado (Windows) usando `where winword.exe`.
+fn is_word_available() -> bool {
+    std::process::Command::new("where")
+        .arg("winword.exe")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+/// Descarga LibreOffice portable y lo instala en el directorio de datos de Galeno.
+/// Emite eventos de progreso (`doc_conversion:progress`) durante el proceso.
+#[tauri::command]
+pub async fn download_libreoffice_portable(
+    window: tauri::Window,
+) -> Result<serde_json::Value, String> {
+    let window_clone = window.clone();
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let mut callback = |current: usize, total: usize, message: String| {
+            let _ = window_clone.emit(
+                "doc_conversion:progress",
+                serde_json::json!({
+                    "stage": "downloading",
+                    "current": current,
+                    "total": total,
+                    "message": message,
+                }),
+            );
+        };
+
+        doc_converter::download_libreoffice_portable(Some(&mut callback))
+    })
+    .await
+    .map_err(|e| format!("Error en la tarea de descarga: {}", e))?;
+
+    match result {
+        Ok(exe_path) => Ok(serde_json::json!({
+            "installed": true,
+            "libreoffice_path": exe_path.display().to_string(),
+        })),
+        Err(err) => Err(err),
+    }
+}
+
+/// Convierte archivos .doc a .txt. Usa LibreOffice si está disponible, de lo contrario cae en Word+PowerShell.
 #[tauri::command]
 pub async fn convert_doc_files_to_txt(
     window: tauri::Window,
     doc_files_paths: Vec<String>,
+    preferred_engine: Option<String>,
 ) -> Result<serde_json::Value, String> {
     use std::io::{BufRead, BufReader};
     use std::path::PathBuf;
@@ -429,6 +735,55 @@ pub async fn convert_doc_files_to_txt(
 
     // Convertir strings a PathBuf
     let paths: Vec<PathBuf> = doc_files_paths.iter().map(|s| PathBuf::from(s)).collect();
+
+    let prefer_word = preferred_engine.as_deref() == Some("word");
+    let prefer_libreoffice = preferred_engine.as_deref() == Some("libreoffice");
+
+    // Si el usuario fuerza usar Word, saltamos LibreOffice aunque esté disponible.
+    if !prefer_word {
+        if let Ok(Some(lo_exe)) = doc_converter::find_libreoffice_executable() {
+            if prefer_libreoffice || preferred_engine.is_none() {
+                let window_clone = window.clone();
+                let result = tauri::async_runtime::spawn_blocking(move || {
+                    let mut callback = |current: usize, total: usize, message: String| {
+                        let _ = window_clone.emit(
+                            "doc_conversion:progress",
+                            serde_json::json!({
+                                "stage": "converting",
+                                "current": current,
+                                "total": total,
+                                "message": message,
+                            }),
+                        );
+                    };
+                    doc_converter::convert_doc_with_libreoffice(&paths, &lo_exe, Some(&mut callback))
+                })
+                .await
+                .map_err(|e| format!("Error en la tarea de conversión: {}", e))?;
+
+                match result {
+                    Ok((success, errors)) => {
+                        let _ = window.emit("doc_conversion:progress", serde_json::json!({
+                            "stage": "complete",
+                            "current": total,
+                            "total": total,
+                            "message": format!("✅ Conversión completada: {} exitosos, {} errores", success, errors.len())
+                        }));
+
+                        return Ok(serde_json::json!({
+                            "success": success,
+                            "errors": errors,
+                            "total": total,
+                        }));
+                    }
+                    Err(err) => return Err(err),
+                }
+            }
+        }
+    }
+
+    // Si preferimos libreoffice pero no está disponible, caemos a Word.
+    // Si preferimos Word o no hay LibreOffice disponible, usamos PowerShell.
 
     // Preparar archivos temporales
     let temp_dir = std::env::temp_dir();

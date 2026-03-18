@@ -12,6 +12,9 @@ export interface TreatmentCatalogEntry {
     applies_to_whole_tooth: boolean;
     visual_effect?: string; // 'darken', 'absent', 'implant', etc.
     is_bridge_component: boolean;
+    is_imported: boolean;
+    import_source?: string;
+    legacy_reference?: string;
     is_active: boolean;
     created_at: string;
     updated_at: string;

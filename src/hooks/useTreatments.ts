@@ -4,6 +4,7 @@ export interface Treatment {
     id: number;
     patient_id: number;
     legacy_id?: string;
+    treatment_catalog_id?: number;
     name: string;
     tooth_number?: string;
     sector?: string;
